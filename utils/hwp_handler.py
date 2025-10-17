@@ -106,11 +106,18 @@ class HWPHandler:
         # 플레이스홀더 매핑
         placeholders = {
             "{{TITLE}}": content.get("title", ""),
+            "{{TITLE_BACKGROUND}}": content.get("title_background", "배경 및 목적"),
+            "{{TITLE_MAIN_CONTENT}}": content.get("title_main_content", "주요 내용"),
+            "{{TITLE_CONCLUSION}}": content.get("title_conclusion", "결론 및 제언"),
+            "{{TITLE_SUMMARY}}": content.get("title_summary", "요약"),
             "{{SUMMARY}}": content.get("summary", ""),
             "{{BACKGROUND}}": content.get("background", ""),
             "{{MAIN_CONTENT}}": content.get("main_content", ""),
             "{{CONCLUSION}}": content.get("conclusion", ""),
-            "{{DATE}}": content.get("date", "")
+            "{{DATE}}": content.get("date", ""),
+            # 템플릿의 오타 지원 (SUMARY -> SUMMARY)
+            "{{SUMARY}}": content.get("summary", ""),
+            "{{TITLE_SUMARY}}": content.get("title_summary", "요약")
         }
 
         # 모든 XML 파일 순회
@@ -144,6 +151,10 @@ class HWPHandler:
 
             # 변경사항이 있으면 파일에 쓰기
             if modified:
+                # 생성된 <hp:p> 태그들 중 중간 단락들의 linesegarray 제거
+                # (한글이 파일을 열 때 자동으로 재계산하도록)
+                content = self._clean_linesegarray(content)
+
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(content)
 
@@ -151,9 +162,35 @@ class HWPHandler:
             # XML 파싱 에러는 무시 (바이너리 파일일 수 있음)
             pass
 
+    def _clean_linesegarray(self, content: str) -> str:
+        """
+        생성된 단락들에서 불완전한 linesegarray를 제거합니다.
+
+        한글 워드프로세서는 linesegarray가 없으면 파일을 열 때 자동으로 계산하지만,
+        불완전한 linesegarray가 있으면 그대로 사용하여 줄바꿈이 제대로 표시되지 않습니다.
+
+        Args:
+            content: XML 내용
+
+        Returns:
+            str: linesegarray가 정리된 XML 내용
+        """
+        import re
+
+        # 우리가 생성한 <hp:p> 태그들 중에서 linesegarray를 제거
+        # 패턴: </hp:t></hp:run><hp:linesegarray>...</hp:linesegarray></hp:p>
+        # → </hp:t></hp:run></hp:p>로 변경
+        pattern = r'(</hp:t></hp:run>)<hp:linesegarray>.*?</hp:linesegarray>(</hp:p>)'
+        content = re.sub(pattern, r'\1\2', content, flags=re.DOTALL)
+
+        return content
+
     def _format_for_hwp(self, text: str) -> str:
         """
         텍스트를 HWP XML 형식에 맞게 포맷팅합니다.
+
+        단락 단위로 분리하여 각 단락이 별도의 <hp:p> 태그로 렌더링되도록 합니다.
+        이렇게 하면 한글 워드프로세서가 자동으로 올바른 레이아웃 정보(linesegarray)를 생성합니다.
 
         Args:
             text: 원본 텍스트
@@ -161,29 +198,70 @@ class HWPHandler:
         Returns:
             str: 포맷팅된 텍스트
         """
-        # 특수 문자 이스케이프
-        text = text.replace('&', '&amp;')
-        text = text.replace('<', '&lt;')
-        text = text.replace('>', '&gt;')
-        text = text.replace('"', '&quot;')
-        text = text.replace("'", '&apos;')
+        # 1. 단락 단위로 분리 (이중 줄바꿈 기준)
+        paragraphs = text.split('\n\n')
 
-        return text
+        # 2. 각 단락 처리
+        formatted_paragraphs = []
+        for para in paragraphs:
+            if para.strip():  # 빈 단락 제외
+                # 단락 내부의 단일 줄바꿈을 <hp:lineBreak/>로 변환
+                para = para.replace('\n', '___SINGLE_LINEBREAK___')
+
+                # 특수 문자 이스케이프
+                para = para.replace('&', '&amp;')
+                para = para.replace('<', '&lt;')
+                para = para.replace('>', '&gt;')
+                para = para.replace('"', '&quot;')
+                para = para.replace("'", '&apos;')
+
+                # 단일 줄바꿈을 lineBreak 태그로 변환
+                para = para.replace('___SINGLE_LINEBREAK___', '<hp:lineBreak/>')
+
+                formatted_paragraphs.append(para)
+
+        # 3. 각 단락을 </hp:t></hp:run></hp:p><hp:p ...><hp:run ...><hp:t> 패턴으로 연결
+        if len(formatted_paragraphs) == 0:
+            return ''
+        elif len(formatted_paragraphs) == 1:
+            return formatted_paragraphs[0]
+        else:
+            # 여러 단락을 별도의 <hp:p> 태그로 분리
+            # 템플릿의 각 플레이스홀더 뒤에 빈 <hp:p> 태그가 있으므로 이를 활용
+            # 단락 구분: </hp:t></hp:run></hp:p><hp:p id="2147483648" paraPrIDRef="8" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="21"><hp:t>
+            result = formatted_paragraphs[0]
+            for para in formatted_paragraphs[1:]:
+                # 단락 구분자: 현재 단락 닫고 새 단락 시작
+                result += '</hp:t></hp:run></hp:p><hp:p id="2147483648" paraPrIDRef="8" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="21"><hp:t>' + para
+
+            return result
 
     def _compress_to_hwpx(self, work_dir: str, output_path: str):
         """
         작업 디렉토리를 HWPX 파일로 압축합니다.
+
+        HWPX 표준: mimetype 파일은 압축하지 않고(STORED) 첫 번째 엔트리로 추가해야 함
 
         Args:
             work_dir: 작업 디렉토리
             output_path: 출력 HWPX 파일 경로
         """
         with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # 1. mimetype 파일을 먼저 압축하지 않고 추가 (HWPX 표준)
+            mimetype_path = os.path.join(work_dir, 'mimetype')
+            if os.path.exists(mimetype_path):
+                zipf.write(mimetype_path, 'mimetype', compress_type=zipfile.ZIP_STORED)
+
+            # 2. 나머지 파일들을 압축하여 추가
             for root, dirs, files in os.walk(work_dir):
                 for file in files:
+                    # mimetype은 이미 추가했으므로 건너뛰기
+                    if file == 'mimetype' and root == work_dir:
+                        continue
+
                     file_path = os.path.join(root, file)
                     arcname = os.path.relpath(file_path, work_dir)
-                    zipf.write(file_path, arcname)
+                    zipf.write(file_path, arcname, compress_type=zipfile.ZIP_DEFLATED)
 
     def create_simple_template(self, output_path: str):
         """

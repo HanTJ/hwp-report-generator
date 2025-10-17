@@ -36,12 +36,22 @@ HWP Report Generator: A FastAPI-based web system that automatically generates Ko
 ### HWP Template Placeholders
 
 The HWPX template uses these placeholders that Claude's generated content replaces:
+
+**Main Content Placeholders:**
 - `{{TITLE}}` - Report title
-- `{{SUMMARY}}` - Executive summary
-- `{{BACKGROUND}}` - Background and purpose
-- `{{MAIN_CONTENT}}` - Main body content
-- `{{CONCLUSION}}` - Conclusion and recommendations
 - `{{DATE}}` - Generation date
+- `{{BACKGROUND}}` - Background and purpose section content
+- `{{MAIN_CONTENT}}` - Main body content
+- `{{CONCLUSION}}` - Conclusion and recommendations content
+- `{{SUMMARY}}` - Executive summary content
+
+**Section Title Placeholders:**
+- `{{TITLE_BACKGROUND}}` - Background section heading (default: "배경 및 목적")
+- `{{TITLE_MAIN_CONTENT}}` - Main content section heading (default: "주요 내용")
+- `{{TITLE_CONCLUSION}}` - Conclusion section heading (default: "결론 및 제언")
+- `{{TITLE_SUMMARY}}` - Summary section heading (default: "요약")
+
+Note: Section title placeholders allow customization of section headings while maintaining consistent template structure.
 
 ## Environment Setup
 
@@ -90,6 +100,17 @@ http://localhost:8000/docs  # API Documentation (Swagger)
 - **Compatibility**: HWPX format ensures cross-platform compatibility
 - **Character encoding**: Ensure UTF-8 encoding for Korean text
 - **Auto Template Generation**: If `templates/report_template.hwpx` doesn't exist, the system automatically creates a basic template on first report generation (main.py:113-161)
+
+### Line Break Handling in HWPX
+
+The system implements a sophisticated approach to handle line breaks in HWPX format:
+
+1. **Paragraph Separation**: Double line breaks (`\n\n`) split text into separate `<hp:p>` (paragraph) tags
+2. **Line Break Tags**: Single line breaks (`\n`) within paragraphs are converted to `<hp:lineBreak/>` XML tags
+3. **Layout Cleanup**: Automatically removes incomplete `<hp:linesegarray>` elements that would prevent proper rendering
+4. **Auto-calculation**: Hangul Word Processor automatically recalculates layout information when opening files without linesegarray data
+
+This ensures that generated reports display with proper line breaks when opened in Hangul Word Processor, without requiring manual layout calculations.
 
 ## Project Structure
 
