@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWP 보고서 자동 생성 시스템</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 HWP 보고서 자동 생성 시스템</h1>
+            <p class="subtitle">Claude AI를 활용한 금융 업무보고서 자동 생성</p>
+        </header>
+
+        <main>
+            <div class="card">
+                <h2>보고서 생성</h2>
+                <form id="reportForm">
+                    <div class="form-group">
+                        <label for="topic">보고서 주제</label>
+                        <input
+                            type="text"
+                            id="topic"
+                            name="topic"
+                            placeholder="예: 2024년 디지털 뱅킹 서비스 현황 분석"
+                            required
+                            minlength="3"
+                        >
+                        <small>최소 3자 이상 입력해주세요.</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="generateBtn">
+                        <span class="btn-text">보고서 생성</span>
+                        <span class="spinner" style="display: none;">⏳ 생성 중...</span>
+                    </button>
+                </form>
+
+                <div id="result" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="card">
+                <h2>생성된 보고서 목록</h2>
+                <div id="reportList" class="report-list">
+                    <p class="loading">보고서 목록을 불러오는 중...</p>
+                </div>
+                <button class="btn btn-secondary" id="refreshBtn">목록 새로고침</button>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2025 HWP Report Generator | Powered by KJBank R&D HanTJ</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
