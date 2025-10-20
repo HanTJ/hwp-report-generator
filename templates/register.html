@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>회원가입 - HWP 보고서 자동 생성 시스템</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container auth-container">
+        <header>
+            <h1>📄 HWP 보고서 자동 생성 시스템</h1>
+            <p class="subtitle">회원가입</p>
+        </header>
+
+        <main>
+            <div class="card auth-card">
+                <h2>회원가입</h2>
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label for="email">이메일</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            placeholder="이메일을 입력하세요"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="username">사용자명</label>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            placeholder="사용자명을 입력하세요 (3자 이상)"
+                            required
+                            minlength="3"
+                            maxlength="50"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">비밀번호</label>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="비밀번호를 입력하세요 (8자 이상)"
+                            required
+                            minlength="8"
+                        >
+                        <small>최소 8자 이상 입력해주세요.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">비밀번호 확인</label>
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            placeholder="비밀번호를 다시 입력하세요"
+                            required
+                        >
+                    </div>
+
+                    <div id="result" class="result" style="display: none;"></div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-text">회원가입</span>
+                    </button>
+                </form>
+
+                <div class="auth-links">
+                    <p>이미 계정이 있으신가요? <a href="/login">로그인</a></p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2025 HWP Report Generator | Powered by KJBank R&D HanTJ</p>
+        </footer>
+    </div>
+
+    <script src="/static/auth.js"></script>
+</body>
+</html>

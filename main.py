@@ -13,6 +13,9 @@ import logging
 
 from utils.claude_client import ClaudeClient
 from utils.hwp_handler import HWPHandler
+from utils.auth import hash_password
+from database import init_db, UserDB
+from routers import auth_router, reports_router, admin_router
 
 # 환경 변수 로드
 load_dotenv()
@@ -31,6 +34,29 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# 앱 시작 시 실행
+@app.on_event("startup")
+async def startup_event():
+    """애플리케이션 시작 시 실행"""
+    logger.info("애플리케이션 시작 중...")
+
+    # 필요한 디렉토리 생성
+    os.makedirs("templates", exist_ok=True)
+    os.makedirs("static", exist_ok=True)
+    os.makedirs("output", exist_ok=True)
+    os.makedirs("temp", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
+
+    # 데이터베이스 초기화
+    logger.info("데이터베이스를 초기화합니다...")
+    init_db()
+    logger.info("데이터베이스 초기화 완료")
+
+    # 관리자 계정 생성
+    logger.info("관리자 계정을 확인/생성합니다...")
+    init_admin_user()
+    logger.info("애플리케이션 시작 완료")
+
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
@@ -43,6 +69,11 @@ app.add_middleware(
 # 정적 파일 및 템플릿 설정
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# 라우터 등록
+app.include_router(auth_router)
+app.include_router(reports_router)
+app.include_router(admin_router)
 
 # 템플릿 파일 경로
 TEMPLATE_PATH = "templates/report_template.hwpx"
@@ -65,6 +96,30 @@ class ReportResponse(BaseModel):
 async def index(request: Request):
     """메인 페이지"""
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """로그인 페이지"""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    """회원가입 페이지"""
+    return templates.TemplateResponse("register.html", {"request": request})
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request):
+    """관리자 페이지"""
+    return templates.TemplateResponse("admin.html", {"request": request})
+
+
+@app.get("/change-password", response_class=HTMLResponse)
+async def change_password_page(request: Request):
+    """비밀번호 변경 페이지"""
+    return templates.TemplateResponse("change-password.html", {"request": request})
 
 
 @app.get("/health")
@@ -271,6 +326,40 @@ async def list_reports():
         )
 
 
+def init_admin_user():
+    """관리자 계정 자동 생성"""
+    try:
+        admin_email = os.getenv("ADMIN_EMAIL", "admin@example.com")
+        admin_password = os.getenv("ADMIN_PASSWORD", "admin123!@#")
+        admin_username = os.getenv("ADMIN_USERNAME", "관리자")
+
+        # 관리자 계정이 이미 있는지 확인
+        existing_admin = UserDB.get_user_by_email(admin_email)
+        if existing_admin:
+            logger.info("관리자 계정이 이미 존재합니다.")
+            return
+
+        # 관리자 계정 생성
+        from models.user import UserCreate, UserUpdate
+        admin_data = UserCreate(
+            email=admin_email,
+            username=admin_username,
+            password=admin_password
+        )
+
+        hashed_password = hash_password(admin_password)
+        admin_user = UserDB.create_user(admin_data, hashed_password)
+
+        # 관리자 권한 및 활성화
+        update = UserUpdate(is_active=True, is_admin=True)
+        UserDB.update_user(admin_user.id, update)
+
+        logger.info(f"관리자 계정이 생성되었습니다. 이메일: {admin_email}")
+
+    except Exception as e:
+        logger.error(f"관리자 계정 생성 중 오류: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
 
@@ -279,9 +368,20 @@ if __name__ == "__main__":
     os.makedirs("static", exist_ok=True)
     os.makedirs("output", exist_ok=True)
     os.makedirs("temp", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
+
+    # 데이터베이스 초기화
+    logger.info("데이터베이스를 초기화합니다...")
+    init_db()
+    logger.info("데이터베이스 초기화 완료")
+
+    # 관리자 계정 생성
+    logger.info("관리자 계정을 확인/생성합니다...")
+    init_admin_user()
 
     logger.info("HWP 보고서 생성 시스템을 시작합니다...")
     logger.info("서버 주소: http://localhost:8000")
+    logger.info("API 문서: http://localhost:8000/docs")
 
     uvicorn.run(
         "main:app",

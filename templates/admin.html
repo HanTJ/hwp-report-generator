@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 페이지 - HWP 보고서 자동 생성 시스템</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 HWP 보고서 자동 생성 시스템</h1>
+            <p class="subtitle">관리자 페이지</p>
+            <div class="user-info">
+                <span id="currentUser"></span>
+                <button class="btn btn-small" onclick="logout()">로그아웃</button>
+                <a href="/" class="btn btn-small">메인으로</a>
+            </div>
+        </header>
+
+        <main>
+            <!-- 사용자 관리 섹션 -->
+            <div class="card">
+                <h2>사용자 관리</h2>
+                <div id="userList" class="user-list">
+                    <p class="loading">사용자 목록을 불러오는 중...</p>
+                </div>
+            </div>
+
+            <!-- 토큰 사용량 통계 섹션 -->
+            <div class="card">
+                <h2>토큰 사용량 통계</h2>
+                <div id="tokenStats" class="token-stats">
+                    <p class="loading">통계를 불러오는 중...</p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>© 2025 HWP Report Generator | Powered by KJBank R&D HanTJ</p>
+        </footer>
+    </div>
+
+    <script src="/static/admin.js"></script>
+</body>
+</html>

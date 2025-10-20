@@ -28,6 +28,11 @@ class ClaudeClient:
 
         self.client = Anthropic(api_key=self.api_key)
 
+        # 토큰 사용량 추적
+        self.last_input_tokens = 0
+        self.last_output_tokens = 0
+        self.last_total_tokens = 0
+
     def generate_report(self, topic: str) -> Dict[str, str]:
         """
         주제를 받아 금융 업무보고서 내용을 생성합니다.
@@ -102,6 +107,11 @@ class ClaudeClient:
 
             logger.info(f"응답 길이: {len(content)} 문자")
             logger.info(f"토큰 사용량 - Input: {message.usage.input_tokens}, Output: {message.usage.output_tokens}")
+
+            # 토큰 사용량 저장
+            self.last_input_tokens = message.usage.input_tokens
+            self.last_output_tokens = message.usage.output_tokens
+            self.last_total_tokens = self.last_input_tokens + self.last_output_tokens
 
             parsed_content = self._parse_report_content(content)
 
