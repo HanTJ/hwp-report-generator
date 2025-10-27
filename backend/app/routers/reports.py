@@ -2,6 +2,7 @@
 보고서 관련 API 라우터
 """
 import os
+from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
@@ -16,7 +17,9 @@ from app.utils.hwp_handler import HWPHandler
 
 router = APIRouter(prefix="/api/reports", tags=["보고서"])
 
-TEMPLATE_PATH = "../../templates/report_template.hwpx"
+# Get the backend directory (2 levels up from this file)
+BACKEND_DIR = Path(__file__).parent.parent.parent
+TEMPLATE_PATH = str(BACKEND_DIR / "templates" / "report_template.hwpx")
 
 
 @router.post("/generate", response_model=ReportResponse)
@@ -44,8 +47,8 @@ async def generate_report(
         # HWP 파일 생성
         hwp_handler = HWPHandler(
             template_path=TEMPLATE_PATH,
-            temp_dir="../../temp",
-            output_dir="../../output"
+            temp_dir=str(BACKEND_DIR / "temp"),
+            output_dir=str(BACKEND_DIR / "output")
         )
 
         output_path = hwp_handler.generate_report(content)

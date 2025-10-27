@@ -29,6 +29,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# Claude
+.Claude/settings.local.json
+
 # Virtual environments
 venv/
 .venv/

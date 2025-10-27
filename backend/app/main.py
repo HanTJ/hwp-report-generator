@@ -34,21 +34,21 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Get the backend directory (1 level up from this file's parent)
+from pathlib import Path
+BACKEND_DIR = Path(__file__).parent.parent
+
 # 앱 시작 시 실행
 @app.on_event("startup")
 async def startup_event():
     """애플리케이션 시작 시 실행"""
     logger.info("애플리케이션 시작 중...")
 
-    # Get the project root directory
-    import pathlib
-    BASE_DIR = pathlib.Path(__file__).parent.parent.parent
-
     # 필요한 디렉토리 생성
-    os.makedirs(BASE_DIR / "backend" / "templates", exist_ok=True)
-    os.makedirs(BASE_DIR / "backend" / "output", exist_ok=True)
-    os.makedirs(BASE_DIR / "backend" / "temp", exist_ok=True)
-    os.makedirs(BASE_DIR / "backend" / "data", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "templates", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "output", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "temp", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "data", exist_ok=True)
 
     # 데이터베이스 초기화
     logger.info("데이터베이스를 초기화합니다...")
@@ -70,19 +70,18 @@ app.add_middleware(
 )
 
 # 정적 파일 및 템플릿 설정
-# Get the project root directory (2 levels up from this file)
-import pathlib
-BASE_DIR = pathlib.Path(__file__).parent.parent.parent
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+# Get the project root directory for legacy static/templates
+PROJECT_ROOT = BACKEND_DIR.parent
+app.mount("/static", StaticFiles(directory=str(PROJECT_ROOT / "static")), name="static")
+templates = Jinja2Templates(directory=str(PROJECT_ROOT / "templates"))
 
 # 라우터 등록
 app.include_router(auth_router)
 app.include_router(reports_router)
 app.include_router(admin_router)
 
-# 템플릿 파일 경로
-TEMPLATE_PATH = "../templates/report_template.hwpx"
+# 템플릿 파일 경로 (HWP 템플릿)
+TEMPLATE_PATH = str(BACKEND_DIR / "templates" / "report_template.hwpx")
 
 
 class ReportRequest(BaseModel):
@@ -173,12 +172,12 @@ async def generate_report(request: ReportRequest):
         # 템플릿이 없으면 간단한 템플릿 생성
         if not os.path.exists(TEMPLATE_PATH):
             logger.warning("템플릿 파일이 없습니다. 기본 템플릿을 생성합니다.")
-            os.makedirs("../templates", exist_ok=True)
-            os.makedirs("../temp", exist_ok=True)
+            os.makedirs(BACKEND_DIR / "templates", exist_ok=True)
+            os.makedirs(BACKEND_DIR / "temp", exist_ok=True)
 
             # 간단한 HWPX 템플릿 직접 생성
             import zipfile
-            work_dir = "../temp/template_creation"
+            work_dir = str(BACKEND_DIR / "temp" / "template_creation")
             os.makedirs(work_dir, exist_ok=True)
             os.makedirs(f"{work_dir}/Contents", exist_ok=True)
 
@@ -224,8 +223,8 @@ async def generate_report(request: ReportRequest):
         # HWP 핸들러 초기화 및 보고서 생성
         hwp_handler = HWPHandler(
             template_path=TEMPLATE_PATH,
-            temp_dir="../temp",
-            output_dir="../output"
+            temp_dir=str(BACKEND_DIR / "temp"),
+            output_dir=str(BACKEND_DIR / "output")
         )
 
         output_path = hwp_handler.generate_report(content)
@@ -268,7 +267,7 @@ async def download_report(filename: str):
         FileResponse: 파일 다운로드 응답
     """
     try:
-        file_path = os.path.join("../output", filename)
+        file_path = str(BACKEND_DIR / "output" / filename)
 
         # 파일 존재 확인
         if not os.path.exists(file_path):
@@ -305,7 +304,7 @@ async def list_reports():
         dict: 보고서 파일 목록
     """
     try:
-        output_dir = "../output"
+        output_dir = str(BACKEND_DIR / "output")
         if not os.path.exists(output_dir):
             return {"reports": []}
 
@@ -369,11 +368,11 @@ def init_admin_user():
 if __name__ == "__main__":
     import uvicorn
 
-    # 필요한 디렉토리 생성 (backend 기준)
-    os.makedirs("../templates", exist_ok=True)
-    os.makedirs("../output", exist_ok=True)
-    os.makedirs("../temp", exist_ok=True)
-    os.makedirs("../data", exist_ok=True)
+    # 필요한 디렉토리 생성
+    os.makedirs(BACKEND_DIR / "templates", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "output", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "temp", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "data", exist_ok=True)
 
     # 데이터베이스 초기화
     logger.info("데이터베이스를 초기화합니다...")
