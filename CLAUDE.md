@@ -131,3 +131,314 @@ hwp-report-generator/
 ## API Key Configuration
 
 The system expects `CLAUDE_API_KEY` in environment variables. Check API usage limits and network connectivity if generation fails.
+
+## API Response Standard
+
+All Backend-Frontend API communications follow a standardized response format for consistency and better error handling.
+
+### Standard Response Structure
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": { /* actual resource or result data */ },
+  "error": null,
+  "meta": {
+    "requestId": "1c0c...f"
+  },
+  "feedback": [
+    {
+      "code": "PROFILE_INCOMPLETE",
+      "level": "info",            // info | warning | error
+      "feedbackCd": "프로필 사진을 등록하면 더 좋아요."
+    }
+  ]
+}
+```
+
+**Failure Response:**
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "AUTH.INVALID_TOKEN",   // unique error code (DOMAIN.DETAIL)
+    "httpStatus": 401,
+    "message": "유효하지 않은 토큰입니다.",
+    "details": { "reason": "expired" },
+    "traceId": "1c0c...f",
+    "hint": "다시 로그인해 주세요."
+  },
+  "meta": { "requestId": "1c0c...f" },
+  "feedback": []
+}
+```
+
+### Field Descriptions
+
+**Common Fields:**
+- `success`: Boolean indicating request success/failure
+- `data`: Actual response data (null on failure)
+- `error`: Error details object (null on success)
+- `meta`: Metadata including `requestId` for tracing
+- `feedback`: Array of optional user feedback/hints
+
+**Error Object Fields:**
+- `code`: Unique error code in `DOMAIN.DETAIL` format
+- `httpStatus`: HTTP status code (401, 404, 500, etc.)
+- `message`: User-friendly error message
+- `details`: Additional error details (optional)
+- `traceId`: Unique ID for error tracing
+- `hint`: Suggested action for user (optional)
+
+**Feedback Object Fields:**
+- `code`: Feedback identifier
+- `level`: `"info"` | `"warning"` | `"error"`
+- `feedbackCd`: Feedback message for user
+
+### Backend Implementation (FastAPI)
+
+**Type Definitions** (`models/api_response.py`):
+```python
+from pydantic import BaseModel
+from typing import Optional, Any, List, Dict
+from enum import Enum
+
+class FeedbackLevel(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+class Feedback(BaseModel):
+    code: str
+    level: FeedbackLevel
+    feedbackCd: str
+
+class ErrorResponse(BaseModel):
+    code: str
+    httpStatus: int
+    message: str
+    details: Optional[Dict[str, Any]] = None
+    traceId: str
+    hint: Optional[str] = None
+
+class ApiResponse(BaseModel):
+    success: bool
+    data: Optional[Any] = None
+    error: Optional[ErrorResponse] = None
+    meta: Dict[str, str]
+    feedback: List[Feedback] = []
+```
+
+**Helper Functions** (`utils/response_helper.py`):
+```python
+import uuid
+from fastapi.responses import JSONResponse
+
+def success_response(data: Any, feedback: List[Feedback] = []):
+    return {
+        "success": True,
+        "data": data,
+        "error": None,
+        "meta": {"requestId": str(uuid.uuid4())},
+        "feedback": feedback
+    }
+
+def error_response(
+    code: str,
+    http_status: int,
+    message: str,
+    details: Dict = None,
+    hint: str = None
+):
+    return JSONResponse(
+        status_code=http_status,
+        content={
+            "success": False,
+            "data": None,
+            "error": {
+                "code": code,
+                "httpStatus": http_status,
+                "message": message,
+                "details": details,
+                "traceId": str(uuid.uuid4()),
+                "hint": hint
+            },
+            "meta": {"requestId": str(uuid.uuid4())},
+            "feedback": []
+        }
+    )
+```
+
+### Frontend Implementation (React/TypeScript)
+
+**Type Definitions** (`types/api.ts` or `src/types/api.ts`):
+```typescript
+export type FeedbackLevel = 'info' | 'warning' | 'error';
+
+export interface Feedback {
+  code: string;
+  level: FeedbackLevel;
+  feedbackCd: string;
+}
+
+export interface ErrorResponse {
+  code: string;
+  httpStatus: number;
+  message: string;
+  details?: Record<string, any>;
+  traceId: string;
+  hint?: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data: T | null;
+  error: ErrorResponse | null;
+  meta: {
+    requestId: string;
+  };
+  feedback: Feedback[];
+}
+```
+
+**Usage Example**:
+```typescript
+import { ApiResponse } from '@/types/api';
+
+async function generateReport(topic: string): Promise<ApiResponse<ReportData>> {
+  const response = await fetch('/api/reports/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic })
+  });
+
+  const result: ApiResponse<ReportData> = await response.json();
+
+  if (result.success) {
+    console.log('Report generated:', result.data);
+  } else {
+    console.error('Error:', result.error?.message);
+    if (result.error?.hint) {
+      console.log('Hint:', result.error.hint);
+    }
+  }
+
+  return result;
+}
+```
+
+### Error Code Conventions
+
+Error codes follow the `DOMAIN.DETAIL` format:
+
+**Authentication (`AUTH.*`):**
+- `AUTH.INVALID_TOKEN` - Invalid authentication token
+- `AUTH.TOKEN_EXPIRED` - Token has expired
+- `AUTH.UNAUTHORIZED` - Insufficient permissions
+- `AUTH.INVALID_CREDENTIALS` - Wrong email/password
+
+**Reports (`REPORT.*`):**
+- `REPORT.GENERATION_FAILED` - Report generation failed
+- `REPORT.NOT_FOUND` - Report not found
+- `REPORT.INVALID_TOPIC` - Invalid topic provided
+- `REPORT.DOWNLOAD_FAILED` - Download failed
+
+**Templates (`TEMPLATE.*`):**
+- `TEMPLATE.INVALID_FORMAT` - Invalid HWPX format
+- `TEMPLATE.UPLOAD_FAILED` - Upload failed
+- `TEMPLATE.NOT_FOUND` - Template not found
+- `TEMPLATE.PERMISSION_DENIED` - No permission to modify
+
+**Validation (`VALIDATION.*`):**
+- `VALIDATION.REQUIRED_FIELD` - Required field missing
+- `VALIDATION.INVALID_FORMAT` - Invalid format
+- `VALIDATION.MAX_LENGTH_EXCEEDED` - Maximum length exceeded
+
+**Server (`SERVER.*`):**
+- `SERVER.INTERNAL_ERROR` - Internal server error
+- `SERVER.SERVICE_UNAVAILABLE` - Service temporarily unavailable
+- `SERVER.DATABASE_ERROR` - Database operation failed
+
+### API Endpoints Coverage
+
+This standard applies to **ALL** API endpoints:
+
+1. **Authentication API** (`/api/auth/*`)
+   - Login, Register, Logout, Token refresh
+
+2. **Reports API** (`/api/reports/*`)
+   - Generate, List, Download, Delete reports
+
+3. **Templates API** (`/api/templates/*`)
+   - Template CRUD, Placeholder management
+
+4. **Prompts API** (`/api/prompts/*`)
+   - Prompt preset CRUD
+
+5. **Admin API** (`/api/admin/*`)
+   - User management, System settings
+
+### Examples
+
+**Report Generation Success:**
+```json
+{
+  "success": true,
+  "data": {
+    "reportId": 123,
+    "filename": "2025년_디지털뱅킹_트렌드.hwpx",
+    "filePath": "/output/report_123.hwpx",
+    "createdAt": "2025-10-27T10:30:00Z"
+  },
+  "error": null,
+  "meta": {
+    "requestId": "req_abc123"
+  },
+  "feedback": []
+}
+```
+
+**Login Failure:**
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "AUTH.INVALID_CREDENTIALS",
+    "httpStatus": 401,
+    "message": "이메일 또는 비밀번호가 올바르지 않습니다.",
+    "details": { "field": "password" },
+    "traceId": "trace_xyz789",
+    "hint": "비밀번호를 잊으셨다면 '비밀번호 찾기'를 이용해주세요."
+  },
+  "meta": {
+    "requestId": "req_def456"
+  },
+  "feedback": []
+}
+```
+
+**Template Upload with Warning:**
+```json
+{
+  "success": true,
+  "data": {
+    "templateId": 45,
+    "name": "분기보고서_템플릿",
+    "placeholders": ["TITLE", "DATE", "CONTENT"]
+  },
+  "error": null,
+  "meta": {
+    "requestId": "req_ghi789"
+  },
+  "feedback": [
+    {
+      "code": "TEMPLATE.MISSING_PLACEHOLDERS",
+      "level": "warning",
+      "feedbackCd": "SUMMARY 플레이스홀더가 누락되어 있습니다. 추가하시겠습니까?"
+    }
+  ]
+}
+```

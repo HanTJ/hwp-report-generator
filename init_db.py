@@ -23,9 +23,16 @@ def main():
     print("✅ 데이터베이스 테이블이 생성되었습니다.")
 
     # 관리자 계정 생성
-    admin_email = os.getenv("ADMIN_EMAIL", "admin@example.com")
-    admin_password = os.getenv("ADMIN_PASSWORD", "admin123!@#")
-    admin_username = os.getenv("ADMIN_USERNAME", "관리자")
+    admin_email = os.getenv("ADMIN_EMAIL")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    admin_username = os.getenv("ADMIN_USERNAME")
+
+    if not admin_email:
+        raise ValueError("ADMIN_EMAIL 환경 변수가 설정되지 않았습니다.")
+    if not admin_password:
+        raise ValueError("ADMIN_PASSWORD 환경 변수가 설정되지 않았습니다.")
+    if not admin_username:
+        raise ValueError("ADMIN_USERNAME 환경 변수가 설정되지 않았습니다.")
 
     # 기존 관리자 확인
     existing_admin = UserDB.get_user_by_email(admin_email)
