@@ -1,0 +1,13 @@
+.main {
+  min-height: 100vh;
+}
+
+.content {
+  padding: var(--spacing-lg);
+  background-color: var(--background-color);
+}
+
+.content > div {
+  max-width: 900px;
+  margin: 0 auto;
+}
