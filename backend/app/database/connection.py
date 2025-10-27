@@ -4,9 +4,10 @@ SQLite 데이터베이스 연결 및 초기화
 import sqlite3
 import os
 from pathlib import Path
+from shared.constants import ProjectPath
 
-
-DB_PATH = "../../data/hwp_reports.db"
+# PATH_PROJECT_HOME 기반 데이터베이스 경로
+DB_PATH = str(ProjectPath.DATABASE_FILE)
 
 
 def get_db_connection():

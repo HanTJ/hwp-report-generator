@@ -7,6 +7,9 @@ import logging
 from typing import Dict
 from anthropic import Anthropic
 
+# shared.constants를 import하면 자동으로 sys.path 설정됨
+from shared.constants import ClaudeConfig
+
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +24,8 @@ class ClaudeClient:
     def __init__(self):
         """Claude 클라이언트 초기화"""
         self.api_key = os.getenv("CLAUDE_API_KEY")
-        self.model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
+        self.model = os.getenv("CLAUDE_MODEL", ClaudeConfig.MODEL)
+        self.max_tokens = ClaudeConfig.MAX_TOKENS
 
         if not self.api_key:
             raise ValueError("CLAUDE_API_KEY 환경 변수가 설정되지 않았습니다.")
@@ -87,10 +91,11 @@ class ClaudeClient:
         try:
             logger.info(f"Claude API 호출 시작 - 주제: {topic}")
             logger.info(f"사용 모델: {self.model}")
+            logger.info(f"최대 토큰: {self.max_tokens}")
 
             message = self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=self.max_tokens,
                 messages=[
                     {"role": "user", "content": prompt}
                 ]

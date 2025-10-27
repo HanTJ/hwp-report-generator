@@ -1,0 +1,15 @@
+# 개발 및 테스트 의존성
+
+# 테스트 프레임워크
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+
+# FastAPI 테스트
+httpx==0.27.2
+
+# 코드 품질
+black==24.10.0
+flake8==7.1.1
+mypy==1.13.0

@@ -17,8 +17,12 @@ from app.utils.hwp_handler import HWPHandler
 
 router = APIRouter(prefix="/api/reports", tags=["보고서"])
 
-# Get the backend directory (2 levels up from this file)
-BACKEND_DIR = Path(__file__).parent.parent.parent
+# Backend 디렉토리 설정 (PATH_PROJECT_HOME 환경 변수 기반)
+_path_project_home = os.getenv("PATH_PROJECT_HOME")
+if not _path_project_home:
+    raise RuntimeError("PATH_PROJECT_HOME 환경 변수가 설정되지 않았습니다.")
+
+BACKEND_DIR = Path(_path_project_home) / "backend"
 TEMPLATE_PATH = str(BACKEND_DIR / "templates" / "report_template.hwpx")
 
 

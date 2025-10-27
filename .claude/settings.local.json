@@ -41,7 +41,11 @@
       "Bash(uv venv:*)",
       "Bash(uv run python:*)",
       "Bash(PYTHONIOENCODING=utf-8 uv run python:*)",
-      "Bash(PYTHONIOENCODING=utf-8 uv run:*)"
+      "Bash(PYTHONIOENCODING=utf-8 uv run:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(if [ ! -f \"backend/.CLAUDE.md\" ])",
+      "Bash(then echo \"File does not exist\")",
+      "Bash(else echo \"File exists\")"
     ],
     "deny": [
       "Read(**/.env*)",

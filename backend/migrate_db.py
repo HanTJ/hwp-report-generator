@@ -5,8 +5,27 @@
 """
 import sqlite3
 import os
+import sys
+from dotenv import load_dotenv, find_dotenv
 
-DB_PATH = "../data/hwp_reports.db"
+# 프로젝트 루트의 .env 파일 자동 탐색 및 로드
+load_dotenv(find_dotenv())
+
+# PATH_PROJECT_HOME 환경 변수 확인 및 sys.path 설정
+path_project_home = os.getenv("PATH_PROJECT_HOME")
+if not path_project_home:
+    print("ERROR: PATH_PROJECT_HOME 환경 변수가 설정되지 않았습니다.")
+    print(".env 파일에 PATH_PROJECT_HOME을 설정해주세요.")
+    sys.exit(1)
+
+# 프로젝트 루트를 sys.path에 추가
+if path_project_home not in sys.path:
+    sys.path.insert(0, path_project_home)
+
+from shared.constants import ProjectPath
+
+# PATH_PROJECT_HOME 기반 데이터베이스 경로
+DB_PATH = str(ProjectPath.DATABASE_FILE)
 
 def migrate():
     """데이터베이스 마이그레이션 실행"""
