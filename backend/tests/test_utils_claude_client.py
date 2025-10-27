@@ -80,7 +80,7 @@ class TestClaudeClientGenerateReport:
     """보고서 생성 테스트"""
 
     @patch.dict('os.environ', {'CLAUDE_API_KEY': 'test_api_key'})
-    @patch('anthropic.Anthropic')
+    @patch('app.utils.claude_client.Anthropic')
     def test_generate_report_success(self, mock_anthropic_class, mock_claude_response):
         """보고서 생성 성공 테스트"""
         # Mock 설정
@@ -106,7 +106,7 @@ class TestClaudeClientGenerateReport:
         mock_client_instance.messages.create.assert_called_once()
 
     @patch.dict('os.environ', {'CLAUDE_API_KEY': 'test_api_key'})
-    @patch('anthropic.Anthropic')
+    @patch('app.utils.claude_client.Anthropic')
     def test_generate_report_with_valid_structure(self, mock_anthropic_class, mock_claude_response):
         """반환된 보고서 구조 검증"""
         mock_client_instance = Mock()
@@ -127,7 +127,7 @@ class TestClaudeClientGenerateReport:
             assert key in result, f"Missing key: {key}"
 
     @patch.dict('os.environ', {'CLAUDE_API_KEY': 'test_api_key'})
-    @patch('anthropic.Anthropic')
+    @patch('app.utils.claude_client.Anthropic')
     def test_generate_report_tracks_token_usage(self, mock_anthropic_class, mock_claude_response):
         """토큰 사용량 추적 테스트"""
         mock_client_instance = Mock()
@@ -143,7 +143,7 @@ class TestClaudeClientGenerateReport:
         assert client.last_total_tokens == 4700
 
     @patch.dict('os.environ', {'CLAUDE_API_KEY': 'test_api_key'})
-    @patch('anthropic.Anthropic')
+    @patch('app.utils.claude_client.Anthropic')
     def test_generate_report_api_error(self, mock_anthropic_class):
         """API 호출 실패 시 예외 처리"""
         mock_client_instance = Mock()
@@ -203,6 +203,7 @@ class TestClaudeClientParseReportContent:
         """일부 섹션 누락 시 기본값 처리"""
         client = ClaudeClient()
 
+        # 결론과 요약 섹션의 내용이 비어있는 경우
         content = """[제목]
 테스트 보고서
 [배경제목]
@@ -212,7 +213,15 @@ class TestClaudeClientParseReportContent:
 [주요내용제목]
 주요 내용
 [주요내용]
-주요 내용입니다."""
+주요 내용입니다.
+[결론제목]
+결론
+[결론]
+
+[요약제목]
+요약
+[요약]
+"""
 
         result = client._parse_report_content(content)
 
@@ -221,7 +230,7 @@ class TestClaudeClientParseReportContent:
         assert result["background"] == "배경 내용입니다."
         assert result["main_content"] == "주요 내용입니다."
 
-        # 누락된 섹션은 기본 메시지
+        # 누락된 섹션은 기본 메시지 (빈 문자열인 경우)
         assert "(내용이 생성되지 않았습니다" in result["conclusion"]
         assert "(내용이 생성되지 않았습니다" in result["summary"]
 

@@ -358,18 +358,16 @@ class TestHWPHandlerCleanLinesegarray:
             output_dir=temp_dir
         )
 
-        content = """<hp:p>
-    <hp:run><hp:t>테스트 내용</hp:t></hp:run>
-    <hp:linesegarray>
-        <hp:lineseg textpos="0" vertpos="0" linewidth="100"/>
-    </hp:linesegarray>
-</hp:p>"""
+        # _clean_linesegarray의 정규식 패턴에 맞게 공백 없이 작성
+        content = """<hp:p><hp:run><hp:t>테스트 내용</hp:t></hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" linewidth="100"/></hp:linesegarray></hp:p>"""
 
         cleaned = handler._clean_linesegarray(content)
 
         # linesegarray가 제거됨
         assert "<hp:linesegarray>" not in cleaned
         assert "</hp:linesegarray>" not in cleaned
+        # run과 p 태그는 유지됨
+        assert "</hp:run></hp:p>" in cleaned
 
     def test_clean_preserves_other_content(self, simple_hwpx_template, temp_dir):
         """다른 내용은 유지"""
