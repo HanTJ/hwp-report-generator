@@ -34,7 +34,14 @@
       "Bash(npm install:*)",
       "Bash(if [ -f \".env\" ])",
       "Bash(then cp .env backend/.env)",
-      "Bash(else echo \".env 파일이 없습니다.\")"
+      "Bash(else echo \".env 파일이 없습니다.\")",
+      "Bash(uv run uvicorn:*)",
+      "Bash(uv pip install:*)",
+      "Bash(python -m venv hwp-report-generator)",
+      "Bash(uv venv:*)",
+      "Bash(uv run python:*)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python:*)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run:*)"
     ],
     "deny": [
       "Read(**/.env*)",

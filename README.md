@@ -15,62 +15,72 @@ Claude AI를 활용하여 금융 업무보고서를 자동으로 생성하는 �
 
 ## 기술 스택
 
-- **Backend**: FastAPI (Python 3.12)
+### Backend
+- **Framework**: FastAPI (Python 3.12)
 - **Package Manager**: uv (권장) 또는 pip
 - **AI**: Claude API (Anthropic) - anthropic==0.71.0
 - **HWP 처리**: zipfile, xml.etree.ElementTree, olefile
-- **템플릿 엔진**: Jinja2 (웹 UI)
-- **Frontend**: HTML, CSS, JavaScript
 - **데이터베이스**: SQLite
 - **인증**: JWT (python-jose), bcrypt (passlib)
 
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **HTTP Client**: Axios
+- **Routing**: React Router DOM
+- **UI**: 준비 중 (기존 HTML/CSS/JS 템플릿 마이그레이션 예정)
+
 ## 설치 방법
 
-### 1. 저장소 클론 (또는 프로젝트 디렉토리 생성)
+### 1. 저장소 클론
 
 ```bash
+git clone <repository-url>
 cd hwp-report-generator
 ```
 
-### 2. Python 가상환경 생성 및 활성화
-
-```bash
-# 가상환경 생성
-python -m venv venv
-
-# 가상환경 활성화 (Linux/Mac)
-source venv/bin/activate
-
-# 가상환경 활성화 (Windows)
-venv\Scripts\activate
-```
-
-### 3. 필요한 패키지 설치
+### 2. Python 가상환경 생성 (uv 권장)
 
 **uv 사용 (권장):**
 ```bash
-# uv로 패키지 설치
-uv pip install -r requirements.txt
+# uv로 가상환경 생성 (.venv)
+uv venv
+
+# 가상환경 활성화 (Linux/Mac)
+source .venv/bin/activate
+
+# 가상환경 활성화 (Windows)
+.venv\Scripts\activate
 ```
 
-**pip 사용:**
+**또는 python venv 사용:**
 ```bash
-pip install -r requirements.txt
+# 가상환경 생성
+python -m venv .venv
+
+# 활성화 (Linux/Mac)
+source .venv/bin/activate
+
+# 활성화 (Windows)
+.venv\Scripts\activate
+```
+
+### 3. 백엔드 패키지 설치
+
+```bash
+# uv 사용 (권장)
+uv pip install -r backend/requirements.txt
+
+# 또는 pip 사용
+pip install -r backend/requirements.txt
 ```
 
 ### 4. 환경 변수 설정
 
-`.env` 파일을 생성하고 Claude API 키를 설정합니다:
+`backend/.env` 파일을 생성하고 필수 환경 변수를 설정:
 
 ```bash
-# .env.example을 복사하여 .env 생성
-cp .env.example .env
-```
-
-`.env` 파일을 열고 필수 환경 변수를 설정:
-
-```
-# Claude API 설정
+# backend/.env
 CLAUDE_API_KEY=your_actual_api_key_here
 CLAUDE_MODEL=claude-sonnet-4-5-20250929
 
@@ -81,54 +91,80 @@ JWT_EXPIRE_MINUTES=1440
 
 # 관리자 계정 정보
 ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=secure_admin_password
+ADMIN_PASSWORD=admin123!@#
 ADMIN_USERNAME=관리자
 ```
 
 > **중요**:
 > - Claude API 키는 [Anthropic Console](https://console.anthropic.com/)에서 발급받을 수 있습니다.
-> - `JWT_SECRET_KEY`는 최소 32자 이상의 임의의 문자열로 설정하세요 (프로덕션 환경에서 필수)
+> - `JWT_SECRET_KEY`는 최소 32자 이상의 임의의 문자열로 설정하세요
 > - `ADMIN_PASSWORD`는 안전한 비밀번호로 변경하세요
 
 ### 5. 데이터베이스 초기화
 
-최초 실행 시 데이터베이스 초기화 스크립트를 실행합니다:
-
 ```bash
+cd backend
 uv run python init_db.py
 ```
 
 이 스크립트는:
 - SQLite 데이터베이스 생성 (users, reports, token_usage 테이블)
 - .env에 설정된 관리자 계정 생성
-- 데이터는 `data/` 디렉토리에 저장됩니다
+- 데이터는 `backend/data/` 디렉토리에 저장됩니다
+
+### 6. 프론트엔드 패키지 설치 (선택사항)
+
+React 프론트엔드를 사용하려면:
+
+```bash
+cd frontend
+npm install
+```
 
 ## 실행 방법
 
-### 개발 서버 실행
+### 백엔드 서버 실행
 
-**uv 사용 (권장):**
 ```bash
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd backend
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**표준 Python 사용:**
+**또는 표준 Python 사용:**
 ```bash
-python main.py
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-또는
-
+**Windows에서 한글 출력 오류 시:**
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd backend
+set PYTHONIOENCODING=utf-8
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 서버가 시작되면 브라우저에서 다음 주소로 접속:
 
 ```
-http://localhost:8000       # 메인 UI
+http://localhost:8000       # 메인 UI (레거시 HTML)
 http://localhost:8000/docs  # API 문서 (Swagger UI)
 ```
+
+### 프론트엔드 개발 서버 실행 (선택사항)
+
+React 프론트엔드를 개발하려면 별도 터미널에서:
+
+```bash
+cd frontend
+npm run dev
+```
+
+프론트엔드 접속:
+```
+http://localhost:5173      # React 개발 서버
+```
+
+> **참고**: 프론트엔드는 Vite 프록시를 통해 `http://localhost:8000`의 백엔드 API와 통신합니다.
 
 ## 사용 방법
 
@@ -168,52 +204,73 @@ http://localhost:8000/docs  # API 문서 (Swagger UI)
 - 생성된 `.hwpx` 파일은 한글 프로그램 또는 호환 프로그램에서 열 수 있습니다
 - LibreOffice 등 일부 오픈소스 프로그램에서도 열람 가능
 
-## 프로젝트 구조
+## 프로젝트 구조 (모노레포)
 
 ```
 hwp-report-generator/
-├── main.py                    # FastAPI 메인 애플리케이션
-├── init_db.py                 # 데이터베이스 초기화 스크립트
-├── migrate_db.py              # 데이터베이스 마이그레이션 스크립트
-├── requirements.txt           # Python 패키지 의존성
-├── .env                       # 환경 변수 (API 키, 관리자 정보)
-├── .env.example              # 환경 변수 템플릿
-├── .gitignore                # Git 제외 파일 목록
-├── README.md                 # 프로젝트 문서
+├── backend/                   # 백엔드 (FastAPI)
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py           # FastAPI 메인 애플리케이션
+│   │   ├── routers/          # API 엔드포인트
+│   │   │   ├── auth.py       # 인증 API
+│   │   │   ├── reports.py    # 보고서 API
+│   │   │   └── admin.py      # 관리자 API
+│   │   ├── models/           # Pydantic 모델
+│   │   │   ├── user.py
+│   │   │   ├── report.py
+│   │   │   └── token_usage.py
+│   │   ├── database/         # 데이터베이스 레이어
+│   │   │   ├── connection.py
+│   │   │   ├── user_db.py
+│   │   │   ├── report_db.py
+│   │   │   └── token_usage_db.py
+│   │   └── utils/            # 유틸리티
+│   │       ├── auth.py       # JWT 인증
+│   │       ├── claude_client.py  # Claude API
+│   │       └── hwp_handler.py    # HWPX 처리
+│   ├── templates/            # HWPX 템플릿
+│   │   └── report_template.hwpx
+│   ├── output/               # 생성된 보고서 (Git 제외)
+│   ├── temp/                 # 임시 파일 (Git 제외)
+│   ├── data/                 # SQLite DB (Git 제외)
+│   │   └── hwp_reports.db
+│   ├── requirements.txt      # Python 의존성
+│   ├── runtime.txt
+│   ├── init_db.py            # DB 초기화 스크립트
+│   ├── migrate_db.py         # DB 마이그레이션
+│   └── .env                  # 환경 변수 (Git 제외)
+│
+├── frontend/                 # 프론트엔드 (React + TypeScript)
+│   ├── public/
+│   ├── src/
+│   │   ├── components/       # React 컴포넌트
+│   │   ├── pages/            # 페이지 컴포넌트
+│   │   ├── services/         # API 클라이언트
+│   │   ├── types/
+│   │   │   └── api.ts        # API 타입 정의
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts        # Vite 설정 (프록시 포함)
+│   └── node_modules/         # (Git 제외)
+│
+├── templates/                # 레거시 HTML (마이그레이션 예정)
+│   ├── index.html
+│   ├── login.html
+│   ├── register.html
+│   ├── admin.html
+│   └── change-password.html
+├── static/                   # 레거시 CSS/JS (마이그레이션 예정)
+│   ├── style.css
+│   ├── script.js
+│   ├── auth.js
+│   └── admin.js
+├── .venv/                    # Python 가상환경 (Git 제외)
+├── .gitignore
 ├── CLAUDE.md                 # Claude Code 가이드
-├── models/                   # 데이터 모델
-│   ├── user.py               # 사용자 모델
-│   ├── report.py             # 보고서 모델
-│   └── token_usage.py        # 토큰 사용량 모델
-├── database/                 # 데이터베이스 레이어
-│   ├── connection.py         # DB 연결 및 스키마
-│   ├── user_db.py            # 사용자 CRUD
-│   ├── report_db.py          # 보고서 CRUD
-│   └── token_usage_db.py     # 토큰 사용량 CRUD
-├── routers/                  # API 라우터
-│   ├── auth.py               # 인증 API
-│   ├── reports.py            # 보고서 API
-│   └── admin.py              # 관리자 API
-├── utils/
-│   ├── auth.py               # JWT 인증 및 비밀번호 해싱
-│   ├── claude_client.py      # Claude API 클라이언트
-│   └── hwp_handler.py        # HWPX 파일 처리
-├── templates/
-│   ├── index.html            # 메인 페이지
-│   ├── login.html            # 로그인 페이지
-│   ├── register.html         # 회원가입 페이지
-│   ├── admin.html            # 관리자 페이지
-│   ├── change-password.html  # 비밀번호 변경 페이지
-│   └── report_template.hwpx  # HWP 템플릿 (자동 생성)
-├── static/
-│   ├── style.css             # 스타일시트
-│   ├── script.js             # 메인 페이지 로직
-│   ├── auth.js               # 인증 관련 로직
-│   └── admin.js              # 관리자 페이지 로직
-├── data/                     # 데이터베이스 파일 (Git 제외)
-│   └── hwp_reports.db
-├── output/                   # 생성된 보고서 저장 (Git 제외)
-└── temp/                     # 임시 파일 처리 (Git 제외)
+└── README.md                 # 프로젝트 문서
 ```
 
 ## API 엔드포인트
@@ -268,7 +325,7 @@ hwp-report-generator/
    - `{{TITLE_SUMMARY}}` - 요약 섹션 제목
 
 3. "다른 이름으로 저장" → "HWPX 파일" 선택
-4. `templates/report_template.hwpx`로 저장
+4. `backend/templates/report_template.hwpx`로 저장
 
 ### 줄바꿈 처리
 
@@ -286,6 +343,7 @@ hwp-report-generator/
 **password_reset_required 컬럼 추가** (기존 시스템에서 업그레이드하는 경우):
 
 ```bash
+cd backend
 uv run python migrate_db.py
 ```
 
@@ -299,9 +357,10 @@ uv run python migrate_db.py
 
 ```bash
 # 기존 데이터베이스 삭제
-rm -rf data/
+rm -rf backend/data/
 
 # 데이터베이스 재초기화
+cd backend
 uv run python init_db.py
 ```
 
@@ -324,13 +383,14 @@ Render.com에서 본 애플리케이션을 무료로 배포할 수 있습니다.
 
    - **Name**: `hwp-report-generator` (원하는 이름)
    - **Environment**: `Python 3`
+   - **Root Directory**: `backend` (중요!)
    - **Build Command**:
      ```bash
      pip install -r requirements.txt
      ```
    - **Start Command**:
      ```bash
-     python init_db.py && uvicorn main:app --host 0.0.0.0 --port $PORT
+     python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
      ```
 
 ### 3. 환경 변수 설정
@@ -358,12 +418,12 @@ Render의 무료 플랜에서는 디스크가 임시 저장소이므로, 재배�
 
 **옵션 1: Render Disk 사용 (유료)**
 1. Render 대시보드에서 "Disks" 추가
-2. Mount Path: `/opt/render/project/src/data`
+2. Mount Path: `/opt/render/project/src/backend/data`
 3. Size: 1GB (최소)
 
 **옵션 2: 외부 데이터베이스 사용 (권장)**
 - PostgreSQL, MySQL 등 외부 관리형 데이터베이스 사용
-- 코드 수정 필요: `database/connection.py`에서 SQLite 대신 PostgreSQL 연결
+- 코드 수정 필요: `backend/app/database/connection.py`에서 SQLite 대신 PostgreSQL 연결
 
 **옵션 3: 무료 테스트용**
 - 임시 저장소 사용 (재배포 시 데이터 초기화됨)
@@ -399,7 +459,7 @@ Render의 무료 플랜에서는 디스크가 임시 저장소이므로, 재배�
 
 - **데이터 백업**:
   - 임시 저장소 사용 시 정기적으로 데이터베이스 백업 필요
-  - 보고서 파일(`output/`)도 임시 저장되므로 별도 백업 권장
+  - 보고서 파일(`backend/output/`)도 임시 저장되므로 별도 백업 권장
 
 ## 문제 해결
 
@@ -407,7 +467,7 @@ Render의 무료 플랜에서는 디스크가 임시 저장소이므로, 재배�
 ```
 ValueError: CLAUDE_API_KEY 환경 변수가 설정되지 않았습니다.
 ```
-**해결**: `.env` 파일에 올바른 API 키가 설정되어 있는지 확인
+**해결**: `backend/.env` 파일에 올바른 API 키가 설정되어 있는지 확인
 
 ### 데이터베이스 테이블 없음
 ```
@@ -415,6 +475,7 @@ no such table: users
 ```
 **해결**: 데이터베이스 초기화 스크립트 실행
 ```bash
+cd backend
 uv run python init_db.py
 ```
 
@@ -424,6 +485,7 @@ no such column: password_reset_required
 ```
 **해결**: 마이그레이션 스크립트 실행
 ```bash
+cd backend
 uv run python migrate_db.py
 ```
 
@@ -431,7 +493,7 @@ uv run python migrate_db.py
 ```
 FileNotFoundError: 템플릿 파일을 찾을 수 없습니다
 ```
-**해결**: 프로그램이 자동으로 기본 템플릿을 생성합니다. 문제가 지속되면 `templates/` 디렉토리가 존재하는지 확인
+**해결**: 프로그램이 자동으로 기본 템플릿을 생성합니다. 문제가 지속되면 `backend/templates/` 디렉토리가 존재하는지 확인
 
 ### 포트 충돌
 ```
@@ -439,7 +501,8 @@ OSError: [Errno 98] Address already in use
 ```
 **해결**: 8000 포트가 이미 사용 중입니다. 다른 포트를 사용하려면:
 ```bash
-uvicorn main:app --reload --port 8080
+cd backend
+uvicorn app.main:app --reload --port 8080
 ```
 
 ### 비밀번호 72바이트 초과 오류

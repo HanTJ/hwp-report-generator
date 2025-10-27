@@ -40,11 +40,15 @@ async def startup_event():
     """애플리케이션 시작 시 실행"""
     logger.info("애플리케이션 시작 중...")
 
-    # 필요한 디렉토리 생성 (backend 기준)
-    os.makedirs("../templates", exist_ok=True)
-    os.makedirs("../output", exist_ok=True)
-    os.makedirs("../temp", exist_ok=True)
-    os.makedirs("../data", exist_ok=True)
+    # Get the project root directory
+    import pathlib
+    BASE_DIR = pathlib.Path(__file__).parent.parent.parent
+
+    # 필요한 디렉토리 생성
+    os.makedirs(BASE_DIR / "backend" / "templates", exist_ok=True)
+    os.makedirs(BASE_DIR / "backend" / "output", exist_ok=True)
+    os.makedirs(BASE_DIR / "backend" / "temp", exist_ok=True)
+    os.makedirs(BASE_DIR / "backend" / "data", exist_ok=True)
 
     # 데이터베이스 초기화
     logger.info("데이터베이스를 초기화합니다...")
@@ -66,8 +70,11 @@ app.add_middleware(
 )
 
 # 정적 파일 및 템플릿 설정
-app.mount("/static", StaticFiles(directory="../../static"), name="static")
-templates = Jinja2Templates(directory="../../templates")
+# Get the project root directory (2 levels up from this file)
+import pathlib
+BASE_DIR = pathlib.Path(__file__).parent.parent.parent
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # 라우터 등록
 app.include_router(auth_router)
