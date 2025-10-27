@@ -6,17 +6,17 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 
-from models.report import ReportCreate, ReportResponse, ReportListResponse
-from models.token_usage import TokenUsageCreate
-from database.report_db import ReportDB
-from database.token_usage_db import TokenUsageDB
-from utils.auth import get_current_active_user
-from utils.claude_client import ClaudeClient
-from utils.hwp_handler import HWPHandler
+from app.models.report import ReportCreate, ReportResponse, ReportListResponse
+from app.models.token_usage import TokenUsageCreate
+from app.database.report_db import ReportDB
+from app.database.token_usage_db import TokenUsageDB
+from app.utils.auth import get_current_active_user
+from app.utils.claude_client import ClaudeClient
+from app.utils.hwp_handler import HWPHandler
 
 router = APIRouter(prefix="/api/reports", tags=["보고서"])
 
-TEMPLATE_PATH = "templates/report_template.hwpx"
+TEMPLATE_PATH = "../../templates/report_template.hwpx"
 
 
 @router.post("/generate", response_model=ReportResponse)
@@ -44,8 +44,8 @@ async def generate_report(
         # HWP 파일 생성
         hwp_handler = HWPHandler(
             template_path=TEMPLATE_PATH,
-            temp_dir="temp",
-            output_dir="output"
+            temp_dir="../../temp",
+            output_dir="../../output"
         )
 
         output_path = hwp_handler.generate_report(content)

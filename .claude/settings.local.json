@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__activate_project",
+      "mcp__serena__find_symbol",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__list_dir",
+      "mcp__serena__find_file",
+      "mcp__serena__get_symbols_overview",
+      "mcp__atlassian__getAccessibleAtlassianResources",
+      "mcp__atlassian__getVisibleJiraProjects",
+      "mcp__atlassian__getJiraProjectIssueTypesMetadata",
+      "mcp__atlassian__getJiraIssueTypeMetaWithFields",
+      "mcp__atlassian__createJiraIssue",
+      "mcp__serena__write_memory",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git rm:*)",
+      "Bash(git log:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)",
+      "Bash(mkdir:*)",
+      "Bash(git mv:*)",
+      "Bash(if [ -d \"output\" ])",
+      "Bash(then mv output backend/)",
+      "Bash(fi)",
+      "Bash(if [ -d \"temp\" ])",
+      "Bash(then mv temp backend/)",
+      "Bash(if [ -d \"data\" ])",
+      "Bash(then mv data backend/)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(if [ -f \".env\" ])",
+      "Bash(then cp .env backend/.env)",
+      "Bash(else echo \".env 파일이 없습니다.\")"
+    ],
+    "deny": [
+      "Read(**/.env*)",
+      "Edit(**/.env*)",
+      "Read(node_modules/**)",
+      "Edit(node_modules/**)"
+    ],
+    "ask": []
+  }
+}

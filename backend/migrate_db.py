@@ -6,7 +6,7 @@
 import sqlite3
 import os
 
-DB_PATH = "data/hwp_reports.db"
+DB_PATH = "../data/hwp_reports.db"
 
 def migrate():
     """데이터베이스 마이그레이션 실행"""

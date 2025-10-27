@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [],
+    "deny": [
+      "Read(**/.env*)",
+      "Edit(**/.env*)",
+      "Read(node_modules/**)",
+      "Edit(node_modules/**)"
+    ],
+    "ask": []
+  }
+}

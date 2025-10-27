@@ -4,7 +4,7 @@
 from typing import Optional, List
 from datetime import datetime
 from .connection import get_db_connection
-from models.report import Report
+from app.models.report import Report
 
 
 class ReportDB:

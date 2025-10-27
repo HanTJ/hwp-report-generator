@@ -3,10 +3,13 @@
 데이터베이스 초기화 스크립트
 """
 import os
-from database import init_db
-from database.user_db import UserDB
-from models.user import UserCreate, UserUpdate
-from utils.auth import hash_password
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
+
+from app.database import init_db
+from app.database.user_db import UserDB
+from app.models.user import UserCreate, UserUpdate
+from app.utils.auth import hash_password
 from dotenv import load_dotenv
 
 # 환경 변수 로드

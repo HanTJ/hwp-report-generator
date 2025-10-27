@@ -12,18 +12,32 @@ HWP Report Generator: A FastAPI-based web system that automatically generates Ko
 - **Package Manager**: uv (recommended) or pip
 - **AI**: Claude API (Anthropic) - Model: claude-sonnet-4-5-20250929, anthropic==0.71.0
 - **HWP Processing**: olefile, zipfile (HWPX format)
-- **Templates**: Jinja2 (for web UI)
-- **Frontend**: HTML/CSS/JavaScript (simple UI)
+- **Frontend**: React 18 + TypeScript + Vite
+- **API Client**: Axios
+- **Routing**: React Router DOM
 
 ## Architecture
 
 ### Core Components
 
+**Backend** (`backend/app/`):
 1. **main.py**: FastAPI application with endpoints for report generation
-2. **utils/claude_client.py**: Claude API integration for content generation
-3. **utils/hwp_handler.py**: HWPX file manipulation (unzip → modify XML → rezip)
-4. **templates/report_template.hwpx**: HWP template with placeholders
-5. **templates/index.html + static/**: Simple web UI for user input
+2. **routers/**: API route handlers (auth, reports, admin)
+3. **models/**: Pydantic models for request/response validation
+4. **database/**: SQLite database connection and operations
+5. **utils/claude_client.py**: Claude API integration for content generation
+6. **utils/hwp_handler.py**: HWPX file manipulation (unzip → modify XML → rezip)
+7. **utils/auth.py**: JWT authentication and password hashing
+
+**Frontend** (`frontend/src/`):
+1. **components/**: Reusable React components
+2. **pages/**: Page-level components
+3. **services/**: API client services
+4. **types/api.ts**: TypeScript type definitions for API responses
+5. **App.tsx**: Main application component with routing
+
+**Templates**:
+- **backend/templates/report_template.hwpx**: HWP template with placeholders
 
 ### Data Flow
 
@@ -55,42 +69,99 @@ Note: Section title placeholders allow customization of section headings while m
 
 ## Environment Setup
 
-Create `.env` file:
+Create `backend/.env` file:
 ```
 CLAUDE_API_KEY=your_api_key_here
 CLAUDE_MODEL=claude-sonnet-4-5-20250929
+
+# JWT Configuration
+JWT_SECRET_KEY=your-secret-key-change-this
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=1440
+
+# Admin Account
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=admin123!@#
+ADMIN_USERNAME=관리자
 ```
 
-**Security**: Never commit `.env` file to git. Add to `.gitignore`.
+**Security**: Never commit `.env` file to git. The `.gitignore` excludes all files starting with `.env`.
 
 ## Development Commands
 
-### Install dependencies:
-**Using uv (recommended):**
+### Backend Setup
+
+**Install dependencies (using uv - recommended):**
 ```bash
+cd backend
 uv pip install -r requirements.txt
 ```
 
-**Using pip:**
+**Or using pip:**
 ```bash
+cd backend
 pip install -r requirements.txt
 ```
 
-### Run development server:
-**Using uv:**
+**Initialize database:**
 ```bash
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd backend
+uv run python init_db.py
 ```
 
-**Using standard python:**
+**Run backend server:**
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd backend
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Or with standard python:**
+```bash
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend Setup
+
+**Install dependencies:**
+```bash
+cd frontend
+npm install
+```
+
+**Run frontend dev server:**
+```bash
+cd frontend
+npm run dev
+```
+
+**Build for production:**
+```bash
+cd frontend
+npm run build
 ```
 
 ### Access the application:
 ```
-http://localhost:8000       # Main UI
+http://localhost:5173       # Frontend (React)
+http://localhost:8000       # Backend API
 http://localhost:8000/docs  # API Documentation (Swagger)
+```
+
+### Running Both Servers
+
+You need to run both backend and frontend servers simultaneously in separate terminals:
+
+**Terminal 1 (Backend):**
+```bash
+cd backend
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 (Frontend):**
+```bash
+cd frontend
+npm run dev
 ```
 
 ## HWP File Handling Notes
@@ -112,20 +183,61 @@ The system implements a sophisticated approach to handle line breaks in HWPX for
 
 This ensures that generated reports display with proper line breaks when opened in Hangul Word Processor, without requiring manual layout calculations.
 
-## Project Structure
+## Project Structure (Monorepo)
 
 ```
 hwp-report-generator/
-├── main.py                    # FastAPI app with /generate endpoint
-├── utils/
-│   ├── claude_client.py       # Claude API client wrapper
-│   └── hwp_handler.py         # HWPX file processor
-├── templates/
-│   ├── report_template.hwpx   # HWP template with placeholders
-│   └── index.html             # Web interface
-├── static/                    # CSS/JS assets
-├── output/                    # Generated reports storage
-└── temp/                      # Temporary file processing
+├── backend/                    # FastAPI Backend
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py            # FastAPI app entry point
+│   │   ├── routers/           # API endpoints
+│   │   │   ├── auth.py        # Authentication API
+│   │   │   ├── reports.py     # Reports API
+│   │   │   └── admin.py       # Admin API
+│   │   ├── models/            # Pydantic models
+│   │   │   ├── user.py
+│   │   │   ├── report.py
+│   │   │   └── token_usage.py
+│   │   ├── database/          # Database layer
+│   │   │   ├── connection.py
+│   │   │   ├── user_db.py
+│   │   │   ├── report_db.py
+│   │   │   └── token_usage_db.py
+│   │   └── utils/             # Utility functions
+│   │       ├── claude_client.py
+│   │       ├── hwp_handler.py
+│   │       └── auth.py
+│   ├── templates/             # HWPX templates only
+│   │   └── report_template.hwpx
+│   ├── output/                # Generated reports
+│   ├── temp/                  # Temporary files
+│   ├── data/                  # SQLite database
+│   ├── requirements.txt
+│   ├── runtime.txt
+│   ├── init_db.py
+│   ├── migrate_db.py
+│   └── .env                   # Backend environment variables
+│
+├── frontend/                  # React Frontend
+│   ├── public/
+│   ├── src/
+│   │   ├── components/        # Reusable components
+│   │   ├── pages/             # Page components
+│   │   ├── services/          # API client services
+│   │   ├── types/
+│   │   │   └── api.ts         # TypeScript API types
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts         # Vite config with proxy
+│
+├── templates/                 # Legacy HTML templates (will be removed)
+├── static/                    # Legacy static files (will be removed)
+├── .gitignore
+├── CLAUDE.md                  # Project documentation
+└── README.md
 ```
 
 ## API Key Configuration

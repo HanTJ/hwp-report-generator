@@ -1,0 +1,32 @@
+#SUCCESS 
+{
+  "success": true,
+  "data": { /* 리소스 또는 결과 */ },
+  "error": null,
+  "meta": {
+    "requestId": "1c0c...f",
+  },
+  "feedback": [
+    {
+      "code": "PROFILE_INCOMPLETE",
+      "level": "info",            // info | warning | error
+      "feedbackCd": "프로필 사진을 등록하면 더 좋아요.",
+    }
+  ]
+}
+
+#FALED
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "AUTH.INVALID_TOKEN",   // 고유 에러 코드(도메인.세부)
+    "httpStatus": 401,
+    "message": "유효하지 않은 토큰입니다.",
+    "details": { "reason": "expired" },
+    "traceId": "1c0c...f",
+    "hint": "다시 로그인해 주세요."
+  },
+  "meta": { "requestId": "1c0c...f" },
+  "feedback": []
+}

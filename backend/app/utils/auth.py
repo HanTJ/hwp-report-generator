@@ -10,8 +10,8 @@ from fastapi import HTTPException, Security, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
-from models.user import User
-from database.user_db import UserDB
+from app.models.user import User
+from app.database.user_db import UserDB
 
 load_dotenv()
 

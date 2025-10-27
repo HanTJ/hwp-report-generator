@@ -4,7 +4,7 @@
 from typing import Optional, List
 from datetime import datetime
 from .connection import get_db_connection
-from models.user import User, UserCreate, UserUpdate
+from app.models.user import User, UserCreate, UserUpdate
 
 
 class UserDB:

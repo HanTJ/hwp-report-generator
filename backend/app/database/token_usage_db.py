@@ -4,7 +4,7 @@
 from typing import Optional, List
 from datetime import datetime
 from .connection import get_db_connection
-from models.token_usage import TokenUsage, TokenUsageCreate, UserTokenStats
+from app.models.token_usage import TokenUsage, TokenUsageCreate, UserTokenStats
 
 
 class TokenUsageDB:

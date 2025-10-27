@@ -4,9 +4,9 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from models.user import UserCreate, UserLogin, UserResponse, PasswordChange, UserUpdate
-from database.user_db import UserDB
-from utils.auth import (
+from app.models.user import UserCreate, UserLogin, UserResponse, PasswordChange, UserUpdate
+from app.database.user_db import UserDB
+from app.utils.auth import (
     hash_password,
     verify_password,
     authenticate_user,

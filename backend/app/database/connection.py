@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 
-DB_PATH = "data/hwp_reports.db"
+DB_PATH = "../../data/hwp_reports.db"
 
 
 def get_db_connection():

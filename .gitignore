@@ -55,3 +55,9 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend (React/Node.js)
+node_modules/
+frontend/dist/
+frontend/build/
+*.local
