@@ -247,9 +247,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### ERD (Entity Relationship Diagram)
 
 ```
-┌─────────────────────┐         ┌─────────────────────┐
-│      users          │         │      reports        │
-├─────────────────────┤         ├─────────────────────┤
+┌────────────────────┐         ┌────────────────────┐
+│      users         │         │      reports       │
+├────────────────────┤         ├────────────────────┤
 │ id (PK)            │◄───┐    │ id (PK)            │
 │ email (UNIQUE)     │    │    │ user_id (FK)       │
 │ username           │    └────│ topic              │
@@ -258,16 +258,16 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 │ is_admin           │         │ file_path          │
 │ password_reset_req │         │ file_size          │
 │ created_at         │         │ created_at         │
-│ updated_at         │         └─────────────────────┘
-└─────────────────────┘                   │
+│ updated_at         │         └────────────────────┘
+└────────────────────┘                    │
          │                                │
          │                                │
          │         ┌──────────────────────┘
          │         │
          │         ▼
-         │   ┌─────────────────────┐
-         │   │   token_usage       │
-         │   ├─────────────────────┤
+         │   ┌────────────────────┐
+         │   │   token_usage      │
+         │   ├────────────────────┤
          └──►│ id (PK)            │
              │ user_id (FK)       │
              │ report_id (FK)     │
@@ -275,7 +275,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
              │ output_tokens      │
              │ total_tokens       │
              │ created_at         │
-             └─────────────────────┘
+             └────────────────────┘
 ```
 
 ### 테이블 상세
@@ -1615,6 +1615,7 @@ class UserCreate(BaseModel):
 백엔드 테스트는 pytest 기반으로 구성되어 있습니다.
 
 **설치된 테스트 도구:**
+
 - **pytest** 8.3.4 - 메인 테스트 프레임워크
 - **pytest-cov** 6.0.0 - 코드 커버리지 측정
 - **pytest-asyncio** 0.24.0 - 비동기 테스트 지원
@@ -1708,6 +1709,7 @@ uv run pytest -m "not integration" -v
 ```
 
 **정의된 마커:**
+
 - `unit`: 유닛 테스트
 - `integration`: 통합 테스트
 - `auth`: 인증 관련 테스트
@@ -1794,6 +1796,7 @@ def test_file_operations(temp_dir):
 **전체 커버리지**: 48%
 
 **모듈별 커버리지:**
+
 - `app/utils/auth.py`: 87% ✅
 - `app/database/user_db.py`: 69%
 - `app/routers/auth.py`: 68%
@@ -1803,6 +1806,7 @@ def test_file_operations(temp_dir):
 - `app/routers/reports.py`: 38% ⚠️ (개선 필요)
 
 **목표 커버리지:**
+
 - 전체: 최소 70% 이상
 - 핵심 비즈니스 로직: 90% 이상
 - 유틸리티 함수: 85% 이상
@@ -2016,14 +2020,16 @@ uv run pytest tests/test_new_feature.py --cov=app.module_name --cov-report=term-
 **원인:** Python이 shared 모듈을 찾지 못함
 
 **해결:**
+
 - `conftest.py`에서 PATH_PROJECT_HOME이 올바르게 설정되어 있는지 확인
 - 프로젝트 루트의 `.env` 파일에 `PATH_PROJECT_HOME` 정의 확인
 
-#### 2. TypeError: Client.__init__() got an unexpected keyword argument 'app'
+#### 2. TypeError: Client.**init**() got an unexpected keyword argument 'app'
 
 **원인:** httpx 버전 호환성 문제
 
 **해결:**
+
 ```bash
 uv pip install httpx==0.27.2
 ```
@@ -2033,6 +2039,7 @@ uv pip install httpx==0.27.2
 **원인:** 함수가 None을 반환하는 대신 예외를 발생시킴
 
 **해결:**
+
 ```python
 # ❌ 잘못된 방법
 result = decode_access_token(invalid_token)
@@ -2049,6 +2056,7 @@ assert exc_info.value.status_code == 401
 **원인:** 데이터베이스 연결이 제대로 닫히지 않음
 
 **해결:**
+
 - `test_db` fixture가 각 테스트마다 새로운 DB를 생성하는지 확인
 - 테스트에서 명시적으로 연결을 열었다면 반드시 `close()` 호출
 
@@ -2057,15 +2065,18 @@ assert exc_info.value.status_code == 401
 다음 모듈들에 대한 테스트 추가가 필요합니다:
 
 **우선순위 높음:**
+
 - `test_utils_claude_client.py` - Claude API 클라이언트 테스트 (모킹 필수)
 - `test_utils_hwp_handler.py` - HWPX 파일 처리 테스트
 - `test_routers_reports.py` - 보고서 API 테스트
 
 **우선순위 중간:**
+
 - `test_routers_admin.py` - 관리자 API 테스트
 - `test_database_*.py` - 데이터베이스 레이어 테스트
 
 **목표:**
+
 - 전체 코드 커버리지 70% 이상 달성
 - 핵심 비즈니스 로직 90% 이상 커버리지
 

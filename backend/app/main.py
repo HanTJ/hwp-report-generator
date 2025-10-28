@@ -47,7 +47,14 @@ from app.utils.claude_client import ClaudeClient
 from app.utils.hwp_handler import HWPHandler
 from app.utils.auth import hash_password
 from app.database import init_db, UserDB
-from app.routers import auth_router, reports_router, admin_router
+from app.routers import (
+    auth_router,
+    reports_router,
+    admin_router,
+    topics_router,
+    messages_router,
+    artifacts_router,
+)
 
 # 로깅 설정
 logging.basicConfig(
@@ -74,9 +81,10 @@ async def startup_event():
 
     # 필요한 디렉토리 생성
     os.makedirs(BACKEND_DIR / "templates", exist_ok=True)
-    os.makedirs(BACKEND_DIR / "output", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "output", exist_ok=True)  # Legacy (deprecated)
     os.makedirs(BACKEND_DIR / "temp", exist_ok=True)
     os.makedirs(BACKEND_DIR / "data", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "artifacts", exist_ok=True)  # New: chat-based artifacts
 
     # 데이터베이스 초기화
     logger.info("데이터베이스를 초기화합니다...")
@@ -105,8 +113,13 @@ templates = Jinja2Templates(directory=str(PROJECT_ROOT / "templates"))
 
 # 라우터 등록
 app.include_router(auth_router)
-app.include_router(reports_router)
+app.include_router(reports_router)  # Legacy (deprecated)
 app.include_router(admin_router)
+
+# New chat-based API routers
+app.include_router(topics_router)
+app.include_router(messages_router)
+app.include_router(artifacts_router)
 
 # 템플릿 파일 경로 (HWP 템플릿)
 TEMPLATE_PATH = str(BACKEND_DIR / "templates" / "report_template.hwpx")
