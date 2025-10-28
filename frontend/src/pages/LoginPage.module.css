@@ -1,0 +1,23 @@
+/* LoginPage Styles */
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: var(--background-color);
+}
+
+.card {
+  width: 500px;
+  box-shadow: var(--shadow-lg);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.footer {
+  text-align: center;
+}
