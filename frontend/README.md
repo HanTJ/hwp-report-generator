@@ -44,7 +44,7 @@ npm install
 `.env` 파일을 생성하고 다음 내용을 추가하세요:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=
 ```
 
 ### 3. 개발 서버 실행
