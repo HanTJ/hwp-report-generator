@@ -85,12 +85,6 @@ npm run build
 - 한국어 locale 적용 (koKR)
 - 반응형 디자인 지원
 
-## 📡 API 연동
-
-백엔드 API는 `http://localhost:8000`에서 실행되어야 합니다.
-
-개발 환경에서는 Vite의 proxy 설정으로 `/api` 요청을 백엔드로 전달합니다.
-
 ## 🧪 개발 가이드
 
 ### 새로운 페이지 추가
