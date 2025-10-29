@@ -47,7 +47,8 @@
       "Bash(then echo \"File does not exist\")",
       "Bash(else echo \"File exists\")",
       "mcp__serena__replace_symbol_body",
-      "Read(//d/WorkSpace/hwp-report/**)"
+      "Read(//d/WorkSpace/hwp-report/**)",
+      "mcp__atlassian__getTransitionsForJiraIssue"
     ],
     "deny": [
       "Read(**/.env*)",
