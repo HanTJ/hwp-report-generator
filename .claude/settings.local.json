@@ -45,7 +45,9 @@
       "Bash(uv run pytest:*)",
       "Bash(if [ ! -f \"backend/.CLAUDE.md\" ])",
       "Bash(then echo \"File does not exist\")",
-      "Bash(else echo \"File exists\")"
+      "Bash(else echo \"File exists\")",
+      "mcp__serena__replace_symbol_body",
+      "Read(//d/WorkSpace/hwp-report/**)"
     ],
     "deny": [
       "Read(**/.env*)",

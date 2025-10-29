@@ -128,7 +128,8 @@ def auth_headers(client, create_test_user, test_user_data):
             "password": test_user_data["password"]
         }
     )
-    token = response.json()["access_token"]
+    # 표준 API 응답 형식: data 필드에서 access_token 추출
+    token = response.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -144,7 +145,8 @@ def admin_auth_headers(client, create_test_admin, test_admin_data):
             "password": test_admin_data["password"]
         }
     )
-    token = response.json()["access_token"]
+    # 표준 API 응답 형식: data 필드에서 access_token 추출
+    token = response.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 

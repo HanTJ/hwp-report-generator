@@ -15,7 +15,9 @@ class TestAdminRouter:
     def test_get_all_users_as_admin(self, client, admin_auth_headers, create_test_user):
         resp = client.get("/api/admin/users", headers=admin_auth_headers)
         assert resp.status_code == 200
-        users = resp.json()
+        result = resp.json()
+        assert result["success"] is True
+        users = result["data"]["users"]
         assert isinstance(users, list)
         assert any(u["email"] == create_test_user.email for u in users)
 
@@ -29,8 +31,9 @@ class TestAdminRouter:
 
         resp = client.patch(f"/api/admin/users/{pending.id}/approve", headers=admin_auth_headers)
         assert resp.status_code == 200
-        body = resp.json()
-        assert "승인" in body["message"]
+        result = resp.json()
+        assert result["success"] is True
+        assert "승인" in result["data"]["message"]
 
         updated = UserDB.get_user_by_id(pending.id)
         assert updated.is_active is True
@@ -58,9 +61,10 @@ class TestAdminRouter:
 
         resp = client.post(f"/api/admin/users/{user.id}/reset-password", headers=admin_auth_headers)
         assert resp.status_code == 200
-        body = resp.json()
-        assert "temporary_password" in body
-        assert len(body["temporary_password"]) >= 8
+        result = resp.json()
+        assert result["success"] is True
+        assert "temporary_password" in result["data"]
+        assert len(result["data"]["temporary_password"]) >= 8
 
         updated = UserDB.get_user_by_id(user.id)
         assert updated.password_reset_required is True

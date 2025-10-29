@@ -63,7 +63,9 @@ class TestGenerateReportEndpoint:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        result = response.json()
+        assert result["success"] is True
+        data = result["data"]
         assert "id" in data
         assert "filename" in data
         assert "file_size" in data
@@ -94,7 +96,9 @@ class TestGenerateReportEndpoint:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        result = response.json()
+        assert result["success"] is True
+        data = result["data"]
 
         # DB에 저장되었는지 확인
         report = ReportDB.get_report_by_id(data["id"])
@@ -128,7 +132,9 @@ class TestGenerateReportEndpoint:
         assert response.status_code == 200
 
         # 응답에서 user_id 추출
-        data = response.json()
+        result = response.json()
+        assert result["success"] is True
+        data = result["data"]
         user_id = data["user_id"]
 
         # 토큰 사용량이 DB에 저장되었는지 확인 (실제 메서드 사용)
@@ -210,7 +216,9 @@ class TestGetMyReportsEndpoint:
         response = client.get("/api/reports/my-reports", headers=auth_headers)
 
         assert response.status_code == 200
-        data = response.json()
+        result = response.json()
+        assert result["success"] is True
+        data = result["data"]
         assert "reports" in data
         assert "total" in data
         assert data["total"] >= 1
@@ -220,7 +228,9 @@ class TestGetMyReportsEndpoint:
         response = client.get("/api/reports/my-reports", headers=auth_headers)
 
         assert response.status_code == 200
-        data = response.json()
+        result = response.json()
+        assert result["success"] is True
+        data = result["data"]
         assert data["reports"] == []
         assert data["total"] == 0
 
@@ -257,7 +267,7 @@ class TestDownloadReportEndpoint:
             headers=auth_headers,
             json={"topic": "테스트"}
         )
-        report_id = create_response.json()["id"]
+        report_id = create_response.json()["data"]["id"]
 
         # 다운로드
         response = client.get(f"/api/reports/download/{report_id}", headers=auth_headers)
@@ -305,7 +315,7 @@ class TestDeleteReportEndpoint:
             headers=auth_headers,
             json={"topic": "삭제할 보고서"}
         )
-        report_id = create_response.json()["id"]
+        report_id = create_response.json()["data"]["id"]
 
         # 삭제
         response = client.delete(f"/api/reports/{report_id}", headers=auth_headers)
@@ -356,12 +366,12 @@ class TestReportsEndToEnd:
             json={"topic": "전체 플로우 테스트"}
         )
         assert create_response.status_code == 200
-        report_id = create_response.json()["id"]
+        report_id = create_response.json()["data"]["id"]
 
         # 2. 내 보고서 목록에서 확인
         list_response = client.get("/api/reports/my-reports", headers=auth_headers)
         assert list_response.status_code == 200
-        reports = list_response.json()["reports"]
+        reports = list_response.json()["data"]["reports"]
         assert any(r["id"] == report_id for r in reports)
 
         # 3. 다운로드
