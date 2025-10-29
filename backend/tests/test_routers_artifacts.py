@@ -235,3 +235,100 @@ class TestArtifactsRouter:
         assert all(a["kind"] == ArtifactKind.MD.value for a in arts)
         assert len(arts) >= 1
 
+    def test_convert_artifact_not_found(self, client, auth_headers):
+        """존재하지 않는 아티팩트 변환 시도"""
+        resp = client.post("/api/artifacts/999999/convert", headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "ARTIFACT.NOT_FOUND"
+
+    def test_convert_artifact_unauthorized(self, client, auth_headers, create_test_admin, temp_dir):
+        """권한 없는 아티팩트 변환 시도"""
+        topic, msg = _create_topic_message(create_test_admin.id)
+        file_path = os.path.join(temp_dir, "admin.md")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("admin content")
+
+        art = ArtifactDB.create_artifact(
+            topic_id=topic.id,
+            message_id=msg.id,
+            artifact_data=ArtifactCreate(
+                kind=ArtifactKind.MD,
+                filename="admin.md",
+                file_path=file_path,
+                file_size=os.path.getsize(file_path),
+                locale="ko",
+                version=1,
+            ),
+        )
+
+        resp = client.post(f"/api/artifacts/{art.id}/convert", headers=auth_headers)
+        assert resp.status_code == 403
+        assert resp.json()["error"]["code"] == "TOPIC.UNAUTHORIZED"
+
+    def test_convert_artifact_invalid_kind(self, client, auth_headers, create_test_user, temp_dir):
+        """MD가 아닌 파일 변환 시도"""
+        topic, msg = _create_topic_message(create_test_user.id)
+        file_path = os.path.join(temp_dir, "file.hwpx")
+        with open(file_path, "wb") as f:
+            f.write(b"hwpx data")
+
+        art = ArtifactDB.create_artifact(
+            topic_id=topic.id,
+            message_id=msg.id,
+            artifact_data=ArtifactCreate(
+                kind=ArtifactKind.HWPX,
+                filename="file.hwpx",
+                file_path=file_path,
+                file_size=os.path.getsize(file_path),
+                locale="ko",
+                version=1,
+            ),
+        )
+
+        resp = client.post(f"/api/artifacts/{art.id}/convert", headers=auth_headers)
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "ARTIFACT.INVALID_KIND"
+
+    def test_convert_artifact_not_implemented(self, client, auth_headers, create_test_user, temp_dir):
+        """MD 파일 변환 시도 (미구현 상태)"""
+        topic, msg = _create_topic_message(create_test_user.id)
+        file_path = os.path.join(temp_dir, "convert.md")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("# Convert me\n내용")
+
+        art = ArtifactDB.create_artifact(
+            topic_id=topic.id,
+            message_id=msg.id,
+            artifact_data=ArtifactCreate(
+                kind=ArtifactKind.MD,
+                filename="convert.md",
+                file_path=file_path,
+                file_size=os.path.getsize(file_path),
+                locale="ko",
+                version=1,
+            ),
+        )
+
+        resp = client.post(f"/api/artifacts/{art.id}/convert", headers=auth_headers)
+        assert resp.status_code == 501
+        assert resp.json()["error"]["code"] == "SERVER.SERVICE_UNAVAILABLE"
+        assert "구현되지 않았습니다" in resp.json()["error"]["message"]
+
+    def test_get_artifact_content_not_found(self, client, auth_headers):
+        """존재하지 않는 아티팩트 내용 조회"""
+        resp = client.get("/api/artifacts/999999/content", headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "ARTIFACT.NOT_FOUND"
+
+    def test_download_artifact_not_found(self, client, auth_headers):
+        """존재하지 않는 아티팩트 다운로드"""
+        resp = client.get("/api/artifacts/999999/download", headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "ARTIFACT.NOT_FOUND"
+
+    def test_get_artifacts_by_topic_not_found(self, client, auth_headers):
+        """존재하지 않는 토픽의 아티팩트 조회"""
+        resp = client.get("/api/artifacts/topics/999999", headers=auth_headers)
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "TOPIC.NOT_FOUND"
+
