@@ -125,7 +125,7 @@ const AdminPage: React.FC = () => {
   ];
 
   return (
-    <MainLayout>
+    <MainLayout showHeader={true}>
       <Card
         title="사용자 관리"
         bordered={false}

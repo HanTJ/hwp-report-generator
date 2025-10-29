@@ -58,6 +58,24 @@ export const API_ENDPOINTS = {
   APPROVE_USER: (userId: number) => `/api/admin/users/${userId}/approve`,        // 사용자 승인
   REJECT_USER: (userId: number) => `/api/admin/users/${userId}/reject`,          // 사용자 거부
   RESET_PASSWORD: (userId: number) => `/api/admin/users/${userId}/reset-password`, // 비밀번호 초기화
+
+  // 토픽(대화 스레드) API
+  LIST_TOPICS: '/api/topics',                  // 토픽 목록 조회
+  CREATE_TOPIC: '/api/topics',                 // 새 토픽 생성
+  GET_TOPIC: (topicId: number) => `/api/topics/${topicId}`,            // 특정 토픽 조회
+  UPDATE_TOPIC: (topicId: number) => `/api/topics/${topicId}`,         // 토픽 업데이트
+  DELETE_TOPIC: (topicId: number) => `/api/topics/${topicId}`,         // 토픽 삭제
+
+  // 메시지 API
+  LIST_MESSAGES: (topicId: number) => `/api/topics/${topicId}/messages`,  // 토픽의 메시지 목록
+  CREATE_MESSAGE: (topicId: number) => `/api/topics/${topicId}/messages`, // 새 메시지 생성 (AI 응답 자동)
+
+  // 아티팩트 API
+  GET_ARTIFACT: (artifactId: number) => `/api/artifacts/${artifactId}`,           // 아티팩트 메타데이터 조회
+  GET_ARTIFACT_CONTENT: (artifactId: number) => `/api/artifacts/${artifactId}/content`, // MD 파일 내용 조회
+  DOWNLOAD_ARTIFACT: (artifactId: number) => `/api/artifacts/${artifactId}/download`,   // 파일 다운로드
+  LIST_ARTIFACTS_BY_TOPIC: (topicId: number) => `/api/artifacts/topics/${topicId}`,     // 토픽의 아티팩트 목록
+  CONVERT_ARTIFACT: (artifactId: number) => `/api/artifacts/${artifactId}/convert`,     // MD to HWPX 변환
 } as const;
 
 /**

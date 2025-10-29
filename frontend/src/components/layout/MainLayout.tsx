@@ -8,16 +8,22 @@ const { Content } = Layout;
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  sidebarCollapsed?: boolean | null;
+  showHeader?: boolean;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({
+  children,
+  sidebarCollapsed = null,
+  showHeader = false
+}) => {
   return (
     <Layout className={styles.main}>
-      <Header />
+      {showHeader && <Header />}
       <Content className={styles.content}>
         <div>{children}</div>
       </Content>
-      <Footer />
+      <Footer sidebarCollapsed={sidebarCollapsed} />
     </Layout>
   );
 };

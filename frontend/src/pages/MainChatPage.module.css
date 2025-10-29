@@ -1,6 +1,15 @@
 .mainChatPage {
   height: var(--main-height);
   background-color: #ffffff;
+  transition: margin-left 0.3s ease-out;
+}
+
+.mainChatPage.sidebarCollapsed {
+  margin-left: 4rem;
+}
+
+.mainChatPage.sidebarExpanded {
+  margin-left: 16rem;
 }
 
 .chatContainer {
@@ -95,16 +104,27 @@
 .chatInputWrapper {
   position: fixed;
   bottom: var(--footer-height);
-  left: 0;
   right: 0;
   background-color: #ffffff;
   z-index: 95;
+  transition: left 0.3s ease-out;
+  padding: 0 var(--spacing-md);
+}
+
+.sidebarCollapsed .chatInputWrapper {
+  left: 4rem;
+}
+
+.sidebarExpanded .chatInputWrapper {
+  left: 16rem;
 }
 
 .chatInputWrapper > * {
   max-width: 48rem;
   width: 100%;
   margin: 0 auto;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {

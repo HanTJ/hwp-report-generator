@@ -4,9 +4,20 @@ import styles from './Footer.module.css';
 
 const { Footer: AntFooter } = Layout;
 
-const Footer: React.FC = () => {
+interface FooterProps {
+  sidebarCollapsed?: boolean | null;
+}
+
+const Footer: React.FC<FooterProps> = ({ sidebarCollapsed = null }) => {
+  const getFooterClass = () => {
+    if (sidebarCollapsed === null) {
+      return styles.noSidebar;
+    }
+    return sidebarCollapsed ? styles.sidebarCollapsed : styles.sidebarExpanded;
+  };
+
   return (
-    <AntFooter className={styles.footer}>
+    <AntFooter className={`${styles.footer} ${getFooterClass()}`}>
       © 2025 HWP Report Generator | Powered by KJBank R&D HanTJ
     </AntFooter>
   );

@@ -3,8 +3,11 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  esbuild: {
+    drop: mode === "production" ? ["console", "debugger"] : [],
+  },
   server: {
     port: 5173,
     // 프록시 설정 제거 - 환경변수 VITE_API_BASE_URL 직접 사용
@@ -20,4 +23,4 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-});
+}));

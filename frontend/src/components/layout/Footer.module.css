@@ -1,7 +1,6 @@
 .footer {
   position: fixed;
   bottom: 0;
-  left: 0;
   right: 0;
   height: var(--footer-height);
   text-align: center;
@@ -11,4 +10,17 @@
   justify-content: center;
   z-index: 90;
   padding: var(--spacing-sm);
+  transition: left 0.3s ease-out;
+}
+
+.footer.noSidebar {
+  left: 0;
+}
+
+.footer.sidebarCollapsed {
+  left: 4rem;
+}
+
+.footer.sidebarExpanded {
+  left: 16rem;
 }
