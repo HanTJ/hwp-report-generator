@@ -18,6 +18,7 @@ React + TypeScript + Ant Design 기반의 프론트엔드 애플리케이션입�
 src/
 ├── components/         # 재사용 가능한 컴포넌트
 │   ├── auth/           # 인증 관련 컴포넌트
+│   ├── chat/           # 채팅 컴포넌트
 │   ├── layout/         # 레이아웃 컴포넌트
 │   ├── report/         # 보고서 관련 컴포넌트
 │   ├── admin/          # 관리자 컴포넌트
@@ -44,7 +45,7 @@ npm install
 `.env` 파일을 생성하고 다음 내용을 추가하세요:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=
 ```
 
 ### 3. 개발 서버 실행
@@ -54,6 +55,7 @@ npm run dev
 ```
 
 브라우저에서 http://localhost:5173 으로 접속
+현재 http://localhost:5173/chat에서 메인 화면 테스트 중
 
 ### 4. 프로덕션 빌드
 
@@ -68,6 +70,7 @@ npm run build
 - `/login` - 로그인 페이지
 - `/register` - 회원가입 페이지
 - `/` - 메인 페이지 (보고서 생성 및 목록)
+- `/chat` - 메인 테스트 페이지 (보고서 생성 및 목록)
 - `/change-password` - 비밀번호 변경 페이지
 - `/admin` - 관리자 페이지 (관리자 전용)
 
@@ -84,12 +87,6 @@ npm run build
 - Ant Design의 컴포넌트와 스타일 사용
 - 한국어 locale 적용 (koKR)
 - 반응형 디자인 지원
-
-## 📡 API 연동
-
-백엔드 API는 `http://localhost:8000`에서 실행되어야 합니다.
-
-개발 환경에서는 Vite의 proxy 설정으로 `/api` 요청을 백엔드로 전달합니다.
 
 ## 🧪 개발 가이드
 

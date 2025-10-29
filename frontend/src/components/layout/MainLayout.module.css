@@ -1,13 +1,9 @@
 .main {
-  min-height: 100vh;
-}
-
-.content {
-  padding: var(--spacing-lg);
-  background-color: var(--background-color);
+  height: calc(100vh - var(--header-height) - var(--footer-height));
+  padding-top: var(--header-height);
+  padding-bottom: var(--footer-height);
 }
 
 .content > div {
-  max-width: 900px;
-  margin: 0 auto;
+  width: 100%;
 }
