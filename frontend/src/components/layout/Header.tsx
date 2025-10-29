@@ -1,5 +1,6 @@
 import React from "react";
 import { Layout, Button, Space } from "antd";
+import logo from "@/assets/logo.png";
 import {
   LogoutOutlined,
   UserOutlined,
@@ -23,8 +24,13 @@ const Header: React.FC = () => {
   return (
     <AntHeader className={`${styles.header} flex-between`}>
       <div>
-        <h2>HWP 보고서 자동 생성 시스템</h2>
-        <p>Claude AI를 활용한 금융 업무보고서 자동 생성</p>
+        <Button type="link" onClick={() => navigate("/")}>
+          <img className={styles.logo} src={logo} alt="Logo" />
+        </Button>
+        <div>
+          <h2>HWP 보고서 자동 생성 시스템</h2>
+          <p>Claude AI를 활용한 금융 업무보고서 자동 생성</p>
+        </div>
       </div>
       <Space>
         <UserOutlined />

@@ -22,7 +22,6 @@ export const authApi = {
    * @returns 토큰, 사용자 정보
    */
   login: async (data: LoginRequest): Promise<LoginResponse> => {
-    console.log("authApi.login called with data:", data);
     const response = await api.post<LoginResponse>(API_ENDPOINTS.LOGIN, data);
     return response.data;
   },

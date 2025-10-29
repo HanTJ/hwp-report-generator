@@ -26,6 +26,7 @@ import PublicRoute from './components/auth/PublicRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import MainPage from './pages/MainPage';
+import MainChatPage from './pages/MainChatPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import AdminPage from './pages/AdminPage';
 
@@ -86,6 +87,14 @@ const App: React.FC = () => {
                   element={
                     <PrivateRoute>
                       <ChangePasswordPage />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/chat"
+                  element={
+                    <PrivateRoute>
+                      <MainChatPage />
                     </PrivateRoute>
                   }
                 />
