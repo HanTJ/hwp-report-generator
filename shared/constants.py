@@ -4,8 +4,58 @@ constants.properties 파일을 파싱하여 상수를 제공
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Dict
+
+
+# ============================================================
+# 프로젝트 경로 관리
+# ============================================================
+
+class ProjectPath:
+    """
+    프로젝트 경로 관리 클래스
+
+    환경 변수 PATH_PROJECT_HOME을 기준으로 모든 경로를 참조합니다.
+    PATH_PROJECT_HOME이 설정되지 않으면 에러를 발생시킵니다.
+    """
+
+    # 환경 변수에서 프로젝트 홈 읽기
+    _path_project_home = os.getenv("PATH_PROJECT_HOME")
+
+    if not _path_project_home:
+        print("=" * 80)
+        print("ERROR: PATH_PROJECT_HOME 환경 변수가 설정되지 않았습니다.")
+        print("=" * 80)
+        print()
+        print(".env 파일에 다음 항목을 추가해주세요:")
+        print()
+        print("PATH_PROJECT_HOME=D:\\WorkSpace\\hwp-report\\hwp-report-generator")
+        print()
+        print("(위 경로를 실제 프로젝트 경로로 수정하세요)")
+        print("=" * 80)
+        sys.exit(1)
+
+    _ROOT = Path(_path_project_home)
+
+    ROOT = _ROOT
+    SHARED = _ROOT / "shared"
+    BACKEND = _ROOT / "backend"
+    FRONTEND = _ROOT / "frontend"
+    DATABASE_DIR = _ROOT / "backend" / "data"
+    DATABASE_FILE = _ROOT / "backend" / "data" / "hwp_reports.db"
+
+    @classmethod
+    def add_to_sys_path(cls):
+        """프로젝트 루트를 sys.path에 추가"""
+        root_str = str(cls.ROOT)
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+
+
+# 자동으로 sys.path에 추가
+ProjectPath.add_to_sys_path()
 
 
 class PropertiesParser:
@@ -51,8 +101,7 @@ class PropertiesParser:
 
 
 # Properties 파일 로드
-_current_dir = Path(__file__).parent
-_props = PropertiesParser(str(_current_dir / "constants.properties"))
+_props = PropertiesParser(str(ProjectPath.SHARED / "constants.properties"))
 
 
 # ============================================================

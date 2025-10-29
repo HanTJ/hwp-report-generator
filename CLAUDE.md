@@ -248,6 +248,35 @@ The system expects `CLAUDE_API_KEY` in environment variables. Check API usage li
 
 All Backend-Frontend API communications follow a standardized response format for consistency and better error handling.
 
+### ⚠️ MANDATORY COMPLIANCE RULE
+
+**ALL new API endpoints MUST use the standard response format.**
+
+- ✅ **REQUIRED**: Use `success_response()` and `error_response()` from `utils/response_helper.py`
+- ❌ **FORBIDDEN**: Direct use of `HTTPException` or returning raw dictionaries/models
+- ✅ **REQUIRED**: Use `ErrorCode` class constants for error codes
+- ❌ **FORBIDDEN**: Hardcoded error code strings
+
+**Pull requests that violate this standard will be rejected.**
+
+### Current Implementation Status
+
+| Router | Endpoints | Compliance | Status |
+|--------|-----------|------------|--------|
+| **Topics** | 5/5 | 100% ✅ | **Reference Implementation** |
+| **Messages** | 4/4 | 100% ✅ | Fully Compliant |
+| **Artifacts** | 5/5 | 100% ✅ | Fully Compliant |
+| **Auth** | 5/5 | 100% ✅ | **Fully Compliant** ✨ |
+| **Admin** | 6/6 | 100% ✅ | **Fully Compliant** ✨ |
+| **Reports** | 3/3 | 100% ✅ | **Fully Compliant** ✨ |
+| **Main Routes** | 0/4 | 0% ❌ | **Legacy - Deprecation Planned** |
+
+**Overall Compliance**: 100% (28/28 active endpoints) ✨
+
+**Legacy Routes**: 4 endpoints pending deprecation (Main Routes)
+
+**Target**: ✅ **ACHIEVED** - 100% compliance for all active routers
+
 ### Standard Response Structure
 
 **Success Response:**
@@ -553,4 +582,419 @@ This standard applies to **ALL** API endpoints:
     }
   ]
 }
+```
+
+---
+
+## Migration Guide: Legacy to Standard Response Format
+
+### Why Migrate?
+
+**Problems with Legacy Approach:**
+- ❌ Inconsistent error handling across endpoints
+- ❌ Difficult to parse responses on frontend
+- ❌ No standardized error codes
+- ❌ Missing request tracing capability
+- ❌ No support for user feedback/hints
+
+**Benefits of Standard Format:**
+- ✅ Consistent structure across all endpoints
+- ✅ Easy to parse and handle on frontend
+- ✅ Standardized error codes (DOMAIN.DETAIL)
+- ✅ Built-in request tracing (requestId, traceId)
+- ✅ Support for user feedback and hints
+
+### Step-by-Step Migration
+
+#### Step 1: Import Required Modules
+
+**Before:**
+```python
+from fastapi import APIRouter, HTTPException
+from app.models.user import UserResponse
+```
+
+**After:**
+```python
+from fastapi import APIRouter, Depends
+from app.models.user import UserResponse
+from app.utils.response_helper import success_response, error_response, ErrorCode
+```
+
+#### Step 2: Replace HTTPException with error_response()
+
+**Before (❌ Non-compliant):**
+```python
+@router.post("/login")
+async def login(credentials: UserLogin):
+    user = authenticate_user(credentials.email, credentials.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="이메일 또는 비밀번호가 올바르지 않습니다."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="계정이 비활성화되었습니다."
+        )
+
+    token = create_access_token(data={"sub": user.email})
+    return {"access_token": token, "token_type": "bearer"}
+```
+
+**After (✅ Compliant):**
+```python
+@router.post("/login")
+async def login(credentials: UserLogin):
+    user = authenticate_user(credentials.email, credentials.password)
+    if not user:
+        return error_response(
+            code=ErrorCode.AUTH_INVALID_CREDENTIALS,
+            http_status=401,
+            message="이메일 또는 비밀번호가 올바르지 않습니다.",
+            hint="입력 정보를 다시 확인해주세요."
+        )
+
+    if not user.is_active:
+        return error_response(
+            code=ErrorCode.AUTH_UNAUTHORIZED,
+            http_status=403,
+            message="계정이 비활성화되었습니다.",
+            hint="관리자에게 문의하여 계정을 활성화해주세요."
+        )
+
+    token = create_access_token(data={"sub": user.email})
+    return success_response({
+        "access_token": token,
+        "token_type": "bearer",
+        "user": UserResponse.from_orm(user)
+    })
+```
+
+#### Step 3: Wrap Success Responses
+
+**Before (❌ Non-compliant):**
+```python
+@router.get("/users", response_model=List[UserResponse])
+async def get_all_users(current_user: User = Depends(get_current_admin)):
+    users = UserDB.get_all_users()
+    return [UserResponse.from_orm(u) for u in users]
+```
+
+**After (✅ Compliant):**
+```python
+@router.get("/users")
+async def get_all_users(current_user: User = Depends(get_current_admin)):
+    try:
+        users = UserDB.get_all_users()
+        return success_response({
+            "users": [UserResponse.from_orm(u) for u in users],
+            "total": len(users)
+        })
+    except Exception as e:
+        return error_response(
+            code=ErrorCode.SERVER_DATABASE_ERROR,
+            http_status=500,
+            message="사용자 목록 조회 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
+```
+
+#### Step 4: Handle Exceptions Properly
+
+**Before (❌ Non-compliant):**
+```python
+@router.delete("/reports/{report_id}")
+async def delete_report(report_id: int, current_user: User = Depends(get_current_user)):
+    report = ReportDB.get_report_by_id(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    if report.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    ReportDB.delete_report(report_id)
+    return {"message": "Report deleted successfully"}
+```
+
+**After (✅ Compliant):**
+```python
+@router.delete("/reports/{report_id}")
+async def delete_report(report_id: int, current_user: User = Depends(get_current_user)):
+    try:
+        report = ReportDB.get_report_by_id(report_id)
+        if not report:
+            return error_response(
+                code=ErrorCode.REPORT_NOT_FOUND,
+                http_status=404,
+                message="보고서를 찾을 수 없습니다."
+            )
+
+        if report.user_id != current_user.id:
+            return error_response(
+                code=ErrorCode.REPORT_UNAUTHORIZED,
+                http_status=403,
+                message="이 보고서에 대한 권한이 없습니다."
+            )
+
+        ReportDB.delete_report(report_id)
+        return success_response({
+            "message": "보고서가 성공적으로 삭제되었습니다.",
+            "deleted_id": report_id
+        })
+
+    except Exception as e:
+        return error_response(
+            code=ErrorCode.SERVER_DATABASE_ERROR,
+            http_status=500,
+            message="보고서 삭제 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
+```
+
+### Migration Checklist
+
+Use this checklist when migrating an endpoint:
+
+- [ ] Import `success_response`, `error_response`, `ErrorCode` from `response_helper`
+- [ ] Replace all `HTTPException` with `error_response()`
+- [ ] Wrap all success returns with `success_response()`
+- [ ] Use `ErrorCode` constants instead of hardcoded strings
+- [ ] Add meaningful `hint` messages to error responses
+- [ ] Add try-except blocks for database/external operations
+- [ ] Remove `response_model` from decorator (if it was direct model return)
+- [ ] Test both success and error cases
+- [ ] Update API documentation/examples
+
+---
+
+## Reference Implementation: Topics Router
+
+The `topics.py` router serves as the **reference implementation** for the standard response format. Study this file when implementing new endpoints.
+
+### Example: Create Topic Endpoint
+
+**File**: `backend/app/routers/topics.py`
+
+```python
+from fastapi import APIRouter, Depends
+from app.database.topic_db import TopicDB
+from app.models.topic import TopicCreate, TopicResponse
+from app.utils.response_helper import success_response, error_response, ErrorCode
+from app.utils.auth import get_current_user
+from app.models.user import User
+
+router = APIRouter()
+
+@router.post("/api/topics")
+async def create_topic(
+    topic_data: TopicCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new conversation topic.
+
+    Args:
+        topic_data: Topic creation data (input_prompt, language)
+        current_user: Authenticated user from JWT token
+
+    Returns:
+        Standard API response with created topic data
+    """
+    try:
+        # Business logic
+        topic = TopicDB.create_topic(
+            user_id=current_user.id,
+            topic_data=topic_data
+        )
+
+        # Success response with created resource
+        return success_response({
+            "id": topic.id,
+            "input_prompt": topic.input_prompt,
+            "language": topic.language,
+            "status": topic.status,
+            "created_at": topic.created_at.isoformat()
+        })
+
+    except ValueError as e:
+        # Handle validation errors
+        return error_response(
+            code=ErrorCode.VALIDATION_INVALID_FORMAT,
+            http_status=400,
+            message="입력 데이터가 올바르지 않습니다.",
+            details={"error": str(e)}
+        )
+
+    except Exception as e:
+        # Handle unexpected errors
+        return error_response(
+            code=ErrorCode.TOPIC_CREATION_FAILED,
+            http_status=500,
+            message="토픽 생성 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
+
+
+@router.get("/api/topics/{topic_id}")
+async def get_topic(
+    topic_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific topic by ID.
+
+    Args:
+        topic_id: Topic ID to retrieve
+        current_user: Authenticated user from JWT token
+
+    Returns:
+        Standard API response with topic data or error
+    """
+    try:
+        topic = TopicDB.get_topic_by_id(topic_id)
+
+        # Check if topic exists
+        if not topic:
+            return error_response(
+                code=ErrorCode.TOPIC_NOT_FOUND,
+                http_status=404,
+                message="토픽을 찾을 수 없습니다."
+            )
+
+        # Check authorization
+        if topic.user_id != current_user.id:
+            return error_response(
+                code=ErrorCode.TOPIC_UNAUTHORIZED,
+                http_status=403,
+                message="이 토픽에 대한 접근 권한이 없습니다."
+            )
+
+        # Return topic data
+        return success_response(TopicResponse.from_orm(topic).dict())
+
+    except Exception as e:
+        return error_response(
+            code=ErrorCode.SERVER_DATABASE_ERROR,
+            http_status=500,
+            message="토픽 조회 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
+```
+
+### Key Patterns to Follow
+
+1. **Always use try-except blocks**
+   - Catch specific exceptions first (ValueError, KeyError, etc.)
+   - Catch generic Exception last as fallback
+   - Never let exceptions bubble up unhandled
+
+2. **Return appropriate HTTP status codes**
+   - 200: Success (GET, PATCH, DELETE)
+   - 201: Created (POST for new resources) - but we use 200 for consistency
+   - 400: Bad Request (validation errors)
+   - 401: Unauthorized (authentication failed)
+   - 403: Forbidden (authorization failed)
+   - 404: Not Found (resource doesn't exist)
+   - 500: Internal Server Error (unexpected errors)
+
+3. **Use descriptive error messages in Korean**
+   - User-facing messages should be in Korean
+   - Add helpful `hint` for common errors
+   - Include technical details in `details` field for debugging
+
+4. **Use ErrorCode constants**
+   - Never hardcode error code strings
+   - Use `ErrorCode.DOMAIN_DETAIL` pattern
+   - Add new constants to `ErrorCode` class if needed
+
+5. **Validate authorization**
+   - Check if resource exists first (404)
+   - Check if user has permission second (403)
+   - Return appropriate error codes
+
+---
+
+## Available Error Codes
+
+All error codes are defined in `backend/app/utils/response_helper.py` as `ErrorCode` class constants.
+
+### Authentication & Authorization
+- `ErrorCode.AUTH_INVALID_TOKEN` - Invalid or malformed JWT token
+- `ErrorCode.AUTH_TOKEN_EXPIRED` - JWT token has expired
+- `ErrorCode.AUTH_UNAUTHORIZED` - User lacks required permissions
+- `ErrorCode.AUTH_INVALID_CREDENTIALS` - Wrong email/password
+
+### Topics
+- `ErrorCode.TOPIC_NOT_FOUND` - Topic with given ID doesn't exist
+- `ErrorCode.TOPIC_UNAUTHORIZED` - User doesn't own this topic
+- `ErrorCode.TOPIC_CREATION_FAILED` - Failed to create topic
+- `ErrorCode.TOPIC_UPDATE_FAILED` - Failed to update topic
+- `ErrorCode.TOPIC_DELETE_FAILED` - Failed to delete topic
+
+### Messages
+- `ErrorCode.MESSAGE_NOT_FOUND` - Message with given ID doesn't exist
+- `ErrorCode.MESSAGE_CREATION_FAILED` - Failed to create message
+- `ErrorCode.MESSAGE_UPDATE_FAILED` - Failed to update message
+- `ErrorCode.MESSAGE_DELETE_FAILED` - Failed to delete message
+
+### Artifacts
+- `ErrorCode.ARTIFACT_NOT_FOUND` - Artifact with given ID doesn't exist
+- `ErrorCode.ARTIFACT_INVALID_KIND` - Invalid artifact type
+- `ErrorCode.ARTIFACT_DOWNLOAD_FAILED` - Failed to download artifact
+
+### Validation
+- `ErrorCode.VALIDATION_REQUIRED_FIELD` - Required field is missing
+- `ErrorCode.VALIDATION_INVALID_FORMAT` - Data format is invalid
+- `ErrorCode.VALIDATION_MAX_LENGTH_EXCEEDED` - Input exceeds maximum length
+
+### Server Errors
+- `ErrorCode.SERVER_INTERNAL_ERROR` - Unexpected server error
+- `ErrorCode.SERVER_DATABASE_ERROR` - Database operation failed
+- `ErrorCode.SERVER_SERVICE_UNAVAILABLE` - Service temporarily unavailable
+
+**Note**: If you need a new error code, add it to the `ErrorCode` class in `response_helper.py` following the `DOMAIN_DETAIL` naming convention.
+
+---
+
+## Testing Standard Responses
+
+When writing tests for endpoints, verify the standard response structure:
+
+```python
+def test_create_topic_success(client, auth_headers):
+    response = client.post(
+        "/api/topics",
+        headers=auth_headers,
+        json={"input_prompt": "Test topic", "language": "ko"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+
+    # Verify standard structure
+    assert body["success"] is True
+    assert body["data"] is not None
+    assert body["error"] is None
+    assert "requestId" in body["meta"]
+    assert isinstance(body["feedback"], list)
+
+    # Verify data content
+    assert body["data"]["input_prompt"] == "Test topic"
+
+
+def test_get_topic_not_found(client, auth_headers):
+    response = client.get("/api/topics/999999", headers=auth_headers)
+
+    assert response.status_code == 404
+    body = response.json()
+
+    # Verify standard error structure
+    assert body["success"] is False
+    assert body["data"] is None
+    assert body["error"] is not None
+    assert body["error"]["code"] == "TOPIC.NOT_FOUND"
+    assert body["error"]["httpStatus"] == 404
+    assert body["error"]["message"]
+    assert "traceId" in body["error"]
 ```

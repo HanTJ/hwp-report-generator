@@ -2,23 +2,59 @@
 HWP 보고서 자동 생성 시스템 - FastAPI 메인 애플리케이션
 """
 import os
+import sys
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
+
+# 현재 위치에서 상위로 올라가며 .env 파일 자동 검색
+env_file_path = find_dotenv()
+print(f"DEBUG: 찾은 .env 파일 경로: {env_file_path}")
+
+load_dotenv(env_file_path)
+
+# 환경 변수에서 프로젝트 홈 읽기
+path_project_home = os.getenv("PATH_PROJECT_HOME")
+print(f"DEBUG: PATH_PROJECT_HOME 값: {path_project_home}")
+
+if not path_project_home:
+    print("=" * 80)
+    print("ERROR: PATH_PROJECT_HOME 환경 변수가 설정되지 않았습니다.")
+    print("=" * 80)
+    print()
+    print(f".env 파일에 다음 항목을 추가해주세요:")
+    print(f"위치: {env_file_path}")
+    print()
+    print("PATH_PROJECT_HOME=D:\\WorkSpace\\hwp-report\\hwp-report-generator")
+    print()
+    print("(위 경로를 실제 프로젝트 경로로 수정하세요)")
+    print("=" * 80)
+    sys.exit(1)
+
+# 프로젝트 루트를 sys.path에 추가 (shared 모듈 import를 위해)
+project_root = Path(path_project_home)
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from dotenv import load_dotenv
 import logging
 
 from app.utils.claude_client import ClaudeClient
 from app.utils.hwp_handler import HWPHandler
 from app.utils.auth import hash_password
 from app.database import init_db, UserDB
-from app.routers import auth_router, reports_router, admin_router
-
-# 환경 변수 로드
-load_dotenv()
+from app.routers import (
+    auth_router,
+    reports_router,
+    admin_router,
+    topics_router,
+    messages_router,
+    artifacts_router,
+)
 
 # 로깅 설정
 logging.basicConfig(
@@ -34,9 +70,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Get the backend directory (1 level up from this file's parent)
-from pathlib import Path
-BACKEND_DIR = Path(__file__).parent.parent
+# Backend 디렉토리 설정 (PATH_PROJECT_HOME 기반)
+BACKEND_DIR = project_root / "backend"
 
 # 앱 시작 시 실행
 @app.on_event("startup")
@@ -46,9 +81,10 @@ async def startup_event():
 
     # 필요한 디렉토리 생성
     os.makedirs(BACKEND_DIR / "templates", exist_ok=True)
-    os.makedirs(BACKEND_DIR / "output", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "output", exist_ok=True)  # Legacy (deprecated)
     os.makedirs(BACKEND_DIR / "temp", exist_ok=True)
     os.makedirs(BACKEND_DIR / "data", exist_ok=True)
+    os.makedirs(BACKEND_DIR / "artifacts", exist_ok=True)  # New: chat-based artifacts
 
     # 데이터베이스 초기화
     logger.info("데이터베이스를 초기화합니다...")
@@ -77,8 +113,13 @@ templates = Jinja2Templates(directory=str(PROJECT_ROOT / "templates"))
 
 # 라우터 등록
 app.include_router(auth_router)
-app.include_router(reports_router)
+app.include_router(reports_router)  # Legacy (deprecated)
 app.include_router(admin_router)
+
+# New chat-based API routers
+app.include_router(topics_router)
+app.include_router(messages_router)
+app.include_router(artifacts_router)
 
 # 템플릿 파일 경로 (HWP 템플릿)
 TEMPLATE_PATH = str(BACKEND_DIR / "templates" / "report_template.hwpx")

@@ -7,6 +7,9 @@ import logging
 from typing import Dict
 from anthropic import Anthropic
 
+# shared.constants를 import하면 자동으로 sys.path 설정됨
+from shared.constants import ClaudeConfig
+
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +24,8 @@ class ClaudeClient:
     def __init__(self):
         """Claude 클라이언트 초기화"""
         self.api_key = os.getenv("CLAUDE_API_KEY")
-        self.model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
+        self.model = os.getenv("CLAUDE_MODEL", ClaudeConfig.MODEL)
+        self.max_tokens = ClaudeConfig.MAX_TOKENS
 
         if not self.api_key:
             raise ValueError("CLAUDE_API_KEY 환경 변수가 설정되지 않았습니다.")
@@ -87,10 +91,11 @@ class ClaudeClient:
         try:
             logger.info(f"Claude API 호출 시작 - 주제: {topic}")
             logger.info(f"사용 모델: {self.model}")
+            logger.info(f"최대 토큰: {self.max_tokens}")
 
             message = self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=self.max_tokens,
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
@@ -202,3 +207,105 @@ class ClaudeClient:
                 sections[key] = f"(내용이 생성되지 않았습니다: {key})"
 
         return sections
+
+    def chat_completion(
+        self,
+        messages: list[Dict[str, str]],
+        system_prompt: str = None
+    ) -> tuple[str, int, int]:
+        """Chat-based completion for conversational report generation.
+
+        Args:
+            messages: List of message dictionaries with 'role' and 'content' keys
+                     Example: [{"role": "user", "content": "Write a report"}]
+            system_prompt: Optional system prompt (default: financial report writer)
+
+        Returns:
+            Tuple of (response_content, input_tokens, output_tokens)
+
+        Raises:
+            Exception: If API call fails
+
+        Examples:
+            >>> client = ClaudeClient()
+            >>> messages = [{"role": "user", "content": "디지털뱅킹 트렌드 보고서 작성"}]
+            >>> response, input_tokens, output_tokens = client.chat_completion(messages)
+            >>> print(response[:100])
+            # 디지털뱅킹 트렌드 분석 보고서
+
+## 요약
+
+2025년 디지털뱅킹 산업은...
+        """
+        # Default system prompt for financial reports
+        if system_prompt is None:
+            system_prompt = """당신은 금융 기관의 전문 보고서 작성자입니다.
+사용자의 요청에 따라 전문적이고 격식있는 금융 업무보고서를 Markdown 형식으로 작성해주세요.
+
+보고서는 다음 섹션을 포함해야 합니다:
+- # 제목 (H1)
+- ## 요약 (H2)
+- ## 배경 및 목적 (H2)
+- ## 주요 내용 (H2)
+- ## 결론 및 제언 (H2)
+
+명확하고 이해하기 쉽게 작성하되, 금융 용어와 데이터를 적절히 활용하여 신뢰성을 높여주세요.
+모든 출력은 Markdown 형식이어야 합니다."""
+
+        try:
+            logger.info(f"Claude chat completion 시작 - 메시지 수: {len(messages)}")
+            logger.info(f"사용 모델: {self.model}")
+            logger.info(f"최대 토큰: {self.max_tokens}")
+
+            # API call with system prompt
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                system=system_prompt,
+                messages=messages
+            )
+
+            # Extract response content
+            content = response.content[0].text
+
+            logger.info("=" * 80)
+            logger.info("Claude API 응답 (채팅 모드):")
+            logger.info("=" * 80)
+            logger.info(content[:500] + "..." if len(content) > 500 else content)
+            logger.info("=" * 80)
+
+            logger.info(f"응답 길이: {len(content)} 문자")
+            logger.info(f"토큰 사용량 - Input: {response.usage.input_tokens}, Output: {response.usage.output_tokens}")
+
+            # Track token usage
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+
+            self.last_input_tokens = input_tokens
+            self.last_output_tokens = output_tokens
+            self.last_total_tokens = input_tokens + output_tokens
+
+            return content, input_tokens, output_tokens
+
+        except Exception as e:
+            logger.error(f"Claude chat completion 중 오류 발생: {str(e)}")
+            raise Exception(f"Claude chat completion 중 오류 발생: {str(e)}")
+
+    def get_token_usage(self) -> Dict[str, int]:
+        """Gets the last API call's token usage.
+
+        Returns:
+            Dictionary with input_tokens, output_tokens, total_tokens
+
+        Examples:
+            >>> client = ClaudeClient()
+            >>> client.chat_completion([{"role": "user", "content": "Test"}])
+            >>> usage = client.get_token_usage()
+            >>> print(usage["total_tokens"])
+            1250
+        """
+        return {
+            "input_tokens": self.last_input_tokens,
+            "output_tokens": self.last_output_tokens,
+            "total_tokens": self.last_total_tokens
+        }

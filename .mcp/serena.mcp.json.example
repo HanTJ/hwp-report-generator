@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "serena": {
+      "command": "serena",
+      "args": [
+        "mcp",
+        "--project",
+        "D:\\WorkSpace\\hwp-report\\hwp-report-generator"
+      ],
+      "env": {
+        "SERENA_PROJECT_DIR": "D:\\WorkSpace\\hwp-report\\hwp-report-generator"
+      }
+    }
+  }
+}
+

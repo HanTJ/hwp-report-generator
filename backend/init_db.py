@@ -4,22 +4,33 @@
 """
 import os
 import sys
-sys.path.insert(0, os.path.dirname(__file__))
+from dotenv import load_dotenv, find_dotenv
+
+# 프로젝트 루트의 .env 파일 자동 탐색 및 로드
+load_dotenv(find_dotenv())
+
+# PATH_PROJECT_HOME 환경 변수 확인 및 sys.path 설정
+path_project_home = os.getenv("PATH_PROJECT_HOME")
+if not path_project_home:
+    print("ERROR: PATH_PROJECT_HOME 환경 변수가 설정되지 않았습니다.")
+    print(".env 파일에 PATH_PROJECT_HOME을 설정해주세요.")
+    sys.exit(1)
+
+# 프로젝트 루트를 sys.path에 추가
+if path_project_home not in sys.path:
+    sys.path.insert(0, path_project_home)
 
 from app.database import init_db
 from app.database.user_db import UserDB
 from app.models.user import UserCreate, UserUpdate
 from app.utils.auth import hash_password
-from dotenv import load_dotenv
-
-# 환경 변수 로드
-load_dotenv()
+from shared.constants import ProjectPath
 
 def main():
     print("데이터베이스를 초기화합니다...")
 
-    # 필요한 디렉토리 생성
-    os.makedirs("data", exist_ok=True)
+    # 필요한 디렉토리 생성 (PATH_PROJECT_HOME 기반)
+    os.makedirs(ProjectPath.DATABASE_DIR, exist_ok=True)
 
     # 데이터베이스 초기화
     init_db()
