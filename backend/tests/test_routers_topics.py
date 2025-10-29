@@ -2,6 +2,9 @@
 토픽(대화 주제) API 라우터 테스트
 """
 import pytest
+import os
+from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from app.database.topic_db import TopicDB
 from app.models.topic import TopicCreate, TopicUpdate
@@ -122,4 +125,119 @@ class TestTopicsRouter:
         assert response.status_code == 404
         body = response.json()
         assert body["error"]["code"] == "TOPIC.NOT_FOUND"
+
+    @patch('app.routers.topics.ClaudeClient')
+    def test_generate_topic_report_success(
+        self,
+        mock_claude_class,
+        client,
+        auth_headers,
+        create_test_user,
+        temp_dir
+    ):
+        """보고서 생성 성공 테스트"""
+        # Mock Claude response
+        mock_claude_instance = MagicMock()
+        mock_claude_instance.generate_report.return_value = {
+            "title": "디지털뱅킹 트렌드 분석 보고서",
+            "title_summary": "요약",
+            "summary": "2025년 디지털뱅킹 주요 트렌드입니다.",
+            "title_background": "배경 및 목적",
+            "background": "디지털 전환이 가속화되고 있습니다.",
+            "title_main_content": "주요 내용",
+            "main_content": "AI 기반 금융 서비스가 확대되고 있습니다.",
+            "title_conclusion": "결론 및 제언",
+            "conclusion": "디지털 전환에 적극 대응해야 합니다."
+        }
+        mock_claude_instance.model = "claude-sonnet-4-5-20250929"
+        mock_claude_instance.last_input_tokens = 1000
+        mock_claude_instance.last_output_tokens = 2000
+        mock_claude_class.return_value = mock_claude_instance
+
+        # API 호출
+        response = client.post(
+            "/api/topics/generate",
+            headers=auth_headers,
+            json={
+                "input_prompt": "디지털뱅킹 트렌드 분석",
+                "language": "ko"
+            }
+        )
+
+        # 검증
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert "topic_id" in body["data"]
+        assert "md_path" in body["data"]
+        assert body["data"]["topic_id"] > 0
+
+        # Claude가 호출되었는지 확인
+        mock_claude_instance.generate_report.assert_called_once_with("디지털뱅킹 트렌드 분석")
+
+        # DB에 저장되었는지 확인
+        topic = TopicDB.get_topic_by_id(body["data"]["topic_id"])
+        assert topic is not None
+        assert topic.input_prompt == "디지털뱅킹 트렌드 분석"
+        assert topic.generated_title == "디지털뱅킹 트렌드 분석 보고서"
+
+    def test_generate_topic_report_empty_prompt(self, client, auth_headers):
+        """빈 입력 프롬프트 테스트 (Pydantic 검증)"""
+        response = client.post(
+            "/api/topics/generate",
+            headers=auth_headers,
+            json={
+                "input_prompt": "",
+                "language": "ko"
+            }
+        )
+
+        # Pydantic validation error (422)
+        assert response.status_code == 422
+        body = response.json()
+        assert "detail" in body
+
+    def test_generate_topic_report_whitespace_only(self, client, auth_headers):
+        """공백만 있는 입력 프롬프트 테스트"""
+        response = client.post(
+            "/api/topics/generate",
+            headers=auth_headers,
+            json={
+                "input_prompt": "   ",
+                "language": "ko"
+            }
+        )
+
+        assert response.status_code == 400
+        body = response.json()
+        assert body["success"] is False
+        assert body["error"]["httpStatus"] == 400
+
+    @patch('app.routers.topics.ClaudeClient')
+    def test_generate_topic_report_claude_error(
+        self,
+        mock_claude_class,
+        client,
+        auth_headers
+    ):
+        """Claude API 오류 테스트"""
+        # Mock Claude to raise an exception
+        mock_claude_instance = MagicMock()
+        mock_claude_instance.generate_report.side_effect = Exception("Claude API Error")
+        mock_claude_class.return_value = mock_claude_instance
+
+        response = client.post(
+            "/api/topics/generate",
+            headers=auth_headers,
+            json={
+                "input_prompt": "테스트 주제",
+                "language": "ko"
+            }
+        )
+
+        assert response.status_code == 500
+        body = response.json()
+        assert body["success"] is False
+        assert body["error"]["code"] == "REPORT.GENERATION_FAILED"
+        assert body["error"]["httpStatus"] == 500
 

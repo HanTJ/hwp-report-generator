@@ -8,10 +8,22 @@ from typing import Optional
 
 from app.models.user import User
 from app.models.topic import TopicCreate, TopicUpdate, TopicResponse, TopicListResponse
+from app.models.message import MessageCreate
+from app.models.artifact import ArtifactCreate
+from app.models.ai_usage import AiUsageCreate
 from app.database.topic_db import TopicDB
+from app.database.message_db import MessageDB
+from app.database.artifact_db import ArtifactDB
+from app.database.ai_usage_db import AiUsageDB
 from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
 from shared.types.enums import TopicStatus
+from shared.types.enums import MessageRole, ArtifactKind
+from app.utils.markdown_builder import build_report_md
+from app.utils.file_utils import next_artifact_version, build_artifact_paths, write_text, sha256_of
+from app.utils.claude_client import ClaudeClient
+import time
+from shared.constants import ProjectPath
 
 router = APIRouter(prefix="/api/topics", tags=["Topics"])
 
@@ -73,6 +85,105 @@ async def create_topic(
             message="주제 생성에 실패했습니다.",
             details={"error": str(e)},
             hint="잠시 후 다시 시도해주세요."
+        )
+
+
+@router.post("/generate", summary="주제 입력 → 보고서 생성 → MD 저장")
+async def generate_topic_report(
+    topic_data: TopicCreate,
+    current_user: User = Depends(get_current_active_user)
+):
+    """사용자 주제를 받아 Claude로 보고서 생성, 토픽/메시지/아티팩트/사용량 저장 후 경로 반환.
+
+    Request Body:
+        - input_prompt: 사용자가 입력한 주제(필수)
+        - language: 기본 'ko'
+
+    Returns:
+        { "topic_id": int, "md_path": str }
+    """
+    try:
+        if not topic_data.input_prompt or not topic_data.input_prompt.strip():
+            return error_response(
+                code=ErrorCode.VALIDATION_ERROR if hasattr(ErrorCode, 'VALIDATION_ERROR') else ErrorCode.TOPIC_CREATION_FAILED,
+                http_status=400,
+                message="입력 주제가 비어있습니다.",
+                hint="3자 이상 내용을 입력해주세요."
+            )
+
+        # 1) Claude 호출
+        start_ms = time.time()
+        claude = ClaudeClient()
+        result = claude.generate_report(topic_data.input_prompt.strip())
+        latency_ms = int((time.time() - start_ms) * 1000)
+
+        generated_title = result.get("title") or "보고서"
+
+        # 2) 토픽 생성 및 제목 반영
+        topic = TopicDB.create_topic(current_user.id, topic_data)
+        TopicDB.update_topic(topic.id, TopicUpdate(generated_title=generated_title))
+
+        # 3) 사용자 메시지 저장
+        user_msg = MessageDB.create_message(
+            topic.id,
+            MessageCreate(role=MessageRole.USER, content=topic_data.input_prompt.strip())
+        )
+
+        # 4) Markdown 파일 생성 및 저장 + 어시스턴트 메시지 저장
+        md_text = build_report_md(result)
+        version = next_artifact_version(topic.id, ArtifactKind.MD, topic_data.language)
+        _, md_path = build_artifact_paths(topic.id, version, "report.md")
+        bytes_written = write_text(md_path, md_text)
+        file_hash = sha256_of(md_path)
+
+        # 어시스턴트 메시지 (생성 결과 텍스트 저장)
+        assistant_msg = MessageDB.create_message(
+            topic.id,
+            MessageCreate(role=MessageRole.ASSISTANT, content=md_text)
+        )
+
+        # 5) 아티팩트 레코드 저장
+        artifact = ArtifactDB.create_artifact(
+            topic.id,
+            assistant_msg.id,
+            ArtifactCreate(
+                kind=ArtifactKind.MD,
+                locale=topic_data.language,
+                version=version,
+                filename=md_path.name,
+                file_path=str(md_path),
+                file_size=bytes_written,
+                sha256=file_hash,
+            )
+        )
+
+        # 6) AI 사용량 저장(가능하면)
+        in_tok = getattr(claude, 'last_input_tokens', 0)
+        out_tok = getattr(claude, 'last_output_tokens', 0)
+        if (in_tok + out_tok) > 0:
+            AiUsageDB.create_ai_usage(
+                topic.id,
+                assistant_msg.id,
+                AiUsageCreate(
+                    model=claude.model,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                    latency_ms=latency_ms,
+                )
+            )
+
+        return success_response({
+            "topic_id": topic.id,
+            "md_path": str(md_path)
+        })
+
+    except Exception as e:
+        # Claude 호출/파일/DB 어느 단계에서도 예외 처리
+        return error_response(
+            code=ErrorCode.REPORT_GENERATION_FAILED,
+            http_status=500,
+            message="보고서 생성 처리 중 오류가 발생했습니다.",
+            details={"error": str(e)}
         )
 
 
