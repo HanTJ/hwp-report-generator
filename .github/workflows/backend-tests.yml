@@ -8,7 +8,7 @@ on:
       - "shared/**"
       - ".github/workflows/backend-tests.yml"
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, dev_backend]
     paths:
       - "backend/**"
       - "shared/**"

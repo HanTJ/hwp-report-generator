@@ -88,3 +88,36 @@ class TestAuthRouter:
 
         # 인증 헤더 없을 때 403 Forbidden 반환
         assert response.status_code == 403
+
+    def test_logout_success(self, client, auth_headers):
+        """로그아웃 성공 테스트"""
+        response = client.post("/api/auth/logout", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+
+    def test_change_password_success(self, client, auth_headers, create_test_user, test_user_data):
+        """비밀번호 변경 성공 테스트"""
+        response = client.post(
+            "/api/auth/change-password",
+            headers=auth_headers,
+            json={
+                "current_password": test_user_data["password"],
+                "new_password": "NewPass1234!@#"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+
+    def test_change_password_wrong_current(self, client, auth_headers):
+        """현재 비밀번호가 틀린 경우 400"""
+        response = client.post(
+            "/api/auth/change-password",
+            headers=auth_headers,
+            json={
+                "current_password": "Wrong123!",
+                "new_password": "Another1234!@#"
+            }
+        )
+        assert response.status_code == 400
