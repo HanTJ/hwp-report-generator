@@ -18,18 +18,31 @@
 
 ## 프로젝트 개요
 
-**HWP Report Generator**는 사용자가 입력한 주제를 기반으로 Claude AI를 활용하여 한글(HWP) 형식의 보고서를 자동 생성하는 웹 시스템입니다.
+**HWP Report Generator**는 사용자가 주제를 입력하고 Claude AI와 대화하며 한글(HWP) 형식의 보고서를 자동 생성하는 대화형 웹 시스템입니다.
 
 ### 핵심 기능
 
 - 사용자 인증 및 권한 관리 (JWT 기반)
-- Claude AI를 활용한 보고서 내용 생성
-- HWPX 템플릿 기반 보고서 파일 생성
-- 보고서 이력 관리
-- 토큰 사용량 추적
+- **대화형 보고서 생성** - 주제(Topic) 기반 채팅 시스템
+- Claude AI를 활용한 보고서 내용 생성 (Markdown 형식)
+- Markdown → HWPX 파일 변환
+- 아티팩트(Artifact) 관리 - 생성된 파일 추적 및 버전 관리
+- AI 사용량 추적 (메시지별)
 - 관리자 대시보드
 
 ### 비즈니스 플로우
+
+**v2.0 (대화형 시스템):**
+
+1. 사용자가 웹 UI를 통해 대화 주제(Topic) 생성
+2. 사용자가 메시지를 입력하여 Claude AI와 대화
+3. Claude API가 Markdown 형식의 보고서 내용 생성
+4. Markdown 파일이 아티팩트로 저장
+5. 사용자 요청 시 Markdown → HWPX 변환
+6. 변환된 HWPX 파일 다운로드 제공
+7. AI 사용량 데이터 자동 추적
+
+**v1.0 (기존 단일 요청 시스템) - Deprecated:**
 
 1. 사용자가 웹 UI를 통해 보고서 주제 입력
 2. Claude API가 구조화된 보고서 내용 생성 (제목, 요약, 배경, 본문, 결론)
@@ -85,39 +98,76 @@ hwp-report-generator/
 │   │   ├── main.py                 # FastAPI 애플리케이션 엔트리포인트
 │   │   ├── routers/                # API 라우트 핸들러
 │   │   │   ├── auth.py            # 인증 API (회원가입, 로그인, 로그아웃)
-│   │   │   ├── reports.py         # 보고서 API (생성, 조회, 다운로드)
-│   │   │   └── admin.py           # 관리자 API (사용자 관리, 통계)
+│   │   │   ├── admin.py           # 관리자 API (사용자 관리, 통계)
+│   │   │   ├── topics.py          # ✨ 주제(Topic) API (생성, 조회, 수정, 삭제)
+│   │   │   ├── messages.py        # ✨ 메시지 API (생성, 조회, 삭제)
+│   │   │   ├── artifacts.py       # ✨ 아티팩트 API (조회, 다운로드, 변환)
+│   │   │   └── reports.py         # 보고서 API (생성, 조회, 다운로드) - Deprecated
 │   │   ├── models/                # Pydantic 모델
 │   │   │   ├── user.py            # 사용자 모델
-│   │   │   ├── report.py          # 보고서 모델
-│   │   │   └── token_usage.py     # 토큰 사용량 모델
+│   │   │   ├── topic.py           # ✨ 주제 모델
+│   │   │   ├── message.py         # ✨ 메시지 모델
+│   │   │   ├── artifact.py        # ✨ 아티팩트 모델
+│   │   │   ├── ai_usage.py        # ✨ AI 사용량 모델
+│   │   │   ├── transformation.py  # ✨ 파일 변환 모델
+│   │   │   ├── report.py          # 보고서 모델 - Deprecated
+│   │   │   └── token_usage.py     # 토큰 사용량 모델 - Deprecated
 │   │   ├── database/              # 데이터베이스 레이어
 │   │   │   ├── connection.py     # DB 연결 및 초기화
 │   │   │   ├── user_db.py         # 사용자 CRUD
-│   │   │   ├── report_db.py       # 보고서 CRUD
-│   │   │   └── token_usage_db.py  # 토큰 사용량 CRUD
+│   │   │   ├── topic_db.py        # ✨ 주제 CRUD
+│   │   │   ├── message_db.py      # ✨ 메시지 CRUD
+│   │   │   ├── artifact_db.py     # ✨ 아티팩트 CRUD
+│   │   │   ├── ai_usage_db.py     # ✨ AI 사용량 CRUD
+│   │   │   ├── transformation_db.py # ✨ 파일 변환 CRUD
+│   │   │   ├── report_db.py       # 보고서 CRUD - Deprecated
+│   │   │   └── token_usage_db.py  # 토큰 사용량 CRUD - Deprecated
 │   │   └── utils/                 # 유틸리티 함수
+│   │       ├── response_helper.py # ✨ API 표준 응답 헬퍼
+│   │       ├── artifact_manager.py # ✨ 아티팩트 파일 관리
+│   │       ├── md_handler.py      # ✨ Markdown 파일 처리
 │   │       ├── claude_client.py   # Claude API 클라이언트
 │   │       ├── hwp_handler.py     # HWPX 파일 처리
 │   │       └── auth.py            # JWT 인증 및 비밀번호 해싱
 │   ├── templates/                 # HWPX 템플릿 파일
 │   │   └── report_template.hwpx
-│   ├── output/                    # 생성된 보고서 저장 디렉토리
+│   ├── artifacts/                 # ✨ 생성된 파일 저장 (MD, HWPX)
+│   │   └── topics/                # 주제별 디렉토리
+│   ├── output/                    # 생성된 보고서 저장 - Deprecated
 │   ├── temp/                      # 임시 파일 디렉토리
 │   ├── data/                      # SQLite 데이터베이스
 │   │   └── hwp_reports.db
+│   ├── tests/                     # ✨ 테스트 파일
+│   │   ├── conftest.py            # pytest fixtures
+│   │   ├── test_routers_auth.py
+│   │   ├── test_utils_auth.py
+│   │   ├── test_utils_claude_client.py
+│   │   └── test_utils_hwp_handler.py
 │   ├── requirements.txt           # Python 패키지 의존성
+│   ├── requirements-dev.txt       # ✨ 개발/테스트 의존성
 │   ├── runtime.txt                # Python 버전 명시
+│   ├── pytest.ini                 # ✨ pytest 설정
 │   ├── init_db.py                 # 데이터베이스 초기화 스크립트
-│   ├── migrate_db.py              # 데이터베이스 마이그레이션
+│   ├── migrate_db.py              # 데이터베이스 마이그레이션 - Deprecated
+│   ├── migrate_to_chat.py         # ✨ 채팅 시스템 마이그레이션 스크립트
+│   ├── BACKEND_TEST.md            # ✨ 테스트 가이드 문서
+│   ├── MIGRATION_GUIDE.md         # ✨ 마이그레이션 가이드
 │   └── .env                       # 환경 변수 (보안 정보)
 │
 ├── frontend/                      # React 프론트엔드
 │   └── (프론트엔드 파일들...)
 │
+├── shared/                        # ✨ 공유 모듈
+│   ├── models/                    # 공유 데이터 모델
+│   │   └── api_response.py       # API 응답 표준 모델
+│   └── constants.py               # 공유 상수 (경로 등)
+│
 ├── CLAUDE.md                      # 프로젝트 전체 문서
 └── BACKEND_ONBOARDING.md          # 이 문서
 ```
+
+**✨ 표시**: v2.0에서 새로 추가된 파일/디렉토리
+**Deprecated 표시**: v1.0 호환성 유지를 위해 남아있으나 향후 제거 예정
 
 ### 레이어 아키텍처
 
@@ -246,6 +296,73 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### ERD (Entity Relationship Diagram)
 
+**v2.0 (대화형 시스템):**
+
+```
+┌────────────────────┐
+│      users         │
+├────────────────────┤
+│ id (PK)            │◄──────────────┐
+│ email (UNIQUE)     │               │
+│ username           │               │
+│ hashed_password    │               │
+│ is_active          │               │
+│ is_admin           │               │
+│ password_reset_req │               │
+│ created_at         │               │
+│ updated_at         │               │
+└────────────────────┘               │
+                                     │
+         ┌───────────────────────────┘
+         │
+         ▼
+┌────────────────────┐         ┌────────────────────┐
+│      topics        │         │     messages       │
+├────────────────────┤         ├────────────────────┤
+│ id (PK)            │◄───┐    │ id (PK)            │
+│ user_id (FK)       │    │    │ topic_id (FK)      │
+│ input_prompt       │    └────│ role               │
+│ generated_title    │         │ content            │
+│ language           │         │ seq_no             │
+│ status             │    ┌────│ created_at         │
+│ created_at         │    │    └────────────────────┘
+│ updated_at         │    │             │
+└────────────────────┘    │             │
+         │                │             ▼
+         │                │    ┌────────────────────┐
+         │                │    │    ai_usage        │
+         │                │    ├────────────────────┤
+         │                └───►│ id (PK)            │
+         │                     │ topic_id (FK)      │
+         │                     │ message_id (FK)    │
+         │                     │ model              │
+         │                     │ input_tokens       │
+         │                     │ output_tokens      │
+         │                     │ total_tokens       │
+         │                     │ latency_ms         │
+         │                     │ created_at         │
+         │                     └────────────────────┘
+         │
+         ▼
+┌────────────────────┐
+│     artifacts      │
+├────────────────────┤
+│ id (PK)            │
+│ topic_id (FK)      │
+│ message_id (FK)    │
+│ kind               │ (md, hwpx)
+│ locale             │
+│ version            │
+│ filename           │
+│ file_path          │
+│ file_size          │
+│ sha256             │
+│ created_at         │
+└────────────────────┘
+```
+
+**v1.0 (기존 시스템) - Deprecated:**
+
 ```
 ┌────────────────────┐         ┌────────────────────┐
 │      users         │         │      reports       │
@@ -346,9 +463,147 @@ Claude API 토큰 사용량을 추적합니다.
 - `user_id` → `users(id)` ON DELETE CASCADE
 - `report_id` → `reports(id)` ON DELETE SET NULL
 
+#### 4. topics 테이블 (v2.0) ✨
+
+대화 주제/스레드 정보를 저장합니다.
+
+| 컬럼명          | 타입      | 제약조건                   | 설명                                   |
+| --------------- | --------- | -------------------------- | -------------------------------------- |
+| id              | INTEGER   | PRIMARY KEY, AUTOINCREMENT | 주제 고유 ID                           |
+| user_id         | INTEGER   | NOT NULL, FOREIGN KEY      | 주제 생성자 사용자 ID                  |
+| input_prompt    | TEXT      | NOT NULL                   | 사용자가 입력한 초기 주제/프롬프트     |
+| generated_title | TEXT      |                            | AI가 생성한 대화 제목 (NULL 가능)      |
+| language        | TEXT      | NOT NULL, DEFAULT 'ko'     | 언어 코드 (ko, en 등)                  |
+| status          | TEXT      | NOT NULL, DEFAULT 'active' | 주제 상태 (active, archived, deleted)  |
+| created_at      | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP  | 생성 시각                              |
+| updated_at      | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP  | 수정 시각                              |
+
+**인덱스:**
+
+- `idx_topics_user_id` on `user_id`
+
+**외래 키:**
+
+- `user_id` → `users(id)` ON DELETE CASCADE
+
+#### 5. messages 테이블 (v2.0) ✨
+
+대화 메시지를 저장합니다 (사용자 및 AI 메시지).
+
+| 컬럼명     | 타입      | 제약조건                       | 설명                                              |
+| ---------- | --------- | ------------------------------ | ------------------------------------------------- |
+| id         | INTEGER   | PRIMARY KEY, AUTOINCREMENT     | 메시지 고유 ID                                    |
+| topic_id   | INTEGER   | NOT NULL, FOREIGN KEY          | 메시지가 속한 주제 ID                             |
+| role       | TEXT      | NOT NULL                       | 메시지 역할 ('user' 또는 'assistant')             |
+| content    | TEXT      | NOT NULL                       | 메시지 내용                                       |
+| seq_no     | INTEGER   | NOT NULL                       | 주제 내 메시지 순번 (0부터 시작)                  |
+| created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP      | 생성 시각                                         |
+
+**제약 조건:**
+
+- `UNIQUE (topic_id, seq_no)` - 주제 내에서 seq_no는 유일해야 함
+
+**인덱스:**
+
+- `idx_messages_topic_id` on `topic_id`
+
+**외래 키:**
+
+- `topic_id` → `topics(id)` ON DELETE CASCADE
+
+#### 6. artifacts 테이블 (v2.0) ✨
+
+생성된 파일(Markdown, HWPX 등)을 추적합니다.
+
+| 컬럼명     | 타입      | 제약조건                   | 설명                                                |
+| ---------- | --------- | -------------------------- | --------------------------------------------------- |
+| id         | INTEGER   | PRIMARY KEY, AUTOINCREMENT | 아티팩트 고유 ID                                    |
+| topic_id   | INTEGER   | NOT NULL, FOREIGN KEY      | 아티팩트가 속한 주제 ID                             |
+| message_id | INTEGER   | NOT NULL, FOREIGN KEY      | 아티팩트를 생성한 메시지 ID                         |
+| kind       | TEXT      | NOT NULL                   | 파일 종류 ('md', 'hwpx')                            |
+| locale     | TEXT      | NOT NULL, DEFAULT 'ko'     | 파일 언어                                           |
+| version    | INTEGER   | NOT NULL, DEFAULT 1        | 파일 버전 (같은 메시지에서 재생성 시 증가)          |
+| filename   | TEXT      | NOT NULL                   | 파일명                                              |
+| file_path  | TEXT      | NOT NULL                   | 파일 저장 경로                                      |
+| file_size  | INTEGER   | NOT NULL, DEFAULT 0        | 파일 크기 (바이트)                                  |
+| sha256     | TEXT      |                            | 파일 해시 (무결성 검증용, NULL 가능)                |
+| created_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP  | 생성 시각                                           |
+
+**인덱스:**
+
+- `idx_artifacts_topic_id` on `topic_id`
+- `idx_artifacts_message_id` on `message_id`
+
+**외래 키:**
+
+- `topic_id` → `topics(id)` ON DELETE CASCADE
+- `message_id` → `messages(id)` ON DELETE CASCADE
+
+#### 7. ai_usage 테이블 (v2.0) ✨
+
+메시지별 AI API 사용량을 추적합니다.
+
+| 컬럼명         | 타입      | 제약조건                   | 설명                          |
+| -------------- | --------- | -------------------------- | ----------------------------- |
+| id             | INTEGER   | PRIMARY KEY, AUTOINCREMENT | 사용량 기록 고유 ID           |
+| topic_id       | INTEGER   | NOT NULL, FOREIGN KEY      | 주제 ID                       |
+| message_id     | INTEGER   | NOT NULL, FOREIGN KEY      | 메시지 ID                     |
+| model          | TEXT      | NOT NULL                   | 사용된 AI 모델명              |
+| input_tokens   | INTEGER   | NOT NULL, DEFAULT 0        | 입력 토큰 수                  |
+| output_tokens  | INTEGER   | NOT NULL, DEFAULT 0        | 출력 토큰 수                  |
+| total_tokens   | INTEGER   | NOT NULL, DEFAULT 0        | 총 토큰 수                    |
+| latency_ms     | INTEGER   | NOT NULL, DEFAULT 0        | API 응답 시간 (밀리초)        |
+| created_at     | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP  | 기록 시각                     |
+
+**인덱스:**
+
+- `idx_ai_usage_topic_id` on `topic_id`
+- `idx_ai_usage_message_id` on `message_id`
+
+**외래 키:**
+
+- `topic_id` → `topics(id)` ON DELETE CASCADE
+- `message_id` → `messages(id)` ON DELETE CASCADE
+
 ---
 
 ## API 엔드포인트
+
+### API Response Standard (v2.0) ✨
+
+v2.0부터 모든 API 엔드포인트는 표준화된 응답 형식을 따릅니다.
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": { /* 실제 데이터 */ },
+  "error": null,
+  "meta": { "requestId": "uuid" },
+  "feedback": []
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "DOMAIN.DETAIL",
+    "httpStatus": 404,
+    "message": "에러 메시지",
+    "traceId": "uuid",
+    "hint": "해결 방법"
+  },
+  "meta": { "requestId": "uuid" },
+  "feedback": []
+}
+```
+
+**자세한 내용은 프로젝트 루트의 CLAUDE.md 파일의 "API Response Standard" 섹션을 참조하세요.**
+
+---
 
 ### 인증 API (`/api/auth`)
 
@@ -455,7 +710,260 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### 보고서 API (`/api/reports`)
+### 주제(Topics) API (`/api/topics`) (v2.0) ✨
+
+#### POST `/api/topics`
+
+새로운 대화 주제 생성 (인증 필요)
+
+**Request Body:**
+
+```json
+{
+  "input_prompt": "2025년 디지털뱅킹 트렌드 분석",
+  "language": "ko"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "input_prompt": "2025년 디지털뱅킹 트렌드 분석",
+    "generated_title": null,
+    "language": "ko",
+    "status": "active",
+    "created_at": "2025-10-29T10:00:00",
+    "updated_at": "2025-10-29T10:00:00"
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+#### GET `/api/topics`
+
+사용자의 주제 목록 조회 (인증 필요)
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "topics": [
+      {
+        "id": 1,
+        "input_prompt": "2025년 디지털뱅킹 트렌드 분석",
+        "generated_title": "디지털 뱅킹의 미래",
+        "language": "ko",
+        "status": "active",
+        "created_at": "2025-10-29T10:00:00",
+        "updated_at": "2025-10-29T10:05:00"
+      }
+    ],
+    "total": 1
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+#### GET `/api/topics/{topic_id}`
+
+특정 주제 조회 (인증 필요)
+
+#### PATCH `/api/topics/{topic_id}`
+
+주제 정보 수정 (인증 필요)
+
+**Request Body:**
+
+```json
+{
+  "status": "archived"
+}
+```
+
+#### DELETE `/api/topics/{topic_id}`
+
+주제 삭제 (인증 필요)
+
+---
+
+### 메시지(Messages) API (`/api/topics/{topic_id}/messages`) (v2.0) ✨
+
+#### POST `/api/topics/{topic_id}/messages`
+
+주제에 새 메시지 추가 (인증 필요)
+
+**Request Body:**
+
+```json
+{
+  "role": "user",
+  "content": "위 주제로 상세한 보고서를 작성해주세요."
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "topic_id": 1,
+    "role": "user",
+    "content": "위 주제로 상세한 보고서를 작성해주세요.",
+    "seq_no": 0,
+    "created_at": "2025-10-29T10:05:00"
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+**Note:** AI 응답(role: "assistant")은 자동으로 생성되어 저장됩니다.
+
+#### GET `/api/topics/{topic_id}/messages`
+
+주제의 전체 메시지 조회 (인증 필요)
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "id": 1,
+        "role": "user",
+        "content": "...",
+        "seq_no": 0,
+        "created_at": "2025-10-29T10:05:00"
+      },
+      {
+        "id": 2,
+        "role": "assistant",
+        "content": "...",
+        "seq_no": 1,
+        "created_at": "2025-10-29T10:05:10"
+      }
+    ],
+    "total": 2
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+#### GET `/api/topics/{topic_id}/messages/{message_id}`
+
+특정 메시지 조회 (인증 필요)
+
+#### DELETE `/api/topics/{topic_id}/messages/{message_id}`
+
+메시지 삭제 (인증 필요)
+
+---
+
+### 아티팩트(Artifacts) API (`/api/artifacts`) (v2.0) ✨
+
+#### GET `/api/artifacts/{artifact_id}`
+
+아티팩트 메타데이터 조회 (인증 필요)
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "topic_id": 1,
+    "message_id": 2,
+    "kind": "md",
+    "locale": "ko",
+    "version": 1,
+    "filename": "report_v1.md",
+    "file_path": "/artifacts/topics/topic_1/messages/msg_2_v1.md",
+    "file_size": 5432,
+    "sha256": "abc123...",
+    "created_at": "2025-10-29T10:05:10"
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+#### GET `/api/artifacts/{artifact_id}/content`
+
+아티팩트 파일 내용 조회 (Markdown만 해당, 인증 필요)
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "content": "# 디지털 뱅킹의 미래\n\n## 요약\n..."
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+#### GET `/api/artifacts/{artifact_id}/download`
+
+아티팩트 파일 다운로드 (인증 필요)
+
+**Response:**
+
+- Content-Type: `application/octet-stream`
+- Content-Disposition: `attachment; filename="report_v1.md"`
+- 파일 바이너리 데이터
+
+#### GET `/api/artifacts/topics/{topic_id}`
+
+특정 주제의 모든 아티팩트 조회 (인증 필요)
+
+#### POST `/api/artifacts/{artifact_id}/convert`
+
+Markdown 아티팩트를 HWPX로 변환 (인증 필요)
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "hwpx_artifact_id": 2,
+    "hwpx_filename": "report_v1.hwpx",
+    "hwpx_file_path": "/artifacts/topics/topic_1/messages/msg_2_v1.hwpx",
+    "hwpx_file_size": 45678
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+---
+
+### 보고서 API (`/api/reports`) - **Deprecated in v2.0**
+
+**⚠️ v1.0 호환성을 위해 유지되나 향후 제거 예정입니다. 새로운 코드에서는 Topics/Messages/Artifacts API를 사용하세요.**
 
 #### POST `/api/reports/generate`
 
@@ -609,7 +1117,98 @@ Authorization: Bearer <access_token>
 
 ## 주요 컴포넌트
 
-### 1. ClaudeClient (`utils/claude_client.py`)
+### 1. response_helper (`utils/response_helper.py`) (v2.0) ✨
+
+API 응답 표준화를 위한 헬퍼 함수 모음입니다.
+
+**주요 함수:**
+
+- `success_response(data, feedback)`: 성공 응답 생성
+- `error_response(code, http_status, message, details, hint)`: 에러 응답 생성
+- `success_response_with_feedback(...)`: 피드백 포함 성공 응답
+
+**ErrorCode 클래스:**
+
+표준 에러 코드 상수를 정의합니다.
+
+```python
+ErrorCode.AUTH_INVALID_TOKEN
+ErrorCode.TOPIC_NOT_FOUND
+ErrorCode.MESSAGE_CREATION_FAILED
+ErrorCode.ARTIFACT_DOWNLOAD_FAILED
+ErrorCode.VALIDATION_REQUIRED_FIELD
+ErrorCode.SERVER_DATABASE_ERROR
+```
+
+**주요 특징:**
+
+- 모든 응답에 requestId 자동 생성
+- 에러 응답에 traceId 자동 생성
+- 표준화된 에러 코드 관리
+
+**자세한 내용:** `backend/app/utils/response_helper.py:1-173`
+
+---
+
+### 2. ArtifactManager (`utils/artifact_manager.py`) (v2.0) ✨
+
+아티팩트 파일 저장 및 관리를 담당하는 클래스입니다.
+
+**주요 메서드:**
+
+- `save_artifact(topic_id, message_id, kind, content, locale)`: 아티팩트 파일 저장
+- `get_artifact_path(topic_id, message_id, kind, version, locale)`: 파일 경로 생성
+- `read_artifact_content(artifact)`: 아티팩트 내용 읽기
+- `calculate_sha256(file_path)`: 파일 해시 계산
+
+**파일 저장 구조:**
+
+```
+backend/artifacts/
+└── topics/
+    └── topic_{id}/
+        └── messages/
+            ├── msg_{id}_v1.md
+            ├── msg_{id}_v1.hwpx
+            └── msg_{id}_v2.md
+```
+
+**주요 특징:**
+
+- 주제 및 메시지별 디렉토리 자동 생성
+- 버전 관리 지원
+- UTF-8 인코딩 강제
+- 파일 무결성 검증 (SHA-256)
+
+---
+
+### 3. MdHandler (`utils/md_handler.py`) (v2.0) ✨
+
+Markdown과 HWPX 간 변환을 담당하는 핸들러 클래스입니다.
+
+**주요 메서드:**
+
+- `convert_md_to_hwpx(md_content, output_filename)`: Markdown → HWPX 변환
+- `_parse_md_structure(md_content)`: Markdown 구조 파싱
+- `_extract_sections(lines)`: 섹션 추출
+
+**변환 로직:**
+
+1. Markdown을 파싱하여 제목, 섹션별 내용 추출
+2. 추출된 내용을 HWP 템플릿의 플레이스홀더에 매핑
+3. HWPHandler를 사용하여 HWPX 파일 생성
+
+**지원 구조:**
+
+- `# 제목` → `{{TITLE}}`
+- `## 요약` → `{{SUMMARY}}`
+- `## 배경` → `{{BACKGROUND}}`
+- `## 주요 내용` → `{{MAIN_CONTENT}}`
+- `## 결론` → `{{CONCLUSION}}`
+
+---
+
+### 4. ClaudeClient (`utils/claude_client.py`)
 
 Claude API와의 통신을 담당하는 클라이언트 클래스입니다.
 
@@ -1791,25 +2390,50 @@ def test_file_operations(temp_dir):
     # 테스트 종료 후 temp_dir 자동 삭제
 ```
 
-### 현재 테스트 커버리지
+### 현재 테스트 커버리지 (v2.0) ✨
 
-**전체 커버리지**: 48%
+**전체 커버리지**: **70%** ✅ (목표 달성!)
+
+**테스트 현황:**
+
+- **총 테스트:** 60개 (57 passed, 3 skipped)
+- **테스트 파일:** 5개
 
 **모듈별 커버리지:**
 
-- `app/utils/auth.py`: 87% ✅
-- `app/database/user_db.py`: 69%
-- `app/routers/auth.py`: 68%
-- `app/database/connection.py`: 100% ✅
-- `app/utils/claude_client.py`: 14% ⚠️ (개선 필요)
-- `app/utils/hwp_handler.py`: 15% ⚠️ (개선 필요)
-- `app/routers/reports.py`: 38% ⚠️ (개선 필요)
+- `app/utils/claude_client.py`: **100%** ✅ (48줄 증가)
+- `app/routers/reports.py`: **88%** ✅ (50% 증가)
+- `app/utils/auth.py`: **87%** ✅
+- `app/utils/hwp_handler.py`: **83%** ✅ (68% 증가)
+- `app/database/user_db.py`: **69%**
+- `app/routers/auth.py`: **68%**
+- `app/database/connection.py`: **100%** ✅
+
+**v2.0 신규 모듈 (테스트 예정):**
+
+- `app/utils/response_helper.py`: 미측정
+- `app/utils/artifact_manager.py`: 미측정
+- `app/utils/md_handler.py`: 미측정
+- `app/routers/topics.py`: 미측정
+- `app/routers/messages.py`: 미측정
+- `app/routers/artifacts.py`: 미측정
 
 **목표 커버리지:**
 
-- 전체: 최소 70% 이상
+- 전체: 최소 70% 이상 ✅ (달성)
 - 핵심 비즈니스 로직: 90% 이상
 - 유틸리티 함수: 85% 이상
+
+**주요 개선사항:**
+
+- claude_client.py: 14% → 100% (+86%)
+- hwp_handler.py: 15% → 83% (+68%)
+- reports.py: 38% → 88% (+50%)
+- 전체: 48% → 70% (+22%)
+
+**다음 단계:**
+
+v2.0 신규 모듈에 대한 테스트 작성 필요 (Topics, Messages, Artifacts API)
 
 ### 테스트 작성 가이드
 
@@ -2215,6 +2839,54 @@ tail -f logs/app.log  # (로깅 파일이 설정된 경우)
 ---
 
 **작성일:** 2025-10-27
-**최종 업데이트:** 2025-10-27 (테스트 섹션 추가)
-**버전:** 1.1
+**최종 업데이트:** 2025-10-29 (v2.0 대화형 시스템 반영)
+**버전:** 2.0
 **담당자:** Backend Development Team
+
+---
+
+## 주요 변경사항 (v2.0)
+
+### 시스템 아키텍처 변경
+
+- **단일 요청 → 대화형 시스템**: 기존 단일 보고서 생성 방식에서 채팅 기반 대화형 시스템으로 전환
+- **파일 형식**: 직접 HWPX 생성 → Markdown 생성 후 HWPX 변환
+
+### 새로운 테이블
+
+- `topics` - 대화 주제/스레드
+- `messages` - 사용자 및 AI 메시지
+- `artifacts` - 생성된 파일 (MD, HWPX)
+- `ai_usage` - 메시지별 AI 사용량 추적
+
+### 새로운 API
+
+- `/api/topics` - 주제 CRUD
+- `/api/topics/{topic_id}/messages` - 메시지 관리
+- `/api/artifacts` - 아티팩트 조회 및 변환
+
+### 새로운 유틸리티
+
+- `response_helper.py` - API 응답 표준화
+- `artifact_manager.py` - 아티팩트 파일 관리
+- `md_handler.py` - Markdown ↔ HWPX 변환
+
+### API Response Standard
+
+모든 API 엔드포인트가 표준화된 응답 형식 사용 (100% compliance)
+
+### 테스트 커버리지 개선
+
+- 48% → 70% (+22%)
+- claude_client.py: 14% → 100%
+- hwp_handler.py: 15% → 83%
+
+### Deprecated
+
+- `/api/reports` - v1.0 호환성 유지, 향후 제거 예정
+- `reports`, `token_usage` 테이블 - v1.0 호환성 유지
+
+### 마이그레이션
+
+- **마이그레이션 가이드:** `backend/MIGRATION_GUIDE.md`
+- **마이그레이션 스크립트:** `backend/migrate_to_chat.py`
