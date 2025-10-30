@@ -77,3 +77,45 @@ class MessageListResponse(BaseModel):
     messages: list[MessageResponse]
     total: int
     topic_id: int
+
+
+class AskRequest(BaseModel):
+    """Request model for asking question in conversation.
+
+    Attributes:
+        content: User question (1-50,000 chars)
+        artifact_id: Specific artifact to reference (null = use latest MD)
+        include_artifact_content: Include file content in context (default: true)
+        max_messages: Max number of user messages to include (null = all)
+        system_prompt: Custom system prompt (optional)
+    """
+
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=50000,
+        description="User question text"
+    )
+
+    artifact_id: Optional[int] = Field(
+        default=None,
+        description="Artifact ID to reference (null = use latest MD)"
+    )
+
+    include_artifact_content: bool = Field(
+        default=True,
+        description="Include artifact file content in context"
+    )
+
+    max_messages: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Maximum number of user messages to include"
+    )
+
+    system_prompt: Optional[str] = Field(
+        default=None,
+        max_length=10000,
+        description="Custom system prompt"
+    )
