@@ -455,3 +455,103 @@ class TestArtifactsRouter:
         # 같은 사용자이므로 성공해야 함
         assert resp.status_code == 200
 
+    def test_download_message_hwpx_existing(self, client, auth_headers, create_test_user, temp_dir):
+        """기존 HWPX 아티팩트가 있으면 그대로 다운로드"""
+        topic, msg = _create_topic_message(create_test_user.id)
+
+        hwpx_path = os.path.join(temp_dir, "existing.hwpx")
+        with open(hwpx_path, "wb") as f:
+            f.write(b"existing hwpx data")
+
+        ArtifactDB.create_artifact(
+            topic_id=topic.id,
+            message_id=msg.id,
+            artifact_data=ArtifactCreate(
+                kind=ArtifactKind.HWPX,
+                filename="existing.hwpx",
+                file_path=hwpx_path,
+                file_size=os.path.getsize(hwpx_path),
+                locale="ko",
+                version=1,
+            ),
+        )
+
+        resp = client.get(
+            f"/api/artifacts/messages/{msg.id}/hwpx/download",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/x-hwpx"
+        assert resp.content == b"existing hwpx data"
+
+        artifacts = ArtifactDB.get_artifacts_by_message(msg.id)
+        assert len(artifacts) == 1
+
+    def test_download_message_hwpx_generates_from_md(self, client, auth_headers, create_test_user, temp_dir):
+        """HWPX 없을 경우 MD에서 변환 후 다운로드"""
+        topic, msg = _create_topic_message(create_test_user.id)
+
+        md_content = """# 테스트 보고서
+
+## 요약
+
+요약 내용
+
+## 배경 및 목적
+
+배경 내용
+
+## 주요 내용
+
+주요 내용 상세
+
+## 결론 및 제언
+
+결론 내용
+"""
+        md_path = os.path.join(temp_dir, "report.md")
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+
+        ArtifactDB.create_artifact(
+            topic_id=topic.id,
+            message_id=msg.id,
+            artifact_data=ArtifactCreate(
+                kind=ArtifactKind.MD,
+                filename="report.md",
+                file_path=md_path,
+                file_size=os.path.getsize(md_path),
+                locale="ko",
+                version=1,
+            ),
+        )
+
+        resp = client.get(
+            f"/api/artifacts/messages/{msg.id}/hwpx/download",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/x-hwpx"
+        assert len(resp.content) > 0
+
+        hwpx_artifact = ArtifactDB.get_latest_artifact_by_message_and_kind(
+            msg.id, ArtifactKind.HWPX
+        )
+        assert hwpx_artifact is not None
+        assert os.path.exists(hwpx_artifact.file_path)
+
+    def test_download_message_hwpx_missing_md(self, client, auth_headers, create_test_user):
+        """MD 아티팩트가 없으면 404 반환"""
+        topic, msg = _create_topic_message(create_test_user.id)
+
+        resp = client.get(
+            f"/api/artifacts/messages/{msg.id}/hwpx/download",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 404
+        body = resp.json()
+        assert body["error"]["code"] == "ARTIFACT.NOT_FOUND"
+

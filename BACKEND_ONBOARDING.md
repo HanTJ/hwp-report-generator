@@ -551,6 +551,7 @@ return error_response(
 - `GET /api/artifacts/{artifact_id}/content` - 내용 조회 (MD만)
 - `GET /api/artifacts/{artifact_id}/download` - 파일 다운로드 (MD/HWPX)
 - `POST /api/artifacts/{artifact_id}/convert` - MD → HWPX 변환
+- `GET /api/artifacts/messages/{message_id}/hwpx/download` - 메시지 기반 HWPX 다운로드 (필요 시 자동 변환)
 
 ### 관리자 API (`/api/admin`)
 
@@ -999,6 +1000,7 @@ type .env  # Windows
 - `/api/topics` - 주제 CRUD + ask (메시지 체이닝)
 - `/api/topics/{topic_id}/messages` - 메시지 관리
 - `/api/artifacts` - 아티팩트 조회 및 변환
+- `/api/artifacts/messages/{message_id}/hwpx/download` - 메시지 단위 HWPX 다운로드. 기존 HWPX가 없으면 최신 MD를 자동 변환하여 반환 (설계 문서: `backend/doc/05.downloadApi.md`).
 
 ### API Response Standard
 
@@ -1009,6 +1011,7 @@ type .env  # Windows
 - 48% → 70%+ (+22%)
 - claude_client: 14% → 100%
 - hwp_handler: 15% → 83%
+- `backend/tests/test_routers_artifacts.py`에 메시지 기반 HWPX 다운로드 시나리오 3종 추가 (기존 HWPX 재사용 / MD 자동 변환 / MD 부재 오류).
 
 ### Deprecated
 
