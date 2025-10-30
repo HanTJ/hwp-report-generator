@@ -32,26 +32,26 @@ async def get_artifact(
     artifact_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Retrieves artifact metadata by ID.
+    """지정된 ID로 아티팩트(artifact) 메타데이터를 조회합니다.
 
-    Path Parameters:
-        - artifact_id: Artifact ID
+    경로 파라미터(Path Parameters):
+        - artifact_id: 조회할 아티팩트의 고유 ID
 
-    Returns:
-        Standard ApiResponse with ArtifactResponse data
+    반환(Returns):
+        ArtifactResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - ARTIFACT.NOT_FOUND: Artifact not found
-        - TOPIC.UNAUTHORIZED: User does not own the parent topic
+    에러 코드(Error Codes):
+        - ARTIFACT.NOT_FOUND: 해당 아티팩트를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 상위 주제(topic)에 대한 소유 권한이 없음
 
-    Examples:
-        Request: GET /api/artifacts/1
+    예시(Examples):
+        요청(Request): GET /api/artifacts/1
 
-        Response (200):
+        응답(Response, 200):
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "id": 1,
             "topic_id": 1,
             "message_id": 2,
@@ -62,13 +62,14 @@ async def get_artifact(
             "file_path": "artifacts/topics/1/messages/report_v1.md",
             "file_size": 2048,
             "created_at": "2025-10-28T10:30:20"
-          },
-          "error": null,
-          "meta": {"requestId": "req_abc123"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_abc123"},
+        "feedback": []
         }
         ```
     """
+
     artifact = ArtifactDB.get_artifact_by_id(artifact_id)
     if not artifact:
         return error_response(
@@ -94,38 +95,39 @@ async def get_artifact_content(
     artifact_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Retrieves artifact file content (for MD files).
+    """아티팩트 파일의 내용을 조회합니다. (MD 파일 전용)
 
-    Path Parameters:
-        - artifact_id: Artifact ID
+    경로 파라미터(Path Parameters):
+        - artifact_id: 조회할 아티팩트의 ID
 
-    Returns:
-        Standard ApiResponse with ArtifactContentResponse data
+    반환(Returns):
+        ArtifactContentResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - ARTIFACT.NOT_FOUND: Artifact not found
-        - TOPIC.UNAUTHORIZED: User does not own the parent topic
-        - ARTIFACT.INVALID_KIND: Only MD files can be read as text
+    에러 코드(Error Codes):
+        - ARTIFACT.NOT_FOUND: 해당 아티팩트를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 상위 주제(topic)에 대한 소유 권한이 없음
+        - ARTIFACT.INVALID_KIND: MD 파일 이외의 형식은 텍스트로 읽을 수 없음
 
-    Note:
-        This endpoint only supports MD files. For HWPX files, use the download endpoint.
+    참고(Note):
+        이 엔드포인트는 MD 파일만 지원합니다.  
+        HWPX 파일의 경우, 다운로드 전용 엔드포인트를 사용해야 합니다.
 
-    Examples:
-        Request: GET /api/artifacts/1/content
+    예시(Examples):
+        요청(Request): GET /api/artifacts/1/content
 
-        Response (200):
+        응답(Response, 200):
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "artifact_id": 1,
             "content": "# 디지털뱅킹 트렌드 분석 보고서\\n\\n## 요약\\n...",
             "filename": "report_v1.md",
             "kind": "md"
-          },
-          "error": null,
-          "meta": {"requestId": "req_def456"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_def456"},
+        "feedback": []
         }
         ```
     """
@@ -190,24 +192,25 @@ async def download_artifact(
     artifact_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Downloads artifact file (MD, HWPX, etc.).
+    """아티팩트 파일을 다운로드합니다. (MD, HWPX 등 지원)
 
-    Path Parameters:
-        - artifact_id: Artifact ID
+    경로 파라미터(Path Parameters):
+        - artifact_id: 다운로드할 아티팩트의 ID
 
-    Returns:
-        File as attachment
+    반환(Returns):
+        첨부 파일(File) 형태로 반환됩니다.
 
-    Error Codes:
-        - ARTIFACT.NOT_FOUND: Artifact not found
-        - TOPIC.UNAUTHORIZED: User does not own the parent topic
-        - ARTIFACT.DOWNLOAD_FAILED: File download failed
+    에러 코드(Error Codes):
+        - ARTIFACT.NOT_FOUND: 해당 아티팩트를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 상위 주제(topic)에 대한 소유 권한이 없음
+        - ARTIFACT.DOWNLOAD_FAILED: 파일 다운로드에 실패함
 
-    Examples:
-        Request: GET /api/artifacts/2/download
+    예시(Examples):
+        요청(Request): GET /api/artifacts/2/download
 
-        Response (200): File download with Content-Disposition header
+        응답(Response, 200): Content-Disposition 헤더가 포함된 파일 다운로드 응답
     """
+
     artifact = ArtifactDB.get_artifact_by_id(artifact_id)
     if not artifact:
         return error_response(
@@ -264,12 +267,39 @@ async def download_message_hwpx(
     locale: str = "ko",
     current_user: User = Depends(get_current_active_user)
 ):
-    """Downloads (or generates) the latest HWPX artifact for a given message.
+    """지정된 메시지 ID에 대한 최신 HWPX 아티팩트를 다운로드하거나, 존재하지 않을 경우 새로 생성하여 다운로드합니다.
 
-    Flow:
-        1. 메시지 및 토픽 권한 확인
-        2. 기존 HWPX 아티팩트가 있으면 그대로 다운로드
-        3. 없을 경우 MD 아티팩트 기반으로 HWPX 생성 후 다운로드
+    기능(Flow):
+        1. 메시지 및 상위 주제(topic)에 대한 접근 권한 검증
+        2. 기존 HWPX 아티팩트 존재 시 해당 파일을 직접 반환
+        3. 기존 HWPX가 없을 경우 MD 아티팩트를 기반으로 HWPX 파일을 새로 생성 후 반환
+
+    경로 파라미터(Path Parameters):
+        - message_id: 다운로드할 메시지의 ID
+
+    쿼리 파라미터(Query Parameters):
+        - locale: 언어 코드 (기본값: "ko")
+
+    반환(Returns):
+        - HWPX 파일을 첨부 파일 형태(FileResponse)로 반환
+
+    에러 코드(Error Codes):
+        - MESSAGE.NOT_FOUND: 메시지를 찾을 수 없음
+        - TOPIC.NOT_FOUND: 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 권한이 없음
+        - ARTIFACT.NOT_FOUND: 아티팩트 파일을 찾을 수 없음
+        - ARTIFACT.CONVERSION_FAILED: MD → HWPX 변환 중 오류 발생
+
+    참고(Note):
+        - 기존 HWPX 파일이 존재하지 않을 경우, 내부적으로 `HWPHandler`를 이용해 MD 내용을 기반으로 HWPX 파일을 생성합니다.
+        - 생성된 HWPX 파일은 `artifacts/topics/{topic_id}/...` 경로에 저장되며, 이후 동일 메시지의 요청에서는 재생성 없이 바로 다운로드됩니다.
+
+    예시(Examples):
+        요청(Request):  
+        GET /api/messages/12/hwpx/download?locale=ko
+
+        응답(Response, 200):  
+        Content-Disposition 헤더가 포함된 HWPX 파일 다운로드 응답
     """
     message = MessageDB.get_message_by_id(message_id)
     if not message:
@@ -415,42 +445,45 @@ async def get_artifacts_by_topic(
     page_size: int = 50,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Retrieves artifacts for a topic with optional filters.
+    """주제(Topic)에 포함된 아티팩트 목록을 조회합니다.  
+    필터 조건을 통해 특정 종류(kind)나 언어(locale)별로 조회할 수 있습니다.
 
-    Path Parameters:
-        - topic_id: Topic ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 조회할 주제의 ID
 
-    Query Parameters:
-        - kind: Filter by artifact kind (md/hwpx/pdf) (optional)
-        - locale: Filter by locale (ko/en) (optional)
-        - page: Page number (default: 1)
-        - page_size: Items per page (default: 50, max: 100)
+    쿼리 파라미터(Query Parameters):
+        - kind: 아티팩트 종류 필터 (md / hwpx / pdf) (선택)
+        - locale: 언어 필터 (ko / en) (선택)
+        - page: 페이지 번호 (기본값: 1)
+        - page_size: 페이지당 항목 수 (기본값: 50, 최대: 100)
 
-    Returns:
-        Standard ApiResponse with ArtifactListResponse data
+    반환(Returns):
+        ArtifactListResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own the topic
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
 
-    Examples:
-        Request: GET /api/artifacts/topics/1?kind=md&locale=ko&page=1&page_size=10
+    예시(Examples):
+        요청(Request):  
+        GET /api/artifacts/topics/1?kind=md&locale=ko&page=1&page_size=10
 
-        Response (200):
+        응답(Response, 200):
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "artifacts": [...],
             "total": 5,
             "topic_id": 1
-          },
-          "error": null,
-          "meta": {"requestId": "req_ghi789"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_ghi789"},
+        "feedback": []
         }
         ```
-    """
+"""
+
     # Check topic exists and user owns it
     topic = TopicDB.get_topic_by_id(topic_id)
     if not topic:
@@ -498,167 +531,3 @@ async def get_artifacts_by_topic(
             details={"error": str(e)}
         )
 
-
-@router.post("/{artifact_id}/convert", summary="Convert MD artifact to HWPX")
-async def convert_artifact(
-    artifact_id: int,
-    current_user: User = Depends(get_current_active_user)
-):
-    """Converts MD artifact to HWPX format.
-
-    Path Parameters:
-        - artifact_id: Source MD artifact ID
-
-    Returns:
-        Standard ApiResponse with new HWPX ArtifactResponse data
-
-    Error Codes:
-        - ARTIFACT.NOT_FOUND: Artifact not found
-        - ARTIFACT.INVALID_KIND: Source must be MD file
-        - TOPIC.UNAUTHORIZED: User does not own the parent topic
-        - ARTIFACT.CREATION_FAILED: Conversion failed
-
-    Note:
-        This endpoint will be implemented in Phase 6 with actual conversion logic.
-        Currently returns a placeholder response.
-
-    Examples:
-        Request: POST /api/artifacts/1/convert
-
-        Response (200):
-        ```json
-        {
-          "success": true,
-          "data": {
-            "id": 2,
-            "topic_id": 1,
-            "message_id": 2,
-            "kind": "hwpx",
-            "locale": "ko",
-            "version": 1,
-            "filename": "report_v1.hwpx",
-            "file_path": "artifacts/topics/1/messages/report_v1.hwpx",
-            "file_size": 15360,
-            "created_at": "2025-10-28T10:35:00"
-          },
-          "error": null,
-          "meta": {"requestId": "req_jkl012"},
-          "feedback": []
-        }
-        ```
-    """
-    artifact = ArtifactDB.get_artifact_by_id(artifact_id)
-    if not artifact:
-        return error_response(
-            code=ErrorCode.ARTIFACT_NOT_FOUND,
-            http_status=404,
-            message="아티팩트를 찾을 수 없습니다."
-        )
-
-    # Check ownership
-    topic = TopicDB.get_topic_by_id(artifact.topic_id)
-    if not topic or (topic.user_id != current_user.id and not current_user.is_admin):
-        return error_response(
-            code=ErrorCode.TOPIC_UNAUTHORIZED,
-            http_status=403,
-            message="이 아티팩트를 변환할 권한이 없습니다."
-        )
-
-    # Validate source is MD
-    if artifact.kind != ArtifactKind.MD:
-        return error_response(
-            code=ErrorCode.ARTIFACT_INVALID_KIND,
-            http_status=400,
-            message="MD 파일만 HWPX로 변환할 수 있습니다."
-        )
-
-    try:
-        # 4. MD 파일 읽기
-        md_file_path = Path(artifact.file_path)
-        if not md_file_path.exists():
-            return error_response(
-                code=ErrorCode.ARTIFACT_NOT_FOUND,
-                http_status=404,
-                message="아티팩트 파일을 찾을 수 없습니다.",
-                details={"file_path": str(md_file_path)}
-            )
-
-        with open(md_file_path, 'r', encoding='utf-8') as f:
-            md_text = f.read()
-
-        # 5. MD → content dict 변환
-        content = parse_markdown_to_content(md_text)
-
-        # 6. HWPX 생성 (HWPHandler 사용)
-        template_path = ProjectPath.BACKEND / "templates" / "report_template.hwpx"
-        if not template_path.exists():
-            return error_response(
-                code=ErrorCode.ARTIFACT_CONVERSION_FAILED,
-                http_status=500,
-                message="HWPX 템플릿 파일을 찾을 수 없습니다.",
-                details={"template_path": str(template_path)},
-                hint="backend/templates/report_template.hwpx 파일이 있는지 확인해주세요."
-            )
-
-        # 임시 디렉토리 설정
-        temp_dir = ProjectPath.BACKEND / "temp"
-        temp_dir.mkdir(exist_ok=True)
-
-        # HWPHandler로 HWPX 생성
-        hwp_handler = HWPHandler(
-            template_path=str(template_path),
-            temp_dir=str(temp_dir),
-            output_dir=str(temp_dir)  # 임시로 temp에 저장
-        )
-
-        # 임시 HWPX 파일 생성
-        temp_hwpx_filename = f"temp_{artifact_id}_{int(time.time())}.hwpx"
-        temp_hwpx_path = hwp_handler.generate_report(content, temp_hwpx_filename)
-
-        # 7. Artifact 저장 경로 생성
-        version = next_artifact_version(artifact.topic_id, ArtifactKind.HWPX, artifact.locale)
-        base_dir, hwpx_path = build_artifact_paths(
-            artifact.topic_id,
-            version,
-            "report.hwpx"
-        )
-
-        # 8. HWPX 파일 이동
-        shutil.move(temp_hwpx_path, hwpx_path)
-
-        # 9. 파일 정보 계산
-        file_size = hwpx_path.stat().st_size
-        file_hash = sha256_of(hwpx_path)
-
-        # 10. Artifact DB 레코드 생성
-        hwpx_artifact = ArtifactDB.create_artifact(
-            artifact.topic_id,
-            artifact.message_id,  # 동일한 message에 연결
-            ArtifactCreate(
-                kind=ArtifactKind.HWPX,
-                locale=artifact.locale,
-                version=version,
-                filename=hwpx_path.name,
-                file_path=str(hwpx_path),
-                file_size=file_size,
-                sha256=file_hash
-            )
-        )
-
-        # 11. 성공 응답
-        return success_response({
-            "artifact_id": hwpx_artifact.id,
-            "kind": hwpx_artifact.kind,
-            "filename": hwpx_artifact.filename,
-            "file_path": hwpx_artifact.file_path,
-            "file_size": hwpx_artifact.file_size,
-            "created_at": hwpx_artifact.created_at.isoformat()
-        })
-
-    except Exception as e:
-        return error_response(
-            code=ErrorCode.ARTIFACT_CONVERSION_FAILED,
-            http_status=500,
-            message="HWPX 변환 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )

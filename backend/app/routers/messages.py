@@ -23,54 +23,56 @@ async def create_message(
     message_data: MessageCreate,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Creates a new message in a topic.
+    """주제(Topic)에 새로운 메시지를 생성합니다.
 
-    Path Parameters:
-        - topic_id: Topic ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 메시지를 추가할 주제의 ID
 
-    Request Body:
-        - role: Message role (user/assistant/system)
-        - content: Message content text
+    요청 본문(Request Body):
+        - role: 메시지 역할 (user / assistant / system)
+        - content: 메시지 내용 텍스트
 
-    Returns:
-        Standard ApiResponse with MessageResponse data
+    반환(Returns):
+        MessageResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
-        - MESSAGE.CREATION_FAILED: Failed to create message
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
+        - MESSAGE.CREATION_FAILED: 메시지 생성에 실패함
 
-    Note:
-        When role is 'user', this will trigger AI response generation.
-        The AI response will be automatically created as a follow-up message.
+    참고(Note):
+        role 값이 'user'인 경우, AI 응답이 자동으로 생성됩니다.  
+        즉, 사용자가 메시지를 보내면 AI가 후속 메시지로 응답을 생성합니다.
 
-    Examples:
-        Request: POST /api/topics/1/messages
+    예시(Examples):
+        요청(Request):  
+        POST /api/topics/1/messages  
         ```json
         {
-          "role": "user",
-          "content": "디지털뱅킹 트렌드에 대한 보고서를 작성해주세요."
+        "role": "user",
+        "content": "디지털뱅킹 트렌드에 대한 보고서를 작성해주세요."
         }
         ```
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "id": 1,
             "topic_id": 1,
             "role": "user",
             "content": "디지털뱅킹 트렌드에 대한 보고서를 작성해주세요.",
             "seq_no": 1,
             "created_at": "2025-10-28T10:30:00"
-          },
-          "error": null,
-          "meta": {"requestId": "req_abc123"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_abc123"},
+        "feedback": []
         }
         ```
     """
+
     # Check topic exists and user owns it
     topic = TopicDB.get_topic_by_id(topic_id)
     if not topic:
@@ -108,57 +110,59 @@ async def get_messages(
     offset: int = 0,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Retrieves messages in a topic ordered by sequence number.
+    """주제(Topic)에 포함된 메시지들을 순서(seq_no) 기준으로 조회합니다.
 
-    Path Parameters:
-        - topic_id: Topic ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 조회할 주제의 ID
 
-    Query Parameters:
-        - limit: Maximum number of messages to return (optional, default: all)
-        - offset: Number of messages to skip (default: 0)
+    쿼리 파라미터(Query Parameters):
+        - limit: 반환할 최대 메시지 개수 (선택, 기본값: 전체)
+        - offset: 건너뛸 메시지 개수 (기본값: 0)
 
-    Returns:
-        Standard ApiResponse with MessageListResponse data
+    반환(Returns):
+        MessageListResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
 
-    Examples:
-        Request: GET /api/topics/1/messages?limit=10&offset=0
+    예시(Examples):
+        요청(Request):  
+        GET /api/topics/1/messages?limit=10&offset=0
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "messages": [
-              {
+            {
                 "id": 1,
                 "topic_id": 1,
                 "role": "user",
                 "content": "디지털뱅킹 트렌드에 대한 보고서를 작성해주세요.",
                 "seq_no": 1,
                 "created_at": "2025-10-28T10:30:00"
-              },
-              {
+            },
+            {
                 "id": 2,
                 "topic_id": 1,
                 "role": "assistant",
                 "content": "# 디지털뱅킹 트렌드 분석 보고서...",
                 "seq_no": 2,
                 "created_at": "2025-10-28T10:30:15"
-              }
+            }
             ],
             "total": 2,
             "topic_id": 1
-          },
-          "error": null,
-          "meta": {"requestId": "req_def456"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_def456"},
+        "feedback": []
         }
         ```
     """
+
     # Check topic exists and user owns it
     topic = TopicDB.get_topic_by_id(topic_id)
     if not topic:
@@ -203,41 +207,43 @@ async def get_message(
     message_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Retrieves a specific message by ID.
+    """특정 메시지 ID로 메시지를 조회합니다.
 
-    Path Parameters:
-        - topic_id: Topic ID
-        - message_id: Message ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 메시지가 속한 주제의 ID
+        - message_id: 조회할 메시지의 ID
 
-    Returns:
-        Standard ApiResponse with MessageResponse data
+    반환(Returns):
+        MessageResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
-        - MESSAGE.NOT_FOUND: Message not found
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
+        - MESSAGE.NOT_FOUND: 해당 메시지를 찾을 수 없음
 
-    Examples:
-        Request: GET /api/topics/1/messages/2
+    예시(Examples):
+        요청(Request):  
+        GET /api/topics/1/messages/2
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "id": 2,
             "topic_id": 1,
             "role": "assistant",
             "content": "# 디지털뱅킹 트렌드 분석 보고서...",
             "seq_no": 2,
             "created_at": "2025-10-28T10:30:15"
-          },
-          "error": null,
-          "meta": {"requestId": "req_ghi789"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_ghi789"},
+        "feedback": []
         }
         ```
     """
+
     # Check topic exists and user owns it
     topic = TopicDB.get_topic_by_id(topic_id)
     if not topic:
@@ -279,40 +285,42 @@ async def delete_message(
     message_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Deletes a message (hard delete, cascades to artifacts/ai_usage).
+    """메시지를 삭제합니다. (하드 삭제 방식 — 관련 아티팩트 및 AI 사용 기록도 함께 삭제됨)
 
-    Path Parameters:
-        - topic_id: Topic ID
-        - message_id: Message ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 메시지가 속한 주제의 ID
+        - message_id: 삭제할 메시지의 ID
 
-    Returns:
-        Standard ApiResponse with success message
+    반환(Returns):
+        성공 메시지를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
-        - MESSAGE.NOT_FOUND: Message not found
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
+        - MESSAGE.NOT_FOUND: 해당 메시지를 찾을 수 없음
 
-    Warning:
-        This is a hard delete. All artifacts and AI usage records
-        associated with this message will be permanently deleted.
+    ⚠️ 경고(Warning):
+        이 작업은 **하드 삭제(Hard Delete)** 방식으로 수행됩니다.  
+        해당 메시지와 연결된 모든 아티팩트(artifacts) 및 AI 사용 기록(ai_usage)은 **영구적으로 삭제**됩니다.
 
-    Examples:
-        Request: DELETE /api/topics/1/messages/2
+    예시(Examples):
+        요청(Request):  
+        DELETE /api/topics/1/messages/2
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "message": "메시지가 삭제되었습니다."
-          },
-          "error": null,
-          "meta": {"requestId": "req_jkl012"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_jkl012"},
+        "feedback": []
         }
         ```
     """
+
     # Check topic exists and user owns it
     topic = TopicDB.get_topic_by_id(topic_id)
     if not topic:
