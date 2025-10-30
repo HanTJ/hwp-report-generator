@@ -52,6 +52,26 @@ export const authApi = {
   },
 
   /**
+   * 로그아웃
+   * POST /api/auth/logout
+   * 서버에 로그아웃 요청 후 로컬 스토리지의 토큰 제거
+   */
+  logout: async (): Promise<void> => {
+    try {
+      const response = await api.post<ApiResponse<void>>(
+        API_ENDPOINTS.LOGOUT
+      );
+
+      if (!response.data.success) {
+        throw new Error(response.data.error?.message || "로그아웃에 실패했습니다.");
+      }
+    } finally {
+      // 성공/실패 여부와 관계없이 로컬 토큰 제거
+      localStorage.removeItem('access_token');
+    }
+  },
+
+  /**
    * 비밀번호 변경
    * POST /api/auth/change-password
    * @param data 현재 비밀번호, 새 비밀번호

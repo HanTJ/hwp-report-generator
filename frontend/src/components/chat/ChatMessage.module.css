@@ -102,12 +102,10 @@
 
 .chatMessage.user .messageContent {
   background-color: #e8f0fe;
-  border-bottom-right-radius: 0.25rem;
 }
 
 .chatMessage.assistant .messageContent {
   background-color: #f5f5f5;
-  border-bottom-left-radius: 0.25rem;
 }
 
 .messageContent p {

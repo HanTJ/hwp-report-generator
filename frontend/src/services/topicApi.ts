@@ -14,9 +14,40 @@ import type {
 } from "../types/topic";
 import type { ApiResponse } from "../types/api";
 
+// Generate Topic 응답 타입
+interface GenerateTopicResponse {
+  topic_id: number;
+  md_path: string;
+}
+
 export const topicApi = {
   /**
-   * 새 토픽 생성
+   * 토픽 생성 + AI 보고서 자동 생성
+   * POST /api/topics/generate
+   * @param data 토픽 생성 데이터 (input_prompt, language)
+   * @returns 토픽 ID와 생성된 MD 파일 경로
+   */
+  generateTopic: async (data: TopicCreate): Promise<GenerateTopicResponse> => {
+    const response = await api.post<ApiResponse<GenerateTopicResponse>>(
+      API_ENDPOINTS.GENERATE_TOPIC,
+      data
+    );
+
+    if (!response.data.success || !response.data.data) {
+      console.log("generateTopic > failed >", response.data);
+
+      throw new Error(
+        response.data.error?.message || "보고서 생성에 실패했습니다."
+      );
+    }
+
+    console.log("generateTopic > success >", response.data);
+
+    return response.data.data;
+  },
+
+  /**
+   * 새 토픽 생성 (AI 응답 없이)
    * POST /api/topics
    * @param data 토픽 생성 데이터
    * @returns 생성된 토픽
@@ -28,10 +59,14 @@ export const topicApi = {
     );
 
     if (!response.data.success || !response.data.data) {
+      console.log("topicApi > failed >", response.data);
+
       throw new Error(
         response.data.error?.message || "토픽 생성에 실패했습니다."
       );
     }
+
+    console.log("topicApi > success >", response.data);
 
     return response.data.data;
   },

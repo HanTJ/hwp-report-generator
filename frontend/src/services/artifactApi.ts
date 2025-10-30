@@ -55,8 +55,9 @@ export const artifactApi = {
    * 파일 다운로드 (브라우저에서 다운로드 트리거)
    * GET /api/artifacts/{artifactId}/download
    * @param artifactId 아티팩트 ID
+   * @param fallbackFilename 파일명 추출 실패 시 사용할 기본 파일명 (optional)
    */
-  downloadArtifact: async (artifactId: number): Promise<void> => {
+  downloadArtifact: async (artifactId: number, fallbackFilename?: string): Promise<void> => {
     const token = localStorage.getItem('access_token');
     const url = `${API_BASE_URL}${API_ENDPOINTS.DOWNLOAD_ARTIFACT(artifactId)}`;
 
@@ -76,7 +77,7 @@ export const artifactApi = {
 
       // 파일명 추출 (Content-Disposition 헤더에서)
       const contentDisposition = response.headers.get('content-disposition');
-      let filename = `artifact_${artifactId}`;
+      let filename = fallbackFilename || `artifact_${artifactId}.md`;
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (filenameMatch && filenameMatch[1]) {

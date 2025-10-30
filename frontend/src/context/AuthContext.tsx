@@ -38,7 +38,7 @@ interface AuthContextType {
   isLoading: boolean; // 초기 로딩 중인지
   login: (data: LoginRequest) => Promise<void>; // 로그인 함수
   register: (data: RegisterRequest) => Promise<void>; // 회원가입 함수
-  logout: () => void; // 로그아웃 함수
+  logout: () => Promise<void>; // 로그아웃 함수 (API 호출 포함)
   changePassword: (data: ChangePasswordRequest) => Promise<void>; // 비밀번호 변경 함수
 }
 
@@ -111,12 +111,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * 로그아웃 함수
-   * 1. 로컬스토리지 전체 삭제
-   * 2. user 상태를 null로 설정
+   * 1. 백엔드 API에 로그아웃 요청
+   * 2. 로컬스토리지 전체 삭제
+   * 3. user 상태를 null로 설정
    */
-  const logout = () => {
-    storage.clear();
-    setUser(null);
+  const logout = async () => {
+    try {
+      // 백엔드에 로그아웃 요청 (서버 측 로깅/통계 목적)
+      await authApi.logout();
+    } catch (error) {
+      // API 호출 실패해도 로그아웃 진행
+      console.error("Logout API failed:", error);
+    } finally {
+      // 로컬 스토리지와 상태 정리 (항상 실행)
+      storage.clear();
+      setUser(null);
+    }
   };
 
   /**

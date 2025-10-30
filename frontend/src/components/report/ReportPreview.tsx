@@ -1,6 +1,6 @@
-import React from 'react';
-import { CloseOutlined, DownloadOutlined } from '@ant-design/icons';
-import styles from './ReportPreview.module.css';
+import React from "react";
+import { CloseOutlined, DownloadOutlined } from "@ant-design/icons";
+import styles from "./ReportPreview.module.css";
 
 interface ReportPreviewProps {
   report: {
@@ -44,21 +44,24 @@ const ReportPreview: React.FC<ReportPreviewProps> = ({
       <div className={styles.previewContent}>
         <div className={styles.previewFilename}>{report.filename}</div>
         <div className={styles.previewText}>
-          {report.content.split('\n').map((line, index) => (
+          {report.content.split("\n").map((line, index) => (
             <React.Fragment key={index}>
               {line}
-              {index < report.content.split('\n').length - 1 && <br />}
+              {index < report.content.split("\n").length - 1 && <br />}
             </React.Fragment>
           ))}
         </div>
       </div>
 
-      <div className={styles.previewFooter}>
-        <button className={styles.previewDownloadBtn} onClick={onDownload}>
-          <DownloadOutlined />
-          <span>다운로드</span>
-        </button>
-      </div>
+      {/*
+        푸터 제거됨
+        <div className={styles.previewFooter}>
+          <button className={styles.previewDownloadBtn} onClick={onDownload}>
+            <DownloadOutlined />
+            <span>다운로드</span>
+          </button>
+        </div>
+      */}
     </div>
   );
 };

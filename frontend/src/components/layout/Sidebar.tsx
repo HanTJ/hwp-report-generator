@@ -76,10 +76,15 @@ const Sidebar: React.FC<SidebarProps> = ({
     navigate("/admin");
   };
 
-  const handleLogout = () => {
-    logout();
-    message.success("로그아웃되었습니다.");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout();
+      message.success("로그아웃되었습니다.");
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      message.error("로그아웃 중 오류가 발생했습니다.");
+    }
   };
 
   return (
@@ -89,7 +94,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Collapsed State (닫힌 상태) */}
       {!isOpen && (
         <>
-          <div className={styles.collapsedContent}>
+          <div className={styles.collapsedSidebarHeader}>
             <button
               className={styles.iconBtn}
               onClick={onToggle}
@@ -97,6 +102,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <RightOutlined />
             </button>
+          </div>
+          <div className={styles.collapsedContent}>
             <button
               className={styles.iconBtn}
               onClick={onNewTopic}
@@ -139,7 +146,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Expanded State (열린 상태) */}
       {isOpen && (
         <>
-          {/* Row 1: 왼쪽 화살표, 로고 */}
+          {/* 사이드바 접기, 로고 */}
           <div className={styles.sidebarHeader}>
             <button
               className={styles.iconBtn}
@@ -151,8 +158,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className={styles.logo}>
               <img src="/src/assets/logo.png" alt="Logo" />
             </div>
+            <div>
+              <h3 className={styles.title}>광주은행</h3>
+              <span className={styles.subtitle}>
+                HWP 보고서 자동 생성 시스템
+              </span>
+            </div>
           </div>
-
           <div className={styles.sidebarContent}>
             {/* + 버튼 새로운 주제 */}
             <button

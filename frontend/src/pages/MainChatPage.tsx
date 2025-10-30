@@ -3,15 +3,12 @@ import { message as antdMessage } from "antd";
 import ChatMessage from "../components/chat/ChatMessage";
 import ChatInput from "../components/chat/ChatInput";
 import ReportPreview from "../components/report/ReportPreview";
-import DownloadedFiles from "../components/report/DownloadedFiles";
 import Sidebar from "../components/layout/Sidebar";
 import styles from "./MainChatPage.module.css";
 import MainLayout from "../components/layout/MainLayout";
 import { topicApi } from "../services/topicApi";
 import { messageApi } from "../services/messageApi";
 import { artifactApi } from "../services/artifactApi";
-import type { Message as MessageType } from "../types/message";
-import type { Artifact } from "../types/artifact";
 
 interface Message {
   id: string;
@@ -80,24 +77,23 @@ const MainChatPage: React.FC = () => {
     try {
       let currentTopicId = selectedTopicId;
 
-      // 첫 메시지: 토픽 생성
+      // 첫 메시지: 토픽 생성 + AI 보고서 자동 생성
       if (currentTopicId === null) {
-        const topic = await topicApi.createTopic({
+        const generateResponse = await topicApi.generateTopic({
           input_prompt: message,
           language: "ko",
         });
-        currentTopicId = topic.id;
-        setSelectedTopicId(topic.id);
+        currentTopicId = generateResponse.topic_id;
+        setSelectedTopicId(generateResponse.topic_id);
+      } else {
+        // 기존 토픽에 사용자 메시지 추가
+        await messageApi.createMessage(currentTopicId, {
+          role: "user",
+          content: message,
+        });
+
+        // TODO: AI 응답 생성 로직 필요 (백엔드 미구현)
       }
-
-      // 사용자 메시지 전송
-      await messageApi.createMessage(currentTopicId, {
-        role: "user",
-        content: message,
-      });
-
-      // AI가 응답 생성할 시간 대기 (1.5초)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // 메시지 목록 재조회 (AI 응답 포함)
       const messagesResponse = await messageApi.listMessages(currentTopicId);
@@ -186,20 +182,34 @@ const MainChatPage: React.FC = () => {
     reportId: number;
   }) => {
     try {
-      // 실제 파일 다운로드 실행
-      await artifactApi.downloadArtifact(reportData.reportId);
+      // 1. MD 아티팩트를 HWPX로 변환
+      antdMessage.loading({
+        content: "HWPX 파일로 변환 중...",
+        key: "convert",
+        duration: 0,
+      });
+      const hwpxArtifact = await artifactApi.convertToHwpx(reportData.reportId);
+      antdMessage.destroy("convert");
 
-      // Add to downloaded files
+      // 2. 변환된 HWPX 파일 다운로드
+      await artifactApi.downloadArtifact(
+        hwpxArtifact.id,
+        hwpxArtifact.filename
+      );
+
+      // 3. Add to downloaded files
       const downloadedFile: DownloadedFile = {
-        id: reportData.reportId,
-        filename: reportData.filename,
+        id: hwpxArtifact.id,
+        filename: hwpxArtifact.filename,
         downloadUrl: `#`,
-        size: "125 KB", // TODO: Get actual file size from artifact metadata
+        size: hwpxArtifact.file_size
+          ? `${(hwpxArtifact.file_size / 1024).toFixed(1)} KB`
+          : "알 수 없음",
         timestamp: new Date(),
       };
 
       setDownloadedFiles((prev) => [...prev, downloadedFile]);
-      antdMessage.success("파일이 다운로드되었습니다.");
+      antdMessage.success("HWPX 파일이 다운로드되었습니다.");
     } catch (error: any) {
       console.error("Download failed:", error);
       antdMessage.error(error.message || "파일 다운로드에 실패했습니다.");
@@ -267,7 +277,9 @@ const MainChatPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Error loading topic messages:", error);
-      antdMessage.error(error.message || "토픽 메시지를 불러오는데 실패했습니다.");
+      antdMessage.error(
+        error.message || "토픽 메시지를 불러오는데 실패했습니다."
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -292,7 +304,11 @@ const MainChatPage: React.FC = () => {
         onNewTopic={handleNewTopic}
       />
 
-      <div className={`${styles.mainChatPage} ${isLeftSidebarOpen ? styles.sidebarExpanded : styles.sidebarCollapsed}`}>
+      <div
+        className={`${styles.mainChatPage} ${
+          isLeftSidebarOpen ? styles.sidebarExpanded : styles.sidebarCollapsed
+        }`}
+      >
         <div className={styles.chatContainer}>
           <div className={styles.chatContent}>
             {messages.length === 0 ? (
@@ -317,8 +333,7 @@ const MainChatPage: React.FC = () => {
               <div className={styles.chatMessages}>
                 {messages.map((message, index) => {
                   const isLastUserMessage =
-                    message.type === "user" &&
-                    index === messages.length - 1;
+                    message.type === "user" && index === messages.length - 1;
 
                   return (
                     <div
@@ -348,9 +363,6 @@ const MainChatPage: React.FC = () => {
           </div>
 
           <div className={styles.chatInputWrapper}>
-            {downloadedFiles.length > 0 && (
-              <DownloadedFiles files={downloadedFiles} />
-            )}
             <ChatInput onSend={handleSendMessage} disabled={isGenerating} />
           </div>
         </div>
