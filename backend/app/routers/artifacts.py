@@ -14,6 +14,7 @@ from pathlib import Path
 from app.models.user import User
 from app.models.artifact import ArtifactResponse, ArtifactListResponse, ArtifactContentResponse, ArtifactCreate
 from app.database.topic_db import TopicDB
+from app.database.message_db import MessageDB
 from app.database.artifact_db import ArtifactDB
 from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
@@ -253,6 +254,154 @@ async def download_artifact(
             code=ErrorCode.ARTIFACT_DOWNLOAD_FAILED,
             http_status=500,
             message="파일 다운로드에 실패했습니다.",
+            details={"error": str(e)}
+        )
+
+
+@router.get("/messages/{message_id}/hwpx/download", summary="Download HWPX by message")
+async def download_message_hwpx(
+    message_id: int,
+    locale: str = "ko",
+    current_user: User = Depends(get_current_active_user)
+):
+    """Downloads (or generates) the latest HWPX artifact for a given message.
+
+    Flow:
+        1. 메시지 및 토픽 권한 확인
+        2. 기존 HWPX 아티팩트가 있으면 그대로 다운로드
+        3. 없을 경우 MD 아티팩트 기반으로 HWPX 생성 후 다운로드
+    """
+    message = MessageDB.get_message_by_id(message_id)
+    if not message:
+        return error_response(
+            code=ErrorCode.MESSAGE_NOT_FOUND,
+            http_status=404,
+            message="메시지를 찾을 수 없습니다."
+        )
+
+    topic = TopicDB.get_topic_by_id(message.topic_id)
+    if not topic:
+        return error_response(
+            code=ErrorCode.TOPIC_NOT_FOUND,
+            http_status=404,
+            message="주제를 찾을 수 없습니다."
+        )
+
+    if topic.user_id != current_user.id and not current_user.is_admin:
+        return error_response(
+            code=ErrorCode.TOPIC_UNAUTHORIZED,
+            http_status=403,
+            message="이 리소스에 접근할 권한이 없습니다."
+        )
+
+    existing_hwpx = ArtifactDB.get_latest_artifact_by_message_and_kind(
+        message_id,
+        ArtifactKind.HWPX,
+        locale
+    )
+
+    if existing_hwpx:
+        if os.path.exists(existing_hwpx.file_path):
+            return FileResponse(
+                path=existing_hwpx.file_path,
+                filename=existing_hwpx.filename,
+                media_type="application/x-hwpx"
+            )
+
+        return error_response(
+            code=ErrorCode.ARTIFACT_NOT_FOUND,
+            http_status=404,
+            message="아티팩트 파일을 찾을 수 없습니다.",
+            details={"file_path": existing_hwpx.file_path}
+        )
+
+    md_artifact = ArtifactDB.get_latest_artifact_by_message_and_kind(
+        message_id,
+        ArtifactKind.MD,
+        locale
+    )
+
+    if not md_artifact:
+        return error_response(
+            code=ErrorCode.ARTIFACT_NOT_FOUND,
+            http_status=404,
+            message="해당 메시지의 MD 아티팩트를 찾을 수 없습니다."
+        )
+
+    if not os.path.exists(md_artifact.file_path):
+        return error_response(
+            code=ErrorCode.ARTIFACT_NOT_FOUND,
+            http_status=404,
+            message="아티팩트 파일을 찾을 수 없습니다.",
+            details={"file_path": md_artifact.file_path}
+        )
+
+    try:
+        with open(md_artifact.file_path, "r", encoding="utf-8") as f:
+            md_text = f.read()
+
+        content = parse_markdown_to_content(md_text)
+
+        template_path = ProjectPath.BACKEND / "templates" / "report_template.hwpx"
+        if not template_path.exists():
+            return error_response(
+                code=ErrorCode.ARTIFACT_CONVERSION_FAILED,
+                http_status=500,
+                message="HWPX 템플릿 파일을 찾을 수 없습니다.",
+                details={"template_path": str(template_path)}
+            )
+
+        temp_dir = ProjectPath.BACKEND / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        hwp_handler = HWPHandler(
+            template_path=str(template_path),
+            temp_dir=str(temp_dir),
+            output_dir=str(temp_dir)
+        )
+
+        temp_hwpx_filename = f"temp_{message_id}_{int(time.time())}.hwpx"
+        temp_hwpx_path = hwp_handler.generate_report(content, temp_hwpx_filename)
+
+        version = next_artifact_version(topic.id, ArtifactKind.HWPX, locale)
+        md_stem = Path(md_artifact.filename).stem or f"report_{message_id}"
+        hwpx_filename = f"{md_stem}.hwpx"
+        base_dir, hwpx_path = build_artifact_paths(topic.id, version, hwpx_filename)
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        shutil.move(temp_hwpx_path, hwpx_path)
+
+        file_size = hwpx_path.stat().st_size
+        file_hash = sha256_of(hwpx_path)
+
+        hwpx_artifact = ArtifactDB.create_artifact(
+            topic_id=topic.id,
+            message_id=message_id,
+            artifact_data=ArtifactCreate(
+                kind=ArtifactKind.HWPX,
+                locale=locale,
+                version=version,
+                filename=hwpx_path.name,
+                file_path=str(hwpx_path),
+                file_size=file_size,
+                sha256=file_hash
+            )
+        )
+
+        return FileResponse(
+            path=hwpx_artifact.file_path,
+            filename=hwpx_artifact.filename,
+            media_type="application/x-hwpx"
+        )
+
+    except Exception as e:
+        if 'temp_hwpx_path' in locals() and os.path.exists(temp_hwpx_path):
+            os.remove(temp_hwpx_path)
+
+        return error_response(
+            code=ErrorCode.ARTIFACT_CONVERSION_FAILED,
+            http_status=500,
+            message="HWPX 변환 중 오류가 발생했습니다.",
             details={"error": str(e)}
         )
 

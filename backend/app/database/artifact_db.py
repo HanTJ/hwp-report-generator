@@ -215,6 +215,39 @@ class ArtifactDB:
         return ArtifactDB._row_to_artifact(row) if row else None
 
     @staticmethod
+    def get_latest_artifact_by_message_and_kind(
+        message_id: int,
+        kind: ArtifactKind,
+        locale: str = "ko"
+    ) -> Optional[Artifact]:
+        """Retrieves the latest artifact for a message filtered by kind and locale.
+
+        Args:
+            message_id: Source message ID
+            kind: Artifact kind to filter (md/hwpx/pdf)
+            locale: Locale code (default: "ko")
+
+        Returns:
+            Latest matching artifact or None if not found
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT * FROM artifacts
+            WHERE message_id = ? AND kind = ? AND locale = ?
+            ORDER BY version DESC, created_at DESC
+            LIMIT 1
+            """,
+            (message_id, kind.value, locale)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        return ArtifactDB._row_to_artifact(row) if row else None
+
+    @staticmethod
     def delete_artifact(artifact_id: int) -> bool:
         """Deletes an artifact (hard delete, cascades to transformations).
 
