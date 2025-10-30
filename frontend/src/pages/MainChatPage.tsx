@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { message as antdMessage } from "antd";
+import { MenuOutlined } from "@ant-design/icons";
 import ChatMessage from "../components/chat/ChatMessage";
 import ChatInput from "../components/chat/ChatInput";
 import ReportPreview from "../components/report/ReportPreview";
@@ -296,6 +297,11 @@ const MainChatPage: React.FC = () => {
 
   return (
     <MainLayout sidebarCollapsed={!isLeftSidebarOpen}>
+      {/* Dim Overlay - 모바일/태블릿에서 사이드바 열렸을 때 */}
+      {isLeftSidebarOpen && (
+        <div className={styles.dimOverlay} onClick={handleToggleSidebar} />
+      )}
+
       <Sidebar
         isOpen={isLeftSidebarOpen}
         onToggle={handleToggleSidebar}
@@ -309,6 +315,14 @@ const MainChatPage: React.FC = () => {
           isLeftSidebarOpen ? styles.sidebarExpanded : styles.sidebarCollapsed
         }`}
       >
+        {/* 햄버거 메뉴 버튼 - 모바일/태블릿에서만 표시 */}
+        <button
+          className={styles.hamburgerBtn}
+          onClick={handleToggleSidebar}
+          aria-label="메뉴 열기"
+        >
+          <MenuOutlined />
+        </button>
         <div className={styles.chatContainer}>
           <div className={styles.chatContent}>
             {messages.length === 0 ? (
@@ -326,8 +340,8 @@ const MainChatPage: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <h1>보고서를 생성해보세요</h1>
-                <p>주제를 입력하면 AI가 자동으로 보고서를 작성합니다</p>
+                <h1>보고서를 생성해보세요!</h1>
+                <p>주제를 입력하면 AI가 자동으로 보고서를 작성합니다.</p>
               </div>
             ) : (
               <div className={styles.chatMessages}>

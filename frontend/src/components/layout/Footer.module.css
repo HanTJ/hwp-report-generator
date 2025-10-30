@@ -18,9 +18,17 @@
 }
 
 .footer.sidebarCollapsed {
-  left: 4rem;
+  left: var(--sidebar-collapsed-width);
 }
 
 .footer.sidebarExpanded {
-  left: 16rem;
+  left: var(--sidebar-width);
+}
+
+/* Mobile: Overlay 방식 (768px 미만) - Footer 전체 너비 */
+@media (max-width: 767px) {
+  .footer.sidebarCollapsed,
+  .footer.sidebarExpanded {
+    left: 0;
+  }
 }

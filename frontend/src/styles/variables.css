@@ -68,5 +68,8 @@
   --footer-height: 3rem; /* 48px */
   --main-height: calc(100vh - var(--header-height) - var(--footer-height));
   --chat-input-height: 6rem; /* 96px */
-  --sidebar-width: 16rem; /* 256px */
+
+  /* Sidebar Widths */
+  --sidebar-width: 16rem; /* 256px - 열린 상태 */
+  --sidebar-collapsed-width: 3rem; /* 48px - 닫힌 상태 */
 }

@@ -8,28 +8,68 @@
   color: var(--white);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   padding: 0 var(--spacing-lg);
-  line-height: 1.375; /* 22px (16px 기준) - 단위 없는 숫자 사용 */
+  line-height: 1.375;
 }
 
-.header > div {
+.headerLeft {
   display: flex;
   align-items: center;
+  gap: var(--spacing-md);
 }
 
-.header > div > button {
+.logoBtn {
   padding: 0;
+  height: auto;
 }
 
-.header > div > div > h2 {
+.logo {
+  height: 40px;
+}
+
+.headerTitle h2 {
   margin: 0;
+  font-size: var(--font-size-lg);
 }
 
-.header > div > div > p {
+.subtitle {
   margin: 0;
   font-size: var(--font-size-xs);
 }
 
-.header .logo {
-  height: 40px;
-  margin-right: var(--spacing-md);
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 0 var(--spacing-sm);
+}
+
+.username {
+  font-size: var(--font-size-sm);
+}
+
+.adminBtn,
+.logoutBtn {
+  white-space: nowrap;
+}
+
+.btnText {
+  margin-left: var(--spacing-xs);
+}
+
+/* Mobile (<768px) */
+@media (max-width: 767px) {
+  .btnText {
+    display: none;
+  }
+
+  .adminBtn,
+  .logoutBtn {
+    padding: 0 var(--spacing-sm);
+  }
 }
