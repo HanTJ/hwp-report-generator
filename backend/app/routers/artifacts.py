@@ -7,14 +7,21 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 from typing import Optional
 import os
+import time
+import shutil
+from pathlib import Path
 
 from app.models.user import User
-from app.models.artifact import ArtifactResponse, ArtifactListResponse, ArtifactContentResponse
+from app.models.artifact import ArtifactResponse, ArtifactListResponse, ArtifactContentResponse, ArtifactCreate
 from app.database.topic_db import TopicDB
 from app.database.artifact_db import ArtifactDB
 from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
+from app.utils.hwp_handler import HWPHandler
+from app.utils.markdown_parser import parse_markdown_to_content
+from app.utils.file_utils import next_artifact_version, build_artifact_paths, sha256_of
 from shared.types.enums import ArtifactKind
+from shared.constants import ProjectPath
 
 router = APIRouter(prefix="/api/artifacts", tags=["Artifacts"])
 
@@ -416,11 +423,93 @@ async def convert_artifact(
             message="MD 파일만 HWPX로 변환할 수 있습니다."
         )
 
-    # TODO: Implement actual conversion logic in Phase 6
-    # This is a placeholder response
-    return error_response(
-        code=ErrorCode.SERVER_SERVICE_UNAVAILABLE,
-        http_status=501,
-        message="변환 기능은 아직 구현되지 않았습니다.",
-        hint="Phase 6에서 구현 예정입니다."
-    )
+    try:
+        # 4. MD 파일 읽기
+        md_file_path = Path(artifact.file_path)
+        if not md_file_path.exists():
+            return error_response(
+                code=ErrorCode.ARTIFACT_NOT_FOUND,
+                http_status=404,
+                message="아티팩트 파일을 찾을 수 없습니다.",
+                details={"file_path": str(md_file_path)}
+            )
+
+        with open(md_file_path, 'r', encoding='utf-8') as f:
+            md_text = f.read()
+
+        # 5. MD → content dict 변환
+        content = parse_markdown_to_content(md_text)
+
+        # 6. HWPX 생성 (HWPHandler 사용)
+        template_path = ProjectPath.BACKEND / "templates" / "report_template.hwpx"
+        if not template_path.exists():
+            return error_response(
+                code=ErrorCode.ARTIFACT_CONVERSION_FAILED,
+                http_status=500,
+                message="HWPX 템플릿 파일을 찾을 수 없습니다.",
+                details={"template_path": str(template_path)},
+                hint="backend/templates/report_template.hwpx 파일이 있는지 확인해주세요."
+            )
+
+        # 임시 디렉토리 설정
+        temp_dir = ProjectPath.BACKEND / "temp"
+        temp_dir.mkdir(exist_ok=True)
+
+        # HWPHandler로 HWPX 생성
+        hwp_handler = HWPHandler(
+            template_path=str(template_path),
+            temp_dir=str(temp_dir),
+            output_dir=str(temp_dir)  # 임시로 temp에 저장
+        )
+
+        # 임시 HWPX 파일 생성
+        temp_hwpx_filename = f"temp_{artifact_id}_{int(time.time())}.hwpx"
+        temp_hwpx_path = hwp_handler.generate_report(content, temp_hwpx_filename)
+
+        # 7. Artifact 저장 경로 생성
+        version = next_artifact_version(artifact.topic_id, ArtifactKind.HWPX, artifact.locale)
+        base_dir, hwpx_path = build_artifact_paths(
+            artifact.topic_id,
+            version,
+            "report.hwpx"
+        )
+
+        # 8. HWPX 파일 이동
+        shutil.move(temp_hwpx_path, hwpx_path)
+
+        # 9. 파일 정보 계산
+        file_size = hwpx_path.stat().st_size
+        file_hash = sha256_of(hwpx_path)
+
+        # 10. Artifact DB 레코드 생성
+        hwpx_artifact = ArtifactDB.create_artifact(
+            artifact.topic_id,
+            artifact.message_id,  # 동일한 message에 연결
+            ArtifactCreate(
+                kind=ArtifactKind.HWPX,
+                locale=artifact.locale,
+                version=version,
+                filename=hwpx_path.name,
+                file_path=str(hwpx_path),
+                file_size=file_size,
+                sha256=file_hash
+            )
+        )
+
+        # 11. 성공 응답
+        return success_response({
+            "artifact_id": hwpx_artifact.id,
+            "kind": hwpx_artifact.kind,
+            "filename": hwpx_artifact.filename,
+            "file_path": hwpx_artifact.file_path,
+            "file_size": hwpx_artifact.file_size,
+            "created_at": hwpx_artifact.created_at.isoformat()
+        })
+
+    except Exception as e:
+        return error_response(
+            code=ErrorCode.ARTIFACT_CONVERSION_FAILED,
+            http_status=500,
+            message="HWPX 변환 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )

@@ -104,3 +104,70 @@ class TestMessagesRouter:
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "MESSAGE.NOT_FOUND"
 
+    def test_get_messages_empty(self, client, auth_headers, create_test_user):
+        """메시지가 없는 토픽 조회"""
+        topic = self._create_user_topic(create_test_user.id)
+        response = client.get(f"/api/topics/{topic.id}/messages", headers=auth_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["total"] == 0
+        assert body["data"]["messages"] == []
+
+    def test_get_messages_with_pagination(self, client, auth_headers, create_test_user):
+        """페이지네이션 테스트 (limit, offset)"""
+        topic = self._create_user_topic(create_test_user.id)
+        # 5개 메시지 생성
+        for i in range(5):
+            MessageDB.create_message(topic.id, MessageCreate(role=MessageRole.USER, content=f"메시지 {i+1}"))
+
+        # limit=2, offset=0
+        response = client.get(f"/api/topics/{topic.id}/messages?limit=2&offset=0", headers=auth_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body["data"]["messages"]) == 2
+        assert body["data"]["total"] == 5
+
+        # limit=2, offset=2
+        response = client.get(f"/api/topics/{topic.id}/messages?limit=2&offset=2", headers=auth_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body["data"]["messages"]) == 2
+        assert body["data"]["total"] == 5
+
+    def test_get_messages_topic_not_found(self, client, auth_headers):
+        """존재하지 않는 토픽의 메시지 조회"""
+        response = client.get("/api/topics/999999/messages", headers=auth_headers)
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "TOPIC.NOT_FOUND"
+
+    def test_get_messages_unauthorized(self, client, auth_headers, create_test_admin):
+        """권한 없는 토픽의 메시지 조회"""
+        admin_topic = self._create_user_topic(create_test_admin.id)
+        response = client.get(f"/api/topics/{admin_topic.id}/messages", headers=auth_headers)
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "TOPIC.UNAUTHORIZED"
+
+    def test_get_message_success(self, client, auth_headers, create_test_user):
+        """단일 메시지 조회 성공"""
+        topic = self._create_user_topic(create_test_user.id)
+        msg = MessageDB.create_message(topic.id, MessageCreate(role=MessageRole.USER, content="단일 메시지"))
+
+        response = client.get(f"/api/topics/{topic.id}/messages/{msg.id}", headers=auth_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["id"] == msg.id
+        assert body["data"]["content"] == "단일 메시지"
+
+    def test_create_message_invalid_role(self, client, auth_headers, create_test_user):
+        """잘못된 role 값으로 메시지 생성"""
+        topic = self._create_user_topic(create_test_user.id)
+        response = client.post(
+            f"/api/topics/{topic.id}/messages",
+            headers=auth_headers,
+            json={"role": "invalid_role", "content": "내용"}
+        )
+        # Pydantic validation error
+        assert response.status_code == 422
+

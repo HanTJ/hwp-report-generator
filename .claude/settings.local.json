@@ -48,7 +48,11 @@
       "Bash(else echo \"File exists\")",
       "mcp__serena__replace_symbol_body",
       "Read(//d/WorkSpace/hwp-report/**)",
-      "mcp__atlassian__getTransitionsForJiraIssue"
+      "mcp__atlassian__getTransitionsForJiraIssue",
+      "Bash(if [ -f \"backend/templates/report_template.hwpx\" ])",
+      "Bash(then echo \"File exists\")",
+      "Bash(else echo \"File does not exist\")",
+      "mcp__serena__list_memories"
     ],
     "deny": [
       "Read(**/.env*)",
