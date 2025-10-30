@@ -35,33 +35,33 @@ async def create_topic(
     topic_data: TopicCreate,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Creates a new topic (conversation thread).
+    """새로운 주제(대화 스레드)를 생성합니다.
 
-    Request Body:
-        - input_prompt: User's original input describing the report subject (required)
-        - language: Primary language for the report (default: 'ko')
+    요청 본문(Request Body):
+        - input_prompt: 사용자가 입력한 보고서 주제 또는 설명 (필수)
+        - language: 보고서의 기본 언어 (기본값: 'ko')
 
-    Returns:
-        Standard ApiResponse with TopicResponse data
+    반환(Returns):
+        TopicResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.CREATION_FAILED: Failed to create topic
-        - SERVER.DATABASE_ERROR: Database operation failed
+    에러 코드(Error Codes):
+        - TOPIC.CREATION_FAILED: 주제 생성에 실패함
+        - SERVER.DATABASE_ERROR: 데이터베이스 작업 중 오류 발생
 
-    Examples:
-        Request:
+    예시(Examples):
+        요청(Request):  
         ```json
         {
-          "input_prompt": "디지털뱅킹 트렌드 분석",
-          "language": "ko"
+        "input_prompt": "디지털뱅킹 트렌드 분석",
+        "language": "ko"
         }
         ```
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "id": 1,
             "input_prompt": "디지털뱅킹 트렌드 분석",
             "generated_title": null,
@@ -69,13 +69,14 @@ async def create_topic(
             "status": "active",
             "created_at": "2025-10-28T10:30:00",
             "updated_at": "2025-10-28T10:30:00"
-          },
-          "error": null,
-          "meta": {"requestId": "req_abc123"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_abc123"},
+        "feedback": []
         }
         ```
     """
+
     try:
         topic = TopicDB.create_topic(current_user.id, topic_data)
         return success_response(TopicResponse.model_validate(topic))
@@ -197,35 +198,37 @@ async def get_my_topics(
     page_size: int = 20,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Retrieves the current user's topics with pagination.
+    """현재 사용자의 주제(Topic) 목록을 페이지네이션 형태로 조회합니다.
 
-    Query Parameters:
-        - status: Filter by topic status (active/archived/deleted) (optional)
-        - page: Page number (default: 1)
-        - page_size: Items per page (default: 20, max: 100)
+    쿼리 파라미터(Query Parameters):
+        - status: 주제 상태 필터 (active / archived / deleted) (선택)
+        - page: 페이지 번호 (기본값: 1)
+        - page_size: 페이지당 항목 수 (기본값: 20, 최대: 100)
 
-    Returns:
-        Standard ApiResponse with TopicListResponse data
+    반환(Returns):
+        TopicListResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Examples:
-        Request: GET /api/topics?status=active&page=1&page_size=10
+    예시(Examples):
+        요청(Request):  
+        GET /api/topics?status=active&page=1&page_size=10
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "topics": [...],
             "total": 25,
             "page": 1,
             "page_size": 10
-          },
-          "error": null,
-          "meta": {"requestId": "req_def456"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_def456"},
+        "feedback": []
         }
         ```
     """
+
     try:
         # Validate page_size
         if page_size > 100:
@@ -263,26 +266,27 @@ async def get_topic(
     topic_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Retrieves a specific topic by ID.
+    """특정 주제(Topic) ID로 주제 정보를 조회합니다.
 
-    Path Parameters:
-        - topic_id: Topic ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 조회할 주제의 ID
 
-    Returns:
-        Standard ApiResponse with TopicResponse data
+    반환(Returns):
+        TopicResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
 
-    Examples:
-        Request: GET /api/topics/1
+    예시(Examples):
+        요청(Request):  
+        GET /api/topics/1
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "id": 1,
             "input_prompt": "디지털뱅킹 트렌드 분석",
             "generated_title": "2025 디지털뱅킹 트렌드 분석 보고서",
@@ -290,13 +294,14 @@ async def get_topic(
             "status": "active",
             "created_at": "2025-10-28T10:30:00",
             "updated_at": "2025-10-28T10:35:00"
-          },
-          "error": null,
-          "meta": {"requestId": "req_ghi789"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_ghi789"},
+        "feedback": []
         }
         ```
     """
+
     topic = TopicDB.get_topic_by_id(topic_id)
 
     if not topic:
@@ -324,47 +329,49 @@ async def update_topic(
     update_data: TopicUpdate,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Updates topic information.
+    """주제(Topic) 정보를 수정합니다.
 
-    Path Parameters:
-        - topic_id: Topic ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 수정할 주제의 ID
 
-    Request Body:
-        - generated_title: AI-generated title (optional)
-        - status: Topic status (active/archived/deleted) (optional)
+    요청 본문(Request Body):
+        - generated_title: AI가 생성한 제목 (선택)
+        - status: 주제 상태 (active / archived / deleted) (선택)
 
-    Returns:
-        Standard ApiResponse with updated TopicResponse data
+    반환(Returns):
+        수정된 TopicResponse 데이터를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
 
-    Examples:
-        Request: PATCH /api/topics/1
+    예시(Examples):
+        요청(Request):  
+        PATCH /api/topics/1  
         ```json
         {
-          "generated_title": "2025 디지털뱅킹 트렌드 분석 보고서",
-          "status": "archived"
+        "generated_title": "2025 디지털뱅킹 트렌드 분석 보고서",
+        "status": "archived"
         }
         ```
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "id": 1,
             "generated_title": "2025 디지털뱅킹 트렌드 분석 보고서",
             "status": "archived",
             ...
-          },
-          "error": null,
-          "meta": {"requestId": "req_jkl012"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_jkl012"},
+        "feedback": []
         }
         ```
     """
+
     topic = TopicDB.get_topic_by_id(topic_id)
 
     if not topic:
@@ -400,38 +407,41 @@ async def delete_topic(
     topic_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Deletes a topic (hard delete, cascades to messages/artifacts).
+    """주제(Topic)를 삭제합니다. (하드 삭제 — 관련 메시지 및 아티팩트도 함께 삭제됨)
 
-    Path Parameters:
-        - topic_id: Topic ID
+    경로 파라미터(Path Parameters):
+        - topic_id: 삭제할 주제의 ID
 
-    Returns:
-        Standard ApiResponse with success message
+    반환(Returns):
+        성공 메시지를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
 
-    Warning:
-        This is a hard delete. All messages, artifacts, and AI usage records
-        associated with this topic will be permanently deleted.
+    ⚠️ 경고(Warning):
+        이 작업은 **하드 삭제(Hard Delete)** 방식으로 수행됩니다.  
+        해당 주제와 연결된 모든 메시지(messages), 아티팩트(artifacts),  
+        그리고 AI 사용 기록(ai_usage)은 **영구적으로 삭제**됩니다.
 
-    Examples:
-        Request: DELETE /api/topics/1
+    예시(Examples):
+        요청(Request):  
+        DELETE /api/topics/1
 
-        Response (200):
+        응답(Response, 200):  
         ```json
         {
-          "success": true,
-          "data": {
+        "success": true,
+        "data": {
             "message": "주제가 삭제되었습니다."
-          },
-          "error": null,
-          "meta": {"requestId": "req_mno345"},
-          "feedback": []
+        },
+        "error": null,
+        "meta": {"requestId": "req_mno345"},
+        "feedback": []
         }
         ```
     """
+
     topic = TopicDB.get_topic_by_id(topic_id)
 
     if not topic:
@@ -475,26 +485,28 @@ async def ask(
     body: AskRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """Ask a question in the conversation context.
+    """대화(Conversation) 맥락에서 질문을 수행합니다.
 
-    Args:
-        topic_id: Topic ID
-        body: Request body with content and options
-        current_user: Authenticated user
+    매개변수(Args):
+        - topic_id: 질문이 속한 주제의 ID
+        - body: 요청 본문 (질문 내용 및 옵션 포함)
+        - current_user: 인증된 사용자 정보
 
-    Returns:
-        Standard ApiResponse with user_message, assistant_message, artifact, usage
+    반환(Returns):
+        사용자 메시지(user_message), AI 응답(assistant_message),  
+        생성된 아티팩트(artifact), 토큰 사용 정보(usage)를 포함한 표준 ApiResponse 객체를 반환합니다.
 
-    Error Codes:
-        - TOPIC.NOT_FOUND: Topic not found
-        - TOPIC.UNAUTHORIZED: User does not own this topic
-        - VALIDATION.REQUIRED_FIELD: Content is empty
-        - ARTIFACT.NOT_FOUND: Specified artifact not found
-        - ARTIFACT.INVALID_KIND: Artifact is not MD
-        - ARTIFACT.UNAUTHORIZED: Artifact belongs to different user
-        - MESSAGE.CONTEXT_TOO_LARGE: Context size exceeds limit
-        - SERVER.SERVICE_UNAVAILABLE: Claude API failure
+    에러 코드(Error Codes):
+        - TOPIC.NOT_FOUND: 해당 주제를 찾을 수 없음
+        - TOPIC.UNAUTHORIZED: 사용자가 해당 주제에 대한 소유 권한이 없음
+        - VALIDATION.REQUIRED_FIELD: 입력 내용(content)이 비어 있음
+        - ARTIFACT.NOT_FOUND: 지정된 아티팩트를 찾을 수 없음
+        - ARTIFACT.INVALID_KIND: 해당 아티팩트는 MD 형식이 아님
+        - ARTIFACT.UNAUTHORIZED: 다른 사용자의 아티팩트에 접근 시도
+        - MESSAGE.CONTEXT_TOO_LARGE: 대화 컨텍스트 크기가 허용 한도를 초과함
+        - SERVER.SERVICE_UNAVAILABLE: Claude API 호출 실패
     """
+
 
     # === 1단계: 권한 및 검증 ===
     logger.info(f"[ASK] Start - topic_id={topic_id}, user_id={current_user.id}")
