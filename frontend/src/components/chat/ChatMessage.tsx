@@ -5,11 +5,13 @@ import styles from "./ChatMessage.module.css";
 
 interface Message {
   id: string;
+  messageId: number; // 백엔드 메시지 ID
   type: "user" | "assistant";
   content: string;
   reportData?: {
     filename: string;
     reportId: number;
+    messageId: number; // 다운로드/미리보기용 메시지 ID
     content: string;
   };
   timestamp: Date;
@@ -20,9 +22,15 @@ interface ChatMessageProps {
   onReportClick: (reportData: {
     filename: string;
     content: string;
+    messageId: number;
     reportId: number;
   }) => void;
-  onDownload: (reportData: { filename: string; reportId: number }) => void;
+  onDownload: (reportData: {
+    filename: string;
+    content: string;
+    messageId: number;
+    reportId: number;
+  }) => void;
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -76,25 +84,30 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
         <div className={styles.messageContent}>
           <p>
-            {message.reportData ? (
-              // reportData가 있으면 간단한 안내 메시지만 표시
-              "보고서가 성공적으로 생성되었습니다!"
-            ) : (
-              // reportData가 없으면 전체 내용 표시
-              message.content.split("\n").map((line, index) => (
-                <React.Fragment key={index}>
-                  {line}
-                  {index < message.content.split("\n").length - 1 && <br />}
-                </React.Fragment>
-              ))
-            )}
+            {message.reportData
+              ? // reportData가 있으면 간단한 안내 메시지만 표시
+                "보고서가 성공적으로 생성되었습니다!"
+              : // reportData가 없으면 전체 내용 표시
+                message.content.split("\n").map((line, index) => (
+                  <React.Fragment key={index}>
+                    {line}
+                    {index < message.content.split("\n").length - 1 && <br />}
+                  </React.Fragment>
+                ))}
           </p>
 
           {message.reportData && (
             <div className={styles.reportAttachment}>
               <div
                 className={styles.reportFile}
-                onClick={() => onReportClick(message.reportData!)}
+                onClick={() =>
+                  onReportClick({
+                    filename: message.reportData!.filename,
+                    content: message.reportData!.content,
+                    messageId: message.reportData!.messageId,
+                    reportId: message.reportData!.reportId,
+                  })
+                }
               >
                 <div className={styles.reportIcon}>
                   <FileTextOutlined />
@@ -104,7 +117,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                     {message.reportData.filename}
                   </div>
                   <div className={styles.reportMeta}>
-                    HWPX 파일 • 클릭하여 미리보기
+                    MD 파일 • 클릭하여 미리보기
                   </div>
                 </div>
               </div>
@@ -114,10 +127,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                   e.stopPropagation();
                   onDownload({
                     filename: message.reportData!.filename,
+                    content: message.reportData!.content,
+                    messageId: message.reportData!.messageId,
                     reportId: message.reportData!.reportId,
                   });
                 }}
-                title="다운로드"
+                title="HWPX 다운로드"
               >
                 <DownloadOutlined />
               </button>

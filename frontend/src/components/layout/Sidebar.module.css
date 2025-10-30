@@ -23,13 +23,7 @@
 .title {
   margin: 0;
   padding: 0 var(--spacing-sm);
-  font-size: var(--font-size-xl);
-}
-
-.subtitle {
-  font-size: var(--font-size-xs);
-  color: #666666;
-  padding: 0 var(--spacing-sm);
+  font-size: var(--font-size-sm);
 }
 
 /* Collapsed State (닫힌 상태) */

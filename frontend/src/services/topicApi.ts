@@ -11,6 +11,8 @@ import type {
   TopicUpdate,
   Topic,
   TopicListResponse,
+  AskRequest,
+  AskResponse,
 } from "../types/topic";
 import type { ApiResponse } from "../types/api";
 
@@ -59,14 +61,14 @@ export const topicApi = {
     );
 
     if (!response.data.success || !response.data.data) {
-      console.log("topicApi > failed >", response.data);
+      console.log("createTopic > failed >", response.data);
 
       throw new Error(
         response.data.error?.message || "토픽 생성에 실패했습니다."
       );
     }
 
-    console.log("topicApi > success >", response.data);
+    console.log("createTopic > success >", response.data);
 
     return response.data.data;
   },
@@ -94,10 +96,14 @@ export const topicApi = {
     );
 
     if (!response.data.success || !response.data.data) {
+      console.log("listTopics > failed >", response.data);
+
       throw new Error(
         response.data.error?.message || "토픽 목록 조회에 실패했습니다."
       );
     }
+
+    console.log("listTopics > success >", response.data);
 
     return response.data.data;
   },
@@ -114,10 +120,14 @@ export const topicApi = {
     );
 
     if (!response.data.success || !response.data.data) {
+      console.log("getTopic > failed >", response.data);
+
       throw new Error(
         response.data.error?.message || "토픽 조회에 실패했습니다."
       );
     }
+
+    console.log("getTopic > success >", response.data);
 
     return response.data.data;
   },
@@ -136,10 +146,14 @@ export const topicApi = {
     );
 
     if (!response.data.success || !response.data.data) {
+      console.log("updateTopic > failed >", response.data);
+
       throw new Error(
         response.data.error?.message || "토픽 업데이트에 실패했습니다."
       );
     }
+
+    console.log("updateTopic > success >", response.data);
 
     return response.data.data;
   },
@@ -155,9 +169,39 @@ export const topicApi = {
     );
 
     if (!response.data.success) {
+      console.log("deleteTopic > failed >", response.data);
+
       throw new Error(
         response.data.error?.message || "토픽 삭제에 실패했습니다."
       );
     }
+
+    console.log("deleteTopic > success >", response.data);
+  },
+
+  /**
+   * 메시지 체이닝 (대화 이어가기)
+   * POST /api/topics/{topicId}/ask
+   * @param topicId 토픽 ID
+   * @param data Ask 요청 데이터
+   * @returns Ask 응답 (user/assistant 메시지, artifact, usage)
+   */
+  askTopic: async (topicId: number, data: AskRequest): Promise<AskResponse> => {
+    const response = await api.post<ApiResponse<AskResponse>>(
+      API_ENDPOINTS.ASK_TOPIC(topicId),
+      data
+    );
+
+    if (!response.data.success || !response.data.data) {
+      console.log("askTopic > failed >", response.data);
+
+      throw new Error(
+        response.data.error?.message || "질문 전송에 실패했습니다."
+      );
+    }
+
+    console.log("askTopic > success >", response.data);
+
+    return response.data.data;
   },
 };

@@ -27,8 +27,14 @@ export const artifactApi = {
     );
 
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error?.message || "아티팩트 조회에 실패했습니다.");
+      console.log("getArtifact > failed >", response.data);
+
+      throw new Error(
+        response.data.error?.message || "아티팩트 조회에 실패했습니다."
+      );
     }
+
+    console.log("getArtifact > success >", response.data);
 
     return response.data.data;
   },
@@ -39,14 +45,22 @@ export const artifactApi = {
    * @param artifactId 아티팩트 ID
    * @returns MD 파일 내용
    */
-  getArtifactContent: async (artifactId: number): Promise<ArtifactContentResponse> => {
+  getArtifactContent: async (
+    artifactId: number
+  ): Promise<ArtifactContentResponse> => {
     const response = await api.get<ApiResponse<ArtifactContentResponse>>(
       API_ENDPOINTS.GET_ARTIFACT_CONTENT(artifactId)
     );
 
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error?.message || "파일 내용 조회에 실패했습니다.");
+      console.log("getArtifactContent > failed >", response.data);
+
+      throw new Error(
+        response.data.error?.message || "파일 내용 조회에 실패했습니다."
+      );
     }
+
+    console.log("getArtifactContent > success >", response.data);
 
     return response.data.data;
   },
@@ -57,37 +71,44 @@ export const artifactApi = {
    * @param artifactId 아티팩트 ID
    * @param fallbackFilename 파일명 추출 실패 시 사용할 기본 파일명 (optional)
    */
-  downloadArtifact: async (artifactId: number, fallbackFilename?: string): Promise<void> => {
-    const token = localStorage.getItem('access_token');
+  downloadArtifact: async (
+    artifactId: number,
+    fallbackFilename?: string
+  ): Promise<void> => {
+    const token = localStorage.getItem("access_token");
     const url = `${API_BASE_URL}${API_ENDPOINTS.DOWNLOAD_ARTIFACT(artifactId)}`;
 
     try {
       // Authorization 헤더를 포함한 다운로드를 위해 fetch 사용
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
-        throw new Error('파일 다운로드에 실패했습니다.');
+        console.log("downloadArtifact > failed >", response);
+
+        throw new Error("파일 다운로드에 실패했습니다.");
       }
 
       const blob = await response.blob();
 
       // 파일명 추출 (Content-Disposition 헤더에서)
-      const contentDisposition = response.headers.get('content-disposition');
+      const contentDisposition = response.headers.get("content-disposition");
       let filename = fallbackFilename || `artifact_${artifactId}.md`;
       if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        const filenameMatch = contentDisposition.match(
+          /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
+        );
         if (filenameMatch && filenameMatch[1]) {
-          filename = filenameMatch[1].replace(/['"]/g, '');
+          filename = filenameMatch[1].replace(/['"]/g, "");
         }
       }
 
       // Blob을 다운로드
       const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = filename;
       document.body.appendChild(link);
@@ -95,8 +116,9 @@ export const artifactApi = {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
-      console.error('Download failed:', error);
-      throw new Error('파일 다운로드에 실패했습니다.');
+      console.log("downloadArtifact > failed >", error);
+
+      throw new Error("파일 다운로드에 실패했습니다.");
     }
   },
 
@@ -128,7 +150,9 @@ export const artifactApi = {
     );
 
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error?.message || "아티팩트 목록 조회에 실패했습니다.");
+      throw new Error(
+        response.data.error?.message || "아티팩트 목록 조회에 실패했습니다."
+      );
     }
 
     return response.data.data;
@@ -146,9 +170,61 @@ export const artifactApi = {
     );
 
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error?.message || "파일 변환에 실패했습니다.");
+      throw new Error(
+        response.data.error?.message || "파일 변환에 실패했습니다."
+      );
     }
 
     return response.data.data;
+  },
+
+  /**
+   * 메시지 기반 HWPX 다운로드
+   * GET /api/artifacts/messages/{messageId}/hwpx/download
+   * @param messageId 메시지 ID
+   * @param filename 다운로드할 파일명
+   * @param locale 언어 (기본값: ko)
+   */
+  downloadMessageHwpx: async (
+    messageId: number,
+    filename: string,
+    locale: string = "ko"
+  ): Promise<void> => {
+    const token = localStorage.getItem("access_token");
+    const url = `${API_BASE_URL}${API_ENDPOINTS.DOWNLOAD_MESSAGE_HWPX(
+      messageId,
+      locale
+    )}`;
+
+    try {
+      // Authorization 헤더를 포함한 다운로드를 위해 fetch 사용
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.log("downloadMessageHwpx > failed >", response);
+
+        throw new Error("파일 다운로드에 실패했습니다.");
+      }
+
+      const blob = await response.blob();
+
+      // Blob을 다운로드
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.log("downloadMessageHwpx > failed >", error);
+
+      throw new Error("파일 다운로드에 실패했습니다.");
+    }
   },
 };

@@ -13,11 +13,13 @@ import { artifactApi } from "../services/artifactApi";
 
 interface Message {
   id: string;
+  messageId: number; // 백엔드 메시지 ID
   type: "user" | "assistant";
   content: string;
   reportData?: {
     filename: string;
     reportId: number;
+    messageId: number;
     content: string;
   };
   timestamp: Date;
@@ -36,6 +38,7 @@ const MainChatPage: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<{
     filename: string;
     content: string;
+    messageId: number;
     reportId: number;
   } | null>(null);
   const [downloadedFiles, setDownloadedFiles] = useState<DownloadedFile[]>([]);
@@ -67,6 +70,7 @@ const MainChatPage: React.FC = () => {
     // Add user message to UI immediately
     const tempUserMessage: Message = {
       id: "temp-" + Date.now(),
+      messageId: 0, // 임시 ID, 서버 응답 후 실제 ID로 교체
       type: "user",
       content: message,
       timestamp: new Date(),
@@ -87,13 +91,10 @@ const MainChatPage: React.FC = () => {
         currentTopicId = generateResponse.topic_id;
         setSelectedTopicId(generateResponse.topic_id);
       } else {
-        // 기존 토픽에 사용자 메시지 추가
-        await messageApi.createMessage(currentTopicId, {
-          role: "user",
+        // 2번째 메시지부터: 메시지 체이닝 (ask API)
+        await topicApi.askTopic(currentTopicId, {
           content: message,
         });
-
-        // TODO: AI 응답 생성 로직 필요 (백엔드 미구현)
       }
 
       // 메시지 목록 재조회 (AI 응답 포함)
@@ -102,6 +103,7 @@ const MainChatPage: React.FC = () => {
       // UI 업데이트
       const uiMessages: Message[] = messagesResponse.messages.map((msg) => ({
         id: msg.id.toString(),
+        messageId: msg.id,
         type: msg.role === "user" ? "user" : "assistant",
         content: msg.content,
         timestamp: new Date(msg.created_at),
@@ -119,9 +121,9 @@ const MainChatPage: React.FC = () => {
         if (artifactsResponse.artifacts.length > 0) {
           const messagesWithArtifacts = await Promise.all(
             uiMessages.map(async (msg) => {
-              // 이 메시지와 연결된 아티팩트 찾기 (가장 최근 MD 파일)
+              // 이 메시지와 연결된 아티팩트 찾기 (message_id 매칭)
               const relatedArtifact = artifactsResponse.artifacts.find(
-                (art) => art.kind === "md"
+                (art) => art.kind === "md" && art.message_id === msg.messageId
               );
 
               if (relatedArtifact && msg.type === "assistant") {
@@ -134,6 +136,7 @@ const MainChatPage: React.FC = () => {
                     reportData: {
                       filename: relatedArtifact.filename,
                       reportId: relatedArtifact.id,
+                      messageId: msg.messageId,
                       content: contentResponse.content,
                     },
                   };
@@ -160,6 +163,7 @@ const MainChatPage: React.FC = () => {
       // 에러 메시지 추가
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
+        messageId: 0, // 에러 메시지는 서버에 저장되지 않음
         type: "assistant",
         content: "메시지 전송 중 오류가 발생했습니다. 다시 시도해주세요.",
         timestamp: new Date(),
@@ -173,6 +177,7 @@ const MainChatPage: React.FC = () => {
   const handleReportClick = (reportData: {
     filename: string;
     content: string;
+    messageId: number;
     reportId: number;
   }) => {
     setSelectedReport(reportData);
@@ -180,32 +185,29 @@ const MainChatPage: React.FC = () => {
 
   const handleDownload = async (reportData: {
     filename: string;
+    content: string;
     reportId: number;
+    messageId: number;
   }) => {
     try {
-      // 1. MD 아티팩트를 HWPX로 변환
+      // 메시지 기반 HWPX 다운로드 (자동 생성)
       antdMessage.loading({
-        content: "HWPX 파일로 변환 중...",
-        key: "convert",
+        content: "HWPX 파일 생성 중...",
+        key: "download",
         duration: 0,
       });
-      const hwpxArtifact = await artifactApi.convertToHwpx(reportData.reportId);
-      antdMessage.destroy("convert");
 
-      // 2. 변환된 HWPX 파일 다운로드
-      await artifactApi.downloadArtifact(
-        hwpxArtifact.id,
-        hwpxArtifact.filename
-      );
+      const hwpxFilename = reportData.filename.replace(".md", ".hwpx");
+      await artifactApi.downloadMessageHwpx(reportData.messageId, hwpxFilename);
 
-      // 3. Add to downloaded files
+      antdMessage.destroy("download");
+
+      // Add to downloaded files
       const downloadedFile: DownloadedFile = {
-        id: hwpxArtifact.id,
-        filename: hwpxArtifact.filename,
+        id: reportData.messageId,
+        filename: hwpxFilename,
         downloadUrl: `#`,
-        size: hwpxArtifact.file_size
-          ? `${(hwpxArtifact.file_size / 1024).toFixed(1)} KB`
-          : "알 수 없음",
+        size: "알 수 없음",
         timestamp: new Date(),
       };
 
@@ -232,6 +234,7 @@ const MainChatPage: React.FC = () => {
       // UI 메시지 형식으로 변환
       const uiMessages: Message[] = messagesResponse.messages.map((msg) => ({
         id: msg.id.toString(),
+        messageId: msg.id,
         type: msg.role === "user" ? "user" : "assistant",
         content: msg.content,
         timestamp: new Date(msg.created_at),
@@ -246,9 +249,9 @@ const MainChatPage: React.FC = () => {
       if (artifactsResponse.artifacts.length > 0) {
         const messagesWithArtifacts = await Promise.all(
           uiMessages.map(async (msg) => {
-            // 이 메시지와 연결된 아티팩트 찾기 (가장 최근 MD 파일)
+            // 이 메시지와 연결된 아티팩트 찾기 (message_id 매칭)
             const relatedArtifact = artifactsResponse.artifacts.find(
-              (art) => art.kind === "md"
+              (art) => art.kind === "md" && art.message_id === msg.messageId
             );
 
             if (relatedArtifact && msg.type === "assistant") {
@@ -261,6 +264,7 @@ const MainChatPage: React.FC = () => {
                   reportData: {
                     filename: relatedArtifact.filename,
                     reportId: relatedArtifact.id,
+                    messageId: msg.messageId,
                     content: contentResponse.content,
                   },
                 };

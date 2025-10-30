@@ -1,6 +1,5 @@
 import React from "react";
 import { Layout, Button, Space } from "antd";
-import logo from "@/assets/logo.png";
 import {
   LogoutOutlined,
   UserOutlined,
@@ -29,12 +28,8 @@ const Header: React.FC = () => {
           onClick={() => navigate("/")}
           className={styles.logoBtn}
         >
-          <img className={styles.logo} src={logo} alt="Logo" />
+          <h2 className={styles.title}>HWP 보고서 자동 생성 시스템</h2>
         </Button>
-        <div className={styles.headerTitle}>
-          <h2>광주은행</h2>
-          <p className={styles.subtitle}>HWP 보고서 자동 생성 시스템</p>
-        </div>
       </div>
       <Space className={styles.headerRight}>
         <div className={styles.userInfo}>

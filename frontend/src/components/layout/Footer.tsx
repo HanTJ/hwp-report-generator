@@ -1,6 +1,6 @@
-import React from 'react';
-import { Layout } from 'antd';
-import styles from './Footer.module.css';
+import React from "react";
+import { Layout } from "antd";
+import styles from "./Footer.module.css";
 
 const { Footer: AntFooter } = Layout;
 
@@ -18,7 +18,7 @@ const Footer: React.FC<FooterProps> = ({ sidebarCollapsed = null }) => {
 
   return (
     <AntFooter className={`${styles.footer} ${getFooterClass()}`}>
-      © 2025 HWP Report Generator | Powered by KJBank R&D HanTJ
+      © 2025 HWP Report Generator | Powered by R&D
     </AntFooter>
   );
 };

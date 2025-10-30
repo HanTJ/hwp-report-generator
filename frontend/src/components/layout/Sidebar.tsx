@@ -36,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // 초기 로드
   useEffect(() => {
     loadTopics();
   }, []);
@@ -43,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const loadTopics = async () => {
     setLoading(true);
     try {
-      const response = await topicApi.listTopics("active", 1, 10);
+      const response = await topicApi.listTopics("active", 1, 20);
       setTopics(response.topics);
     } catch (error: any) {
       message.error("토픽 목록을 불러오는데 실패했습니다.");
@@ -155,14 +156,8 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               <LeftOutlined />
             </button>
-            <div className={styles.logo}>
-              <img src="/src/assets/logo.png" alt="Logo" />
-            </div>
             <div>
-              <h3 className={styles.title}>광주은행</h3>
-              <span className={styles.subtitle}>
-                HWP 보고서 자동 생성 시스템
-              </span>
+              <h3 className={styles.title}>HWP 보고서 자동 생성 시스템</h3>
             </div>
           </div>
           <div className={styles.sidebarContent}>
@@ -178,7 +173,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <span>새로운 주제</span>
             </button>
 
-            {/* Row 3: 최근 항목 */}
+            {/* 최근 항목 */}
             <div className={styles.recentLabel}>최근 항목</div>
 
             {/* 토픽 리스트 */}

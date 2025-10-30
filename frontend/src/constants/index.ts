@@ -57,6 +57,7 @@ export const API_ENDPOINTS = {
   GET_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 특정 토픽 조회
   UPDATE_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 토픽 업데이트
   DELETE_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 토픽 삭제
+  ASK_TOPIC: (topicId: number) => `/api/topics/${topicId}/ask`, // 메시지 체이닝 (대화 이어가기)
 
   // 보고서 관련 API
   GENERATE_REPORT: "/api/generate", // 보고서 생성
@@ -80,6 +81,8 @@ export const API_ENDPOINTS = {
     `/api/artifacts/${artifactId}/content`, // MD 파일 내용 조회
   DOWNLOAD_ARTIFACT: (artifactId: number) =>
     `/api/artifacts/${artifactId}/download`, // 파일 다운로드
+  DOWNLOAD_MESSAGE_HWPX: (messageId: number, locale: string = "ko") =>
+    `/api/artifacts/messages/${messageId}/hwpx/download?locale=${locale}`, // 메시지 기반 HWPX 다운로드 (자동 생성)
   LIST_ARTIFACTS_BY_TOPIC: (topicId: number) =>
     `/api/artifacts/topics/${topicId}`, // 토픽의 아티팩트 목록
   CONVERT_ARTIFACT: (artifactId: number) =>

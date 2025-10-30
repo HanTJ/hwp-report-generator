@@ -36,8 +36,14 @@ export const messageApi = {
     );
 
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error?.message || "메시지 목록 조회에 실패했습니다.");
+      console.log("listMessages > failed >", response.data);
+
+      throw new Error(
+        response.data.error?.message || "메시지 목록 조회에 실패했습니다."
+      );
     }
+
+    console.log("listMessages > success >", response.data);
 
     return response.data.data;
   },
@@ -59,8 +65,14 @@ export const messageApi = {
     );
 
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error?.message || "메시지 생성에 실패했습니다.");
+      console.log("createMessage > failed >", response.data);
+
+      throw new Error(
+        response.data.error?.message || "메시지 생성에 실패했습니다."
+      );
     }
+
+    console.log("createMessage > success >", response.data);
 
     return response.data.data;
   },

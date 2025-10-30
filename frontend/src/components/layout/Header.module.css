@@ -17,23 +17,9 @@
   gap: var(--spacing-md);
 }
 
-.logoBtn {
-  padding: 0;
-  height: auto;
-}
-
-.logo {
-  height: 40px;
-}
-
-.headerTitle h2 {
+.title {
   margin: 0;
   font-size: var(--font-size-lg);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: var(--font-size-xs);
 }
 
 .headerRight {
