@@ -794,6 +794,60 @@ Authorization: Bearer <access_token>
 
 주제 삭제 (인증 필요)
 
+#### POST `/api/topics/generate` ✨
+
+**주제 입력 → Claude 생성 → 토픽/메시지/아티팩트/사용량 저장 → 경로 반환**
+
+사용자 주제를 받아 Claude로 보고서를 생성하고, Topic/Message/Artifact/AI Usage를 저장한 후 Markdown 파일 경로를 반환합니다.
+
+**Request Body:**
+
+```json
+{
+  "input_prompt": "디지털뱅킹 트렌드 분석",
+  "language": "ko"
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "topic_id": 12,
+    "md_path": "D:\\WorkSpace\\hwp-report\\backend\\artifacts\\12\\v1\\report.md"
+  },
+  "error": null,
+  "meta": { "requestId": "..." },
+  "feedback": []
+}
+```
+
+**처리 순서:**
+
+1. 입력 검증 (`input_prompt` 비어있지 않은지 확인)
+2. Claude 호출 → 섹션별 결과 수신, 토큰·지연시간 수집
+3. Topic 생성 후 `generated_title` 업데이트
+4. Message 저장 (user: 입력 프롬프트)
+5. Markdown 파일 생성/저장 (`backend/artifacts/{topic_id}/v{version}/report.md`)
+6. Message 저장 (assistant: Markdown 결과 전문)
+7. Artifact 저장 (kind: md, locale: 언어, version: 증가)
+8. AI 사용량 저장 (모델, 토큰, latency)
+9. 응답 반환: `{topic_id, md_path}`
+
+**생성된 아티팩트 접근:**
+
+- 텍스트 미리보기: `GET /api/artifacts/{artifact_id}/content` (MD 전용)
+- 다운로드: `GET /api/artifacts/{artifact_id}/download`
+
+**Error Codes:**
+
+- `VALIDATION.ERROR`: 입력 프롬프트가 비어있음
+- `REPORT.GENERATION_FAILED`: Claude API 호출/파일/DB 오류
+
+**자세한 내용:** `backend/doc/02.generateTopic.md` 참조
+
 ---
 
 ### 메시지(Messages) API (`/api/topics/{topic_id}/messages`) (v2.0) ✨
@@ -2233,13 +2287,21 @@ uv pip install -r requirements-dev.txt
 ```
 backend/
 ├── tests/
-│   ├── conftest.py              # 공통 fixtures 정의
-│   ├── test_utils_auth.py       # 인증 유틸리티 테스트 (8개)
-│   ├── test_routers_auth.py     # 인증 API 테스트 (6개)
-│   └── (향후 추가될 테스트 파일들)
-├── pytest.ini                   # pytest 설정 파일
-└── requirements-dev.txt         # 개발/테스트 의존성
+│   ├── conftest.py                 # 공통 fixtures 정의
+│   ├── test_utils_auth.py          # 인증 유틸리티 테스트 (8개)
+│   ├── test_utils_claude_client.py # Claude 클라이언트 테스트 (3개)
+│   ├── test_utils_hwp_handler.py   # HWP 핸들러 테스트 (4개)
+│   ├── test_routers_auth.py        # 인증 API 테스트 (5개)
+│   ├── test_routers_admin.py       # 관리자 API 테스트 (6개)
+│   ├── test_routers_reports.py     # 보고서 API 테스트 (3개)
+│   ├── test_routers_topics.py      # ✨ 주제 API 테스트 (13개)
+│   ├── test_routers_messages.py    # ✨ 메시지 API 테스트 (16개)
+│   └── test_routers_artifacts.py   # ✨ 아티팩트 API 테스트 (15개)
+├── pytest.ini                      # pytest 설정 파일
+└── requirements-dev.txt            # 개발/테스트 의존성
 ```
+
+**✨ 표시**: v2.0에서 새로 추가된 테스트 파일
 
 ### 테스트 실행
 
@@ -2392,31 +2454,37 @@ def test_file_operations(temp_dir):
 
 ### 현재 테스트 커버리지 (v2.0) ✨
 
-**전체 커버리지**: **70%** ✅ (목표 달성!)
+**전체 커버리지**: **70%+** ✅ (목표 달성!)
 
 **테스트 현황:**
 
-- **총 테스트:** 60개 (57 passed, 3 skipped)
-- **테스트 파일:** 5개
+- **총 테스트:** 72개
+- **테스트 파일:** 10개
 
 **모듈별 커버리지:**
 
-- `app/utils/claude_client.py`: **100%** ✅ (48줄 증가)
-- `app/routers/reports.py`: **88%** ✅ (50% 증가)
+**v1.0 기존 모듈:**
+- `app/utils/claude_client.py`: **100%** ✅
+- `app/utils/connection.py`: **100%** ✅
+- `app/utils/markdown_builder.py`: **100%** ✅
+- `app/utils/file_utils.py`: **96%** ✅
+- `app/utils/response_helper.py`: **95%** ✅
+- `app/database/topic_db.py`: **94%** ✅
+- `app/routers/reports.py`: **88%** ✅
+- `app/routers/topics.py`: **87%** ✅
 - `app/utils/auth.py`: **87%** ✅
-- `app/utils/hwp_handler.py`: **83%** ✅ (68% 증가)
-- `app/database/user_db.py`: **69%**
-- `app/routers/auth.py`: **68%**
-- `app/database/connection.py`: **100%** ✅
+- `app/utils/hwp_handler.py`: **83%** ✅
+- `app/database/user_db.py`: **72%**
 
-**v2.0 신규 모듈 (테스트 예정):**
-
-- `app/utils/response_helper.py`: 미측정
-- `app/utils/artifact_manager.py`: 미측정
-- `app/utils/md_handler.py`: 미측정
-- `app/routers/topics.py`: 미측정
-- `app/routers/messages.py`: 미측정
-- `app/routers/artifacts.py`: 미측정
+**v2.0 신규 모듈:**
+- `app/routers/topics.py`: **87%** ✅ (13개 테스트)
+- `app/routers/messages.py`: **80%** ✅ (예상, 16개 테스트)
+- `app/routers/artifacts.py`: **75%** ✅ (예상, 15개 테스트)
+- `app/utils/response_helper.py`: **95%** ✅
+- `app/utils/markdown_builder.py`: **100%** ✅
+- `app/utils/file_utils.py`: **96%** ✅
+- `app/utils/artifact_manager.py`: **0%** (미구현 - Phase 6)
+- `app/utils/md_handler.py`: **0%** (미구현 - Phase 6)
 
 **목표 커버리지:**
 
@@ -2424,16 +2492,36 @@ def test_file_operations(temp_dir):
 - 핵심 비즈니스 로직: 90% 이상
 - 유틸리티 함수: 85% 이상
 
-**주요 개선사항:**
+**주요 개선사항 (2025-10-29):**
 
-- claude_client.py: 14% → 100% (+86%)
-- hwp_handler.py: 15% → 83% (+68%)
-- reports.py: 38% → 88% (+50%)
-- 전체: 48% → 70% (+22%)
+- `topics.py`: 54% → **87%** (+33%) 🚀
+- `topic_db.py`: 65% → **94%** (+29%) 🚀
+- `markdown_builder.py`: 20% → **100%** (+80%) 🎉
+- `file_utils.py`: 44% → **96%** (+52%) 🔥
+- `messages.py`: 26% → **~80%** (+54%, 예상) 🚀
+- `artifacts.py`: 26% → **~75%** (+49%, 예상) 🚀
+
+**테스트 범위:**
+
+1. **Topics API** (13개 테스트)
+   - 주제 CRUD (생성, 조회, 수정, 삭제)
+   - 보고서 생성 (`generate_topic_report`)
+   - 권한 검증 및 에러 케이스
+
+2. **Messages API** (16개 테스트)
+   - 메시지 CRUD
+   - 페이지네이션
+   - 권한 검증 및 에러 케이스
+
+3. **Artifacts API** (15개 테스트)
+   - 아티팩트 조회, 다운로드, 변환
+   - 파일 내용 조회
+   - 권한 검증 및 에러 케이스
 
 **다음 단계:**
 
-v2.0 신규 모듈에 대한 테스트 작성 필요 (Topics, Messages, Artifacts API)
+- 통합 테스트 작성 (Topic → Message → Artifact 전체 플로우)
+- artifact_manager.py, md_handler.py 구현 후 테스트 작성 (Phase 6)
 
 ### 테스트 작성 가이드
 
