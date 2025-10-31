@@ -17,31 +17,38 @@
  * const { user, login, logout } = useAuth();
  */
 
-import React, { createContext, useState, useEffect } from 'react';
-import type { ReactNode } from 'react';
-import type { User, LoginRequest, RegisterRequest, ChangePasswordRequest } from '../types/auth';
-import { authApi } from '../services/authApi';
-import { storage } from '../utils/storage';
+import React, { createContext, useState, useEffect } from "react";
+import type { ReactNode } from "react";
+import type {
+  User,
+  LoginRequest,
+  RegisterRequest,
+  ChangePasswordRequest,
+} from "../types/auth";
+import { authApi } from "../services/authApi";
+import { storage } from "../utils/storage";
 
 /**
  * AuthContext의 타입 정의
  * - Context에서 제공할 값들의 타입을 정의
  */
 interface AuthContextType {
-  user: User | null;                                     // 현재 로그인한 사용자 (로그인 안 했으면 null)
-  isAuthenticated: boolean;                              // 로그인 여부
-  isLoading: boolean;                                    // 초기 로딩 중인지
-  login: (data: LoginRequest) => Promise<void>;          // 로그인 함수
-  register: (data: RegisterRequest) => Promise<void>;    // 회원가입 함수
-  logout: () => void;                                    // 로그아웃 함수
-  changePassword: (data: ChangePasswordRequest) => Promise<void>;  // 비밀번호 변경 함수
+  user: User | null; // 현재 로그인한 사용자 (로그인 안 했으면 null)
+  isAuthenticated: boolean; // 로그인 여부
+  isLoading: boolean; // 초기 로딩 중인지
+  login: (data: LoginRequest) => Promise<void>; // 로그인 함수
+  register: (data: RegisterRequest) => Promise<void>; // 회원가입 함수
+  logout: () => Promise<void>; // 로그아웃 함수 (API 호출 포함)
+  changePassword: (data: ChangePasswordRequest) => Promise<void>; // 비밀번호 변경 함수
 }
 
 /**
  * Context 생성
  * - 초기값은 undefined (AuthProvider로 감싸지 않으면 에러 발생하도록)
  */
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
 /**
  * AuthProvider의 Props 타입
@@ -61,8 +68,8 @@ interface AuthProviderProps {
  */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 상태 관리
-  const [user, setUser] = useState<User | null>(null);  // 현재 로그인한 사용자
-  const [isLoading, setIsLoading] = useState(true);     // 초기 로딩 상태
+  const [user, setUser] = useState<User | null>(null); // 현재 로그인한 사용자
+  const [isLoading, setIsLoading] = useState(true); // 초기 로딩 상태
 
   /**
    * 컴포넌트가 처음 렌더링될 때 실행
@@ -74,10 +81,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const savedUser = storage.getUser();
 
     if (token && savedUser) {
-      setUser(savedUser);  // 로그인 상태 복구
+      setUser(savedUser); // 로그인 상태 복구
     }
-    setIsLoading(false);  // 로딩 완료
-  }, []);  // [] = 컴포넌트 마운트 시 1번만 실행
+    setIsLoading(false); // 로딩 완료
+  }, []); // [] = 컴포넌트 마운트 시 1번만 실행
 
   /**
    * 로그인 함수
@@ -88,9 +95,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const login = async (data: LoginRequest) => {
     const response = await authApi.login(data);
-    storage.setToken(response.access_token);  // 토큰 저장
-    storage.setUser(response.user);           // 사용자 정보 저장
-    setUser(response.user);                   // 상태 업데이트
+    storage.setToken(response.access_token); // 토큰 저장
+    storage.setUser(response.user); // 사용자 정보 저장
+    setUser(response.user); // 상태 업데이트
   };
 
   /**
@@ -104,12 +111,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * 로그아웃 함수
-   * 1. 로컬스토리지 전체 삭제
-   * 2. user 상태를 null로 설정
+   * 1. 백엔드 API에 로그아웃 요청
+   * 2. 로컬스토리지 전체 삭제
+   * 3. user 상태를 null로 설정
    */
-  const logout = () => {
-    storage.clear();
-    setUser(null);
+  const logout = async () => {
+    try {
+      // 백엔드에 로그아웃 요청 (서버 측 로깅/통계 목적)
+      await authApi.logout();
+    } catch (error) {
+      // API 호출 실패해도 로그아웃 진행
+      console.error("Logout API failed:", error);
+    } finally {
+      // 로컬 스토리지와 상태 정리 (항상 실행)
+      storage.clear();
+      setUser(null);
+    }
   };
 
   /**
@@ -133,7 +150,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const value = {
     user,
-    isAuthenticated: !!user,  // user가 있으면 true, 없으면 false
+    isAuthenticated: !!user, // user가 있으면 true, 없으면 false
     isLoading,
     login,
     register,

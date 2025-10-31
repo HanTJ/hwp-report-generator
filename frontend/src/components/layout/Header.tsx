@@ -1,6 +1,5 @@
 import React from "react";
 import { Layout, Button, Space } from "antd";
-import logo from "@/assets/logo.png";
 import {
   LogoutOutlined,
   UserOutlined,
@@ -23,29 +22,39 @@ const Header: React.FC = () => {
 
   return (
     <AntHeader className={`${styles.header} flex-between`}>
-      <div>
-        <Button type="link" onClick={() => navigate("/")}>
-          <img className={styles.logo} src={logo} alt="Logo" />
+      <div className={styles.headerLeft}>
+        <Button
+          type="link"
+          onClick={() => navigate("/")}
+          className={styles.logoBtn}
+        >
+          <h2 className={styles.title}>HWP 보고서 자동 생성 시스템</h2>
         </Button>
-        <div>
-          <h2>HWP 보고서 자동 생성 시스템</h2>
-          <p>Claude AI를 활용한 금융 업무보고서 자동 생성</p>
-        </div>
       </div>
-      <Space>
-        <UserOutlined />
-        <span>{user?.username}</span>
+      <Space className={styles.headerRight}>
+        <div className={styles.userInfo}>
+          <UserOutlined />
+          <span className={`${styles.username} ${styles.btnText}`}>
+            {user?.username}
+          </span>
+        </div>
         {user?.is_admin && (
           <Button
             type="link"
             icon={<SettingOutlined />}
             onClick={() => navigate("/admin")}
+            className={styles.adminBtn}
           >
-            관리자 페이지
+            <span className={styles.btnText}>관리자 페이지</span>
           </Button>
         )}
-        <Button type="primary" icon={<LogoutOutlined />} onClick={handleLogout}>
-          로그아웃
+        <Button
+          type="primary"
+          icon={<LogoutOutlined />}
+          onClick={handleLogout}
+          className={styles.logoutBtn}
+        >
+          <span className={styles.btnText}>로그아웃</span>
         </Button>
       </Space>
     </AntHeader>

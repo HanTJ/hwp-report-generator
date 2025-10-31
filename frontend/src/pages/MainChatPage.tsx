@@ -1,18 +1,25 @@
 import React, { useState, useRef, useEffect } from "react";
+import { message as antdMessage } from "antd";
+import { MenuOutlined } from "@ant-design/icons";
 import ChatMessage from "../components/chat/ChatMessage";
 import ChatInput from "../components/chat/ChatInput";
 import ReportPreview from "../components/report/ReportPreview";
-import DownloadedFiles from "../components/report/DownloadedFiles";
+import Sidebar from "../components/layout/Sidebar";
 import styles from "./MainChatPage.module.css";
 import MainLayout from "../components/layout/MainLayout";
+import { topicApi } from "../services/topicApi";
+import { messageApi } from "../services/messageApi";
+import { artifactApi } from "../services/artifactApi";
 
 interface Message {
   id: string;
+  messageId: number; // 백엔드 메시지 ID
   type: "user" | "assistant";
   content: string;
   reportData?: {
     filename: string;
     reportId: number;
+    messageId: number;
     content: string;
   };
   timestamp: Date;
@@ -31,10 +38,13 @@ const MainChatPage: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<{
     filename: string;
     content: string;
+    messageId: number;
     reportId: number;
   } | null>(null);
   const [downloadedFiles, setDownloadedFiles] = useState<DownloadedFile[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
+  const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
   // 두 번째 메시지부터 마지막 사용자 메시지를 헤더 아래로 스크롤
@@ -57,55 +67,105 @@ const MainChatPage: React.FC = () => {
     files: File[],
     webSearchEnabled: boolean
   ) => {
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
+    // Add user message to UI immediately
+    const tempUserMessage: Message = {
+      id: "temp-" + Date.now(),
+      messageId: 0, // 임시 ID, 서버 응답 후 실제 ID로 교체
       type: "user",
       content: message,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, tempUserMessage]);
     setIsGenerating(true);
 
     try {
-      // TODO: Call API to generate report
-      // For now, simulate with a timeout
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      let currentTopicId = selectedTopicId;
 
-      // Mock report generation disabled for now
-      const mockReportContent = `제목: ${message}
-      
-      // 배경 및 목적:
-      // 이 보고서는 ${message}에 대한 분석을 제공합니다.
-      //
-      // 주요 내용:
-      // 1. 현황 분석
-      // 2. 주요 이슈
-      // 3. 개선 방안
-      //
-      // 결론 및 제언:
-      // 향후 전략 방향을 제시합니다.`;
+      // 첫 메시지: 토픽 생성 + AI 보고서 자동 생성
+      if (currentTopicId === null) {
+        const generateResponse = await topicApi.generateTopic({
+          input_prompt: message,
+          language: "ko",
+        });
+        currentTopicId = generateResponse.topic_id;
+        setSelectedTopicId(generateResponse.topic_id);
+      } else {
+        // 2번째 메시지부터: 메시지 체이닝 (ask API)
+        await topicApi.askTopic(currentTopicId, {
+          content: message,
+        });
+      }
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "assistant",
-        content: "보고서가 생성되었습니다.",
-        reportData: {
-          filename: `${message.slice(0, 20)}_보고서.hwpx`,
-          reportId: Date.now(),
-          content: mockReportContent,
-        },
-        timestamp: new Date(),
-      };
+      // 메시지 목록 재조회 (AI 응답 포함)
+      const messagesResponse = await messageApi.listMessages(currentTopicId);
 
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error("Error generating report:", error);
+      // UI 업데이트
+      const uiMessages: Message[] = messagesResponse.messages.map((msg) => ({
+        id: msg.id.toString(),
+        messageId: msg.id,
+        type: msg.role === "user" ? "user" : "assistant",
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+      }));
+
+      setMessages(uiMessages);
+
+      // 아티팩트 목록 불러오기 (보고서가 생성되었는지 확인)
+      try {
+        const artifactsResponse = await artifactApi.listArtifactsByTopic(
+          currentTopicId
+        );
+
+        // 아티팩트가 있으면 메시지에 연결
+        if (artifactsResponse.artifacts.length > 0) {
+          const messagesWithArtifacts = await Promise.all(
+            uiMessages.map(async (msg) => {
+              // 이 메시지와 연결된 아티팩트 찾기 (message_id 매칭)
+              const relatedArtifact = artifactsResponse.artifacts.find(
+                (art) => art.kind === "md" && art.message_id === msg.messageId
+              );
+
+              if (relatedArtifact && msg.type === "assistant") {
+                try {
+                  const contentResponse = await artifactApi.getArtifactContent(
+                    relatedArtifact.id
+                  );
+                  return {
+                    ...msg,
+                    reportData: {
+                      filename: relatedArtifact.filename,
+                      reportId: relatedArtifact.id,
+                      messageId: msg.messageId,
+                      content: contentResponse.content,
+                    },
+                  };
+                } catch (error) {
+                  console.error("Failed to load artifact content:", error);
+                  return msg;
+                }
+              }
+
+              return msg;
+            })
+          );
+
+          setMessages(messagesWithArtifacts);
+        }
+      } catch (error) {
+        console.error("Failed to load artifacts:", error);
+        // 아티팩트 로딩 실패해도 메시지는 표시
+      }
+    } catch (error: any) {
+      console.error("Error sending message:", error);
+      antdMessage.error(error.message || "메시지 전송에 실패했습니다.");
+
+      // 에러 메시지 추가
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
+        messageId: 0, // 에러 메시지는 서버에 저장되지 않음
         type: "assistant",
-        content: "보고서 생성 중 오류가 발생했습니다.",
+        content: "메시지 전송 중 오류가 발생했습니다. 다시 시도해주세요.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -117,37 +177,156 @@ const MainChatPage: React.FC = () => {
   const handleReportClick = (reportData: {
     filename: string;
     content: string;
+    messageId: number;
     reportId: number;
   }) => {
     setSelectedReport(reportData);
   };
 
-  const handleDownload = (reportData: {
+  const handleDownload = async (reportData: {
     filename: string;
+    content: string;
     reportId: number;
+    messageId: number;
   }) => {
-    // Add to downloaded files
-    const downloadedFile: DownloadedFile = {
-      id: reportData.reportId,
-      filename: reportData.filename,
-      downloadUrl: `#`, // TODO: Add actual download URL
-      size: "125 KB",
-      timestamp: new Date(),
-    };
+    try {
+      // 메시지 기반 HWPX 다운로드 (자동 생성)
+      antdMessage.loading({
+        content: "HWPX 파일 생성 중...",
+        key: "download",
+        duration: 0,
+      });
 
-    setDownloadedFiles((prev) => [...prev, downloadedFile]);
+      const hwpxFilename = reportData.filename.replace(".md", ".hwpx");
+      await artifactApi.downloadMessageHwpx(reportData.messageId, hwpxFilename);
 
-    // TODO: Trigger actual download
-    console.log("Downloading:", reportData.filename);
+      antdMessage.destroy("download");
+
+      // Add to downloaded files
+      const downloadedFile: DownloadedFile = {
+        id: reportData.messageId,
+        filename: hwpxFilename,
+        downloadUrl: `#`,
+        size: "알 수 없음",
+        timestamp: new Date(),
+      };
+
+      setDownloadedFiles((prev) => [...prev, downloadedFile]);
+      antdMessage.success("HWPX 파일이 다운로드되었습니다.");
+    } catch (error: any) {
+      console.error("Download failed:", error);
+      antdMessage.error(error.message || "파일 다운로드에 실패했습니다.");
+    }
   };
 
   const handleClosePreview = () => {
     setSelectedReport(null);
   };
 
+  const handleTopicSelect = async (topicId: number) => {
+    setSelectedTopicId(topicId);
+    setIsGenerating(true);
+
+    try {
+      // 선택된 토픽의 메시지 불러오기
+      const messagesResponse = await messageApi.listMessages(topicId);
+
+      // UI 메시지 형식으로 변환
+      const uiMessages: Message[] = messagesResponse.messages.map((msg) => ({
+        id: msg.id.toString(),
+        messageId: msg.id,
+        type: msg.role === "user" ? "user" : "assistant",
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+      }));
+
+      setMessages(uiMessages);
+
+      // 아티팩트 목록 불러오기
+      const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId);
+
+      // 아티팩트가 있으면 메시지에 연결
+      if (artifactsResponse.artifacts.length > 0) {
+        const messagesWithArtifacts = await Promise.all(
+          uiMessages.map(async (msg) => {
+            // 이 메시지와 연결된 아티팩트 찾기 (message_id 매칭)
+            const relatedArtifact = artifactsResponse.artifacts.find(
+              (art) => art.kind === "md" && art.message_id === msg.messageId
+            );
+
+            if (relatedArtifact && msg.type === "assistant") {
+              try {
+                const contentResponse = await artifactApi.getArtifactContent(
+                  relatedArtifact.id
+                );
+                return {
+                  ...msg,
+                  reportData: {
+                    filename: relatedArtifact.filename,
+                    reportId: relatedArtifact.id,
+                    messageId: msg.messageId,
+                    content: contentResponse.content,
+                  },
+                };
+              } catch (error) {
+                console.error("Failed to load artifact content:", error);
+                return msg;
+              }
+            }
+
+            return msg;
+          })
+        );
+
+        setMessages(messagesWithArtifacts);
+      }
+    } catch (error: any) {
+      console.error("Error loading topic messages:", error);
+      antdMessage.error(
+        error.message || "토픽 메시지를 불러오는데 실패했습니다."
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleNewTopic = () => {
+    setSelectedTopicId(null);
+    setMessages([]);
+  };
+
+  const handleToggleSidebar = () => {
+    setIsLeftSidebarOpen(!isLeftSidebarOpen);
+  };
+
   return (
-    <MainLayout>
-      <div className={styles.mainChatPage}>
+    <MainLayout sidebarCollapsed={!isLeftSidebarOpen}>
+      {/* Dim Overlay - 모바일/태블릿에서 사이드바 열렸을 때 */}
+      {isLeftSidebarOpen && (
+        <div className={styles.dimOverlay} onClick={handleToggleSidebar} />
+      )}
+
+      <Sidebar
+        isOpen={isLeftSidebarOpen}
+        onToggle={handleToggleSidebar}
+        selectedTopicId={selectedTopicId}
+        onTopicSelect={handleTopicSelect}
+        onNewTopic={handleNewTopic}
+      />
+
+      <div
+        className={`${styles.mainChatPage} ${
+          isLeftSidebarOpen ? styles.sidebarExpanded : styles.sidebarCollapsed
+        }`}
+      >
+        {/* 햄버거 메뉴 버튼 - 모바일/태블릿에서만 표시 */}
+        <button
+          className={styles.hamburgerBtn}
+          onClick={handleToggleSidebar}
+          aria-label="메뉴 열기"
+        >
+          <MenuOutlined />
+        </button>
         <div className={styles.chatContainer}>
           <div className={styles.chatContent}>
             {messages.length === 0 ? (
@@ -165,15 +344,14 @@ const MainChatPage: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <h1>보고서를 생성해보세요</h1>
-                <p>주제를 입력하면 AI가 자동으로 보고서를 작성합니다</p>
+                <h1>보고서를 생성해보세요!</h1>
+                <p>주제를 입력하면 AI가 자동으로 보고서를 작성합니다.</p>
               </div>
             ) : (
               <div className={styles.chatMessages}>
                 {messages.map((message, index) => {
                   const isLastUserMessage =
-                    message.type === "user" &&
-                    index === messages.length - 1;
+                    message.type === "user" && index === messages.length - 1;
 
                   return (
                     <div
@@ -203,9 +381,6 @@ const MainChatPage: React.FC = () => {
           </div>
 
           <div className={styles.chatInputWrapper}>
-            {downloadedFiles.length > 0 && (
-              <DownloadedFiles files={downloadedFiles} />
-            )}
             <ChatInput onSend={handleSendMessage} disabled={isGenerating} />
           </div>
         </div>

@@ -28,7 +28,7 @@
  * - vite.config.ts에서 '/api' 경로를 'http://localhost:8000'으로 프록시 설정
  * - 프로덕션에서는 환경변수 VITE_API_BASE_URL 사용
  */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 /**
  * API 엔드포인트 URL 모음
@@ -43,21 +43,50 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
  * - 예: DOWNLOAD_REPORT('report.hwpx') → '/api/download/report.hwpx'
  */
 export const API_ENDPOINTS = {
-  // 인증 관련 API
-  LOGIN: '/api/auth/login',                    // 로그인
-  REGISTER: '/api/auth/register',              // 회원가입
-  CHANGE_PASSWORD: '/api/auth/change-password', // 비밀번호 변경
+  // 인증 API
+  REGISTER: "/api/auth/register", // 회원가입
+  LOGIN: "/api/auth/login", // 로그인
+  ME: "/api/auth/me", // 내 정보 조회 (미구현)
+  LOGOUT: "/api/auth/logout", // 로그아웃
+  CHANGE_PASSWORD: "/api/auth/change-password", // 비밀번호 변경
+
+  // 주제 API (v2.0)
+  CREATE_TOPIC: "/api/topics", // 새 토픽 생성
+  GENERATE_TOPIC: "/api/topics/generate", // 입력 한 번에 MD 산출 (토픽/메시지/아티팩트 동시 생성)
+  LIST_TOPICS: "/api/topics", // 내 토픽 목록 (페이징)
+  GET_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 특정 토픽 조회
+  UPDATE_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 토픽 업데이트
+  DELETE_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 토픽 삭제
+  ASK_TOPIC: (topicId: number) => `/api/topics/${topicId}/ask`, // 메시지 체이닝 (대화 이어가기)
 
   // 보고서 관련 API
-  GENERATE_REPORT: '/api/generate',            // 보고서 생성
-  LIST_REPORTS: '/api/reports',                // 보고서 목록
-  DOWNLOAD_REPORT: (filename: string) => `/api/download/${filename}`,  // 보고서 다운로드 (동적 URL)
+  GENERATE_REPORT: "/api/generate", // 보고서 생성
+  LIST_REPORTS: "/api/reports", // 보고서 목록
+  DOWNLOAD_REPORT: (filename: string) => `/api/download/${filename}`, // 보고서 다운로드 (동적 URL)
 
   // 관리자 API
-  LIST_USERS: '/api/admin/users',              // 사용자 목록
-  APPROVE_USER: (userId: number) => `/api/admin/users/${userId}/approve`,        // 사용자 승인
-  REJECT_USER: (userId: number) => `/api/admin/users/${userId}/reject`,          // 사용자 거부
-  RESET_PASSWORD: (userId: number) => `/api/admin/users/${userId}/reset-password`, // 비밀번호 초기화
+  LIST_USERS: "/api/admin/users", // 사용자 목록
+  APPROVE_USER: (userId: number) => `/api/admin/users/${userId}/approve`, // 사용자 승인
+  REJECT_USER: (userId: number) => `/api/admin/users/${userId}/reject`, // 사용자 거부
+  RESET_PASSWORD: (userId: number) =>
+    `/api/admin/users/${userId}/reset-password`, // 비밀번호 초기화
+
+  // 메시지 API
+  LIST_MESSAGES: (topicId: number) => `/api/topics/${topicId}/messages`, // 토픽의 메시지 목록
+  CREATE_MESSAGE: (topicId: number) => `/api/topics/${topicId}/messages`, // 새 메시지 생성 (AI 응답 자동)
+
+  // 아티팩트 API
+  GET_ARTIFACT: (artifactId: number) => `/api/artifacts/${artifactId}`, // 아티팩트 메타데이터 조회
+  GET_ARTIFACT_CONTENT: (artifactId: number) =>
+    `/api/artifacts/${artifactId}/content`, // MD 파일 내용 조회
+  DOWNLOAD_ARTIFACT: (artifactId: number) =>
+    `/api/artifacts/${artifactId}/download`, // 파일 다운로드
+  DOWNLOAD_MESSAGE_HWPX: (messageId: number, locale: string = "ko") =>
+    `/api/artifacts/messages/${messageId}/hwpx/download?locale=${locale}`, // 메시지 기반 HWPX 다운로드 (자동 생성)
+  LIST_ARTIFACTS_BY_TOPIC: (topicId: number) =>
+    `/api/artifacts/topics/${topicId}`, // 토픽의 아티팩트 목록
+  CONVERT_ARTIFACT: (artifactId: number) =>
+    `/api/artifacts/${artifactId}/convert`, // MD to HWPX 변환
 } as const;
 
 /**
@@ -66,6 +95,6 @@ export const API_ENDPOINTS = {
  * - 'access_token' 같은 문자열을 직접 쓰지 않고 상수로 관리
  */
 export const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'access_token',  // JWT 토큰 저장 키
-  USER: 'user',                  // 사용자 정보 저장 키
+  ACCESS_TOKEN: "access_token", // JWT 토큰 저장 키
+  USER: "user", // 사용자 정보 저장 키
 } as const;

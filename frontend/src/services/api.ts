@@ -28,6 +28,25 @@ import { API_BASE_URL } from '../constants/';
 import { storage } from '../utils/storage';
 
 /**
+ * JWT 인증이 필요 없는 Public 엔드포인트 목록
+ * - 로그인/회원가입 시에는 토큰이 없으므로 헤더에 추가하지 않음
+ */
+const PUBLIC_ENDPOINTS = [
+  '/api/auth/login',
+  '/api/auth/register',
+];
+
+/**
+ * 주어진 URL이 Public 엔드포인트인지 확인
+ * @param url 요청 URL
+ * @returns Public 엔드포인트 여부
+ */
+const isPublicEndpoint = (url?: string): boolean => {
+  if (!url) return false;
+  return PUBLIC_ENDPOINTS.some(endpoint => url.includes(endpoint));
+};
+
+/**
  * Axios 인스턴스 생성
  * - baseURL: 모든 요청의 기본 URL (예: http://localhost:8000)
  * - headers: 모든 요청에 포함될 기본 헤더
@@ -44,15 +63,22 @@ const api: AxiosInstance = axios.create({
  *
  * 역할: 모든 API 요청이 서버로 가기 전에 실행
  * - 로컬스토리지에서 토큰을 가져와서 Authorization 헤더에 자동 추가
+ * - Public 엔드포인트(로그인/회원가입)는 토큰 추가 제외
  * - 이렇게 하면 매번 요청마다 토큰을 수동으로 추가할 필요 없음
  *
  * 동작:
  * 1. 요청 직전에 실행
- * 2. 토큰이 있으면 헤더에 "Bearer 토큰값" 추가
+ * 2. Public 엔드포인트가 아니고 토큰이 있으면 헤더에 "Bearer 토큰값" 추가
  * 3. 수정된 요청을 서버로 전송
  */
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Public 엔드포인트는 토큰 추가 안 함
+    if (isPublicEndpoint(config.url)) {
+      return config;
+    }
+
+    // Protected 엔드포인트는 토큰 추가
     const token = storage.getToken();
     if (token && config.headers) {
       // Authorization: Bearer eyJhbGc... 형태로 추가
