@@ -52,7 +52,8 @@
       "Bash(if [ -f \"backend/templates/report_template.hwpx\" ])",
       "Bash(then echo \"File exists\")",
       "Bash(else echo \"File does not exist\")",
-      "mcp__serena__list_memories"
+      "mcp__serena__list_memories",
+      "mcp__atlassian__atlassianUserInfo"
     ],
     "deny": [
       "Read(**/.env*)",
@@ -61,5 +62,19 @@
       "Edit(node_modules/**)"
     ],
     "ask": []
+  },
+  "outputStyle": "run_fastAPI",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '\"[\"$(date -Iseconds)\"] \\(.tool_input.command) - \\(.tool_input.description // \"설명 없음\")\"' >> ~/.claude/bash-command-log.txt"
+          }
+        ]
+      }
+    ]
   }
 }

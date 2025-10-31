@@ -143,6 +143,8 @@ hwp-report-generator/
 │   │   │   ├── message.py         # ✨ 메시지 모델
 │   │   │   ├── artifact.py        # ✨ 아티팩트 모델
 │   │   │   ├── ai_usage.py        # ✨ AI 사용량 모델
+│   │   │   ├── transformation.py  # ✨ 변환 추적 모델 (MD→HWPX 등)
+│   │   │   ├── token_usage.py     # 토큰 사용량 모델 (Deprecated)
 │   │   │   └── report.py          # 보고서 모델 (Deprecated)
 │   │   ├── database/              # 데이터베이스 레이어
 │   │   │   ├── connection.py     # DB 연결 및 초기화
@@ -151,11 +153,15 @@ hwp-report-generator/
 │   │   │   ├── message_db.py      # ✨ 메시지 CRUD
 │   │   │   ├── artifact_db.py     # ✨ 아티팩트 CRUD
 │   │   │   ├── ai_usage_db.py     # ✨ AI 사용량 CRUD
+│   │   │   ├── transformation_db.py # ✨ 변환 추적 CRUD
+│   │   │   ├── token_usage_db.py  # 토큰 사용량 CRUD (Deprecated)
 │   │   │   └── report_db.py       # 보고서 CRUD (Deprecated)
 │   │   └── utils/                 # 유틸리티 함수
 │   │       ├── response_helper.py # ✨ API 표준 응답 헬퍼
 │   │       ├── claude_client.py   # Claude API 클라이언트
 │   │       ├── hwp_handler.py     # HWPX 파일 처리
+│   │       ├── artifact_manager.py # ✨ 아티팩트 파일 저장/관리 추상화
+│   │       ├── md_handler.py      # ✨ Markdown 파일 처리 유틸
 │   │       ├── markdown_parser.py # ✨ Markdown 파싱
 │   │       ├── markdown_builder.py# ✨ Markdown 생성
 │   │       ├── file_utils.py      # ✨ 파일/버전 유틸
@@ -168,6 +174,12 @@ hwp-report-generator/
 │   ├── temp/                      # 임시 파일
 │   ├── data/                      # SQLite 데이터베이스
 │   │   └── hwp_reports.db
+│   ├── doc/                       # ✨ 개발 문서
+│   │   ├── 01.대화형(채팅)서비스 전환을 위한 도메인구조변경.md
+│   │   ├── 02.generateTopic.md
+│   │   ├── 03.hwpxDownload.md
+│   │   ├── 04.messageChaining.md
+│   │   └── 05.downloadApi.md
 │   ├── tests/                     # ✨ 테스트 파일
 │   │   ├── conftest.py            # pytest fixtures
 │   │   ├── test_routers_*.py      # API 테스트
@@ -176,18 +188,25 @@ hwp-report-generator/
 │   ├── requirements-dev.txt       # ✨ 개발/테스트 의존성
 │   ├── pytest.ini                 # ✨ pytest 설정
 │   ├── init_db.py                 # DB 초기화 스크립트
+│   ├── migrate_db.py              # DB 마이그레이션 스크립트
+│   ├── BACKEND_TEST.md            # ✨ 테스트 상세 가이드
+│   ├── MIGRATION_GUIDE.md         # ✨ v1 → v2 마이그레이션 가이드
+│   ├── CLAUDE.md                  # ✨ 백엔드 개발 가이드라인
 │   └── .env                       # 환경 변수
 │
 ├── shared/                        # ✨ 공유 모듈
 │   ├── models/                    # 공유 데이터 모델
 │   │   └── api_response.py       # API 응답 표준 모델
 │   ├── types/                     # 공유 타입
-│   │   └── enums.py              # MessageRole, ArtifactKind 등
-│   └── constants.py               # 공유 상수 (경로 등)
+│   │   └── enums.py              # MessageRole, ArtifactKind, TransformOperation 등
+│   ├── constants.py               # 공유 상수 (Python)
+│   ├── constants.ts               # 공유 상수 (TypeScript)
+│   ├── constants.properties       # 공유 상수 원본
+│   └── README.md                  # 공유 상수 사용 가이드
 │
 ├── CLAUDE.md                      # 프로젝트 전체 문서
 ├── BACKEND_ONBOARDING.md          # 이 문서
-└── BACKEND_ONBOARDING_v2.md       # 간소화 버전
+└── README.md                      # 프로젝트 README
 ```
 
 **✨ 표시**: v2.0에서 새로 추가된 파일/디렉토리
@@ -353,16 +372,16 @@ PATH_PROJECT_HOME=D:\\WorkSpace\\hwp-report\\hwp-report-generator
          │                     └────────────────────┘
          │
          ▼
-┌────────────────────┐
-│     artifacts      │
-├────────────────────┤
-│ id (PK)            │
-│ topic_id (FK)      │
-│ message_id (FK)    │
-│ kind               │ (md, hwpx)
-│ locale             │
-│ version            │
-│ filename           │
+┌────────────────────┐         ┌────────────────────────┐
+│     artifacts      │         │   transformations      │
+├────────────────────┤         ├────────────────────────┤
+│ id (PK)            │◄───┐    │ id (PK)                │
+│ topic_id (FK)      │    ├────│ from_artifact_id (FK)  │
+│ message_id (FK)    │    └────│ to_artifact_id (FK)    │
+│ kind               │         │ operation              │
+│ locale             │         │ params_json            │
+│ version            │         │ created_at             │
+│ filename           │         └────────────────────────┘
 │ file_path          │
 │ file_size          │
 │ sha256             │
@@ -441,6 +460,26 @@ PATH_PROJECT_HOME=D:\\WorkSpace\\hwp-report\\hwp-report-generator
 | total_tokens | INTEGER | DEFAULT 0 | 총 토큰 수 |
 | latency_ms | INTEGER | DEFAULT 0 | API 응답 시간 (ms) |
 | created_at | TIMESTAMP | DEFAULT NOW | 기록 시각 |
+
+#### transformations - 파일 변환 추적 (v2.0)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | INTEGER | PK, AUTO | 변환 기록 ID |
+| from_artifact_id | INTEGER | FK, NOT NULL | 원본 아티팩트 ID |
+| to_artifact_id | INTEGER | FK, NOT NULL | 변환 결과 아티팩트 ID |
+| operation | TEXT | NOT NULL | convert/translate |
+| params_json | TEXT | NULL | 변환 파라미터 (JSON) |
+| created_at | TIMESTAMP | DEFAULT NOW | 변환 시각 |
+
+**인덱스:**
+- `idx_transformations_from` - from_artifact_id
+- `idx_transformations_to` - to_artifact_id
+
+**사용 사례:**
+- MD → HWPX 변환 이력 추적
+- 향후 언어 번역 이력 추적 (KO → EN)
+- 변환 체인 추적 (MD → HWPX → PDF)
 
 #### reports, token_usage - 레거시 (Deprecated)
 
@@ -675,6 +714,67 @@ JWT 발급/검증, bcrypt 비밀번호 해싱.
 - `get_current_user(token)` - 현재 사용자 추출
 - `get_current_active_user()` - 활성 사용자 확인
 - `get_current_admin_user()` - 관리자 확인
+
+### 7. Artifact Manager (`utils/artifact_manager.py`)
+
+아티팩트 파일 저장/관리를 위한 추상화 레이어. 로컬 파일 시스템 지원 (향후 S3, Azure Blob 등 확장 가능).
+
+**주요 메서드:**
+- `generate_artifact_path(topic_id, message_id, filename)` - 아티팩트 저장 경로 생성
+- `store_artifact(content, filepath, is_binary)` - 파일 저장 (텍스트/바이너리)
+- `retrieve_artifact(filepath, is_binary)` - 파일 읽기
+- `delete_artifact(filepath)` - 파일 삭제
+- `calculate_sha256(filepath)` - 파일 해시 계산 (무결성 검증)
+- `get_extension_for_kind(kind)` - ArtifactKind에 맞는 확장자 반환
+- `generate_filename(topic_id, kind, version, locale)` - 표준 파일명 생성
+
+**저장 구조:**
+```
+artifacts/
+└── topics/
+    └── topic_{id}/
+        └── messages/
+            └── msg_{message_id}_{filename}
+```
+
+### 8. Markdown Handler (`utils/md_handler.py`)
+
+Markdown 파일 생성, 읽기, 포맷팅 유틸리티.
+
+**주요 메서드:**
+- `save_md_file(content, filepath)` - Markdown 파일 저장 (UTF-8)
+- `read_md_file(filepath)` - Markdown 파일 읽기
+- `format_report_as_md(report_data)` - 보고서 데이터를 Markdown 포맷으로 변환
+- `parse_md_report(md_content)` - Markdown을 구조화된 데이터로 파싱
+- `get_file_size(filepath)` - 파일 크기 조회
+- `delete_md_file(filepath)` - 파일 삭제
+
+**보고서 구조:**
+- `# 제목`
+- `## 요약`
+- `## 배경 및 목적`
+- `## 주요 내용`
+- `## 결론 및 제언`
+
+### 9. Transformation Tracking (`models/transformation.py`, `database/transformation_db.py`)
+
+파일 변환 및 번역 추적 시스템. 아티팩트 간 변환 관계를 기록하여 변환 이력 추적 가능.
+
+**지원 작업:**
+- `TransformOperation.CONVERT` - 포맷 변환 (MD → HWPX)
+- `TransformOperation.TRANSLATE` - 언어 번역 (KO → EN)
+
+**주요 필드:**
+- `from_artifact_id` - 원본 아티팩트 ID
+- `to_artifact_id` - 변환 결과 아티팩트 ID
+- `operation` - 변환 작업 타입
+- `params_json` - 변환 파라미터 (JSON)
+- `created_at` - 변환 시각
+
+**주요 함수:**
+- `create_transformation(transform_data)` - 변환 기록 생성
+- `get_transformations_from_artifact(artifact_id)` - 특정 아티팩트에서 파생된 변환 조회
+- `get_transformations_to_artifact(artifact_id)` - 특정 아티팩트를 생성한 변환 조회
 
 ---
 
@@ -1018,10 +1118,27 @@ type .env  # Windows
 - `/api/reports` - v1.0 호환성 유지, 향후 제거 예정
 - `reports`, `token_usage` 테이블 - v1.0 호환성 유지
 
+### 새로운 유틸리티 컴포넌트
+
+- `app/utils/artifact_manager.py` - 아티팩트 파일 저장/관리 추상화 레이어
+- `app/utils/md_handler.py` - Markdown 파일 처리 유틸리티
+
+### Transformation 추적
+
+- `transformations` 테이블 - 파일 변환 이력 추적
+- `TransformOperation` enum - `CONVERT`, `TRANSLATE`
+- 변환 체인 지원 (MD → HWPX → PDF)
+
+### Shared 모듈 확장
+
+- `shared/types/enums.py` - `TransformOperation` 추가
+- `shared/constants.py/.ts/.properties` - 공유 상수 관리
+- Frontend/Backend 간 상수 동기화
+
 ---
 
-**마지막 업데이트:** 2025-10-30
-**버전:** 2.0
+**마지막 업데이트:** 2025-10-31
+**버전:** 2.1
 **담당자:** Backend Development Team
 
 ---

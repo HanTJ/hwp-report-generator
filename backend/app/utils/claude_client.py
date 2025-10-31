@@ -211,7 +211,8 @@ class ClaudeClient:
     def chat_completion(
         self,
         messages: list[Dict[str, str]],
-        system_prompt: str = None
+        system_prompt: str = None,
+        isWebSearch: bool = False
     ) -> tuple[str, int, int]:
         """Chat-based completion for conversational report generation.
 
@@ -219,6 +220,7 @@ class ClaudeClient:
             messages: List of message dictionaries with 'role' and 'content' keys
                      Example: [{"role": "user", "content": "Write a report"}]
             system_prompt: Optional system prompt (default: financial report writer)
+            isWebSearch: Whether to enable web search (default: False)
 
         Returns:
             Tuple of (response_content, input_tokens, output_tokens)
@@ -236,6 +238,11 @@ class ClaudeClient:
 ## 요약
 
 2025년 디지털뱅킹 산업은...
+
+            >>> # 웹 검색 활성화
+            >>> response, input_tokens, output_tokens = client.chat_completion(
+            ...     messages, isWebSearch=True
+            ... )
         """
         # Default system prompt for financial reports
         if system_prompt is None:
@@ -256,14 +263,27 @@ class ClaudeClient:
             logger.info(f"Claude chat completion 시작 - 메시지 수: {len(messages)}")
             logger.info(f"사용 모델: {self.model}")
             logger.info(f"최대 토큰: {self.max_tokens}")
+            logger.info(f"웹 검색 사용: {isWebSearch}")
 
-            # API call with system prompt
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                system=system_prompt,
-                messages=messages
-            )
+            # API call 파라미터 구성
+            api_params = {
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "system": system_prompt,
+                "messages": messages
+            }
+
+            # 웹 검색 활성화 시 tools 추가
+            if isWebSearch:
+                api_params["tools"] = [
+                    {
+                        "type": "web_search_20250131"
+                    }
+                ]
+                logger.info("웹 검색 도구 활성화됨")
+
+            # API call with optional web search
+            response = self.client.messages.create(**api_params)
 
             # Extract response content
             content = response.content[0].text
