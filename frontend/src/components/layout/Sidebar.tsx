@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import {
   PlusOutlined,
   MessageOutlined,
@@ -12,14 +12,13 @@ import {
 import { message } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { topicApi } from "../../services/topicApi";
-import type { Topic } from "../../types/topic";
+import { useTopicStore } from "../../stores/useTopicStore";
+import { UI_CONFIG } from "../../constants";
 import styles from "./Sidebar.module.css";
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
-  selectedTopicId: number | null;
   onTopicSelect: (topicId: number) => void;
   onNewTopic: () => void;
 }
@@ -27,32 +26,30 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onToggle,
-  selectedTopicId,
   onTopicSelect,
   onNewTopic,
 }) => {
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [loading, setLoading] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // 초기 로드
-  useEffect(() => {
-    loadTopics();
-  }, []);
+  // Use Zustand store for topic management - Sidebar용 상태만 사용
+  const { sidebarTopics, sidebarLoading, selectedTopicId, loadSidebarTopics } =
+    useTopicStore();
 
-  const loadTopics = async () => {
-    setLoading(true);
-    try {
-      const response = await topicApi.listTopics("active", 1, 20);
-      setTopics(response.topics);
-    } catch (error: any) {
-      message.error("토픽 목록을 불러오는데 실패했습니다.");
-      console.error("Failed to load topics:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 초기 로드 - Sidebar용 토픽 로드 (항상 첫 페이지)
+  useEffect(() => {
+    const fetchTopics = async () => {
+      try {
+        await loadSidebarTopics();
+      } catch (error: any) {
+        message.error("토픽 목록을 불러오는데 실패했습니다.");
+        console.error("Failed to load topics:", error);
+      }
+    };
+
+    fetchTopics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // loadSidebarTopics is a stable reference from Zustand store
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -71,6 +68,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       month: "short",
       day: "numeric",
     });
+  };
+
+  const handleLogoClick = () => {
+    navigate("/chat");
   };
 
   const handleAdminClick = () => {
@@ -167,8 +168,10 @@ const Sidebar: React.FC<SidebarProps> = ({
               onClick={onNewTopic}
               title="새로운 주제"
             >
-              <div className={styles.plusCircle}>
-                <PlusOutlined />
+              <div className={styles.plusIcon}>
+                <div className={styles.plusCircle}>
+                  <PlusOutlined />
+                </div>
               </div>
               <span>새로운 주제</span>
             </button>
@@ -178,19 +181,19 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             {/* 토픽 리스트 */}
             <div className={styles.topicList}>
-              {loading ? (
+              {sidebarLoading ? (
                 <div className={styles.loadingState}>
                   <div className={styles.loadingSpinner} />
                   <span>불러오는 중...</span>
                 </div>
-              ) : topics.length === 0 ? (
+              ) : sidebarTopics.length === 0 ? (
                 <div className={styles.emptyState}>
                   <MessageOutlined />
                   <p>아직 대화가 없습니다</p>
                   <p className={styles.emptyHint}>새 대화를 시작해보세요</p>
                 </div>
               ) : (
-                topics.map((topic) => (
+                sidebarTopics.map((topic) => (
                   <button
                     key={topic.id}
                     className={`${styles.topicItem} ${
@@ -214,11 +217,17 @@ const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
 
-            {/* 더보기 버튼 */}
-            <button className={styles.moreBtn}>
-              <MoreOutlined />
-              <span>더보기</span>
-            </button>
+            {/* 모든 대화 버튼 - Sidebar에 로드된 토픽보다 더 많은 토픽이 있을 때 표시 */}
+            {sidebarTopics.length >=
+              UI_CONFIG.PAGINATION.SIDEBAR_TOPICS_PER_PAGE && (
+              <button
+                className={styles.moreBtn}
+                onClick={() => navigate("/topics")}
+              >
+                <MoreOutlined />
+                <span>모든 대화</span>
+              </button>
+            )}
           </div>
 
           {/* Bottom Menu - Expanded */}

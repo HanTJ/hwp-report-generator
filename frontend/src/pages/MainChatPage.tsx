@@ -10,6 +10,7 @@ import MainLayout from "../components/layout/MainLayout";
 import { topicApi } from "../services/topicApi";
 import { messageApi } from "../services/messageApi";
 import { artifactApi } from "../services/artifactApi";
+import { useTopicStore } from "../stores/useTopicStore";
 
 interface Message {
   id: string;
@@ -44,8 +45,11 @@ const MainChatPage: React.FC = () => {
   const [downloadedFiles, setDownloadedFiles] = useState<DownloadedFile[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
-  const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
+
+  // Use Zustand store for topic management
+  const { selectedTopicId, setSelectedTopicId, addTopic, refreshTopic } =
+    useTopicStore();
 
   // 두 번째 메시지부터 마지막 사용자 메시지를 헤더 아래로 스크롤
   useEffect(() => {
@@ -90,6 +94,14 @@ const MainChatPage: React.FC = () => {
         });
         currentTopicId = generateResponse.topic_id;
         setSelectedTopicId(generateResponse.topic_id);
+
+        // Fetch the complete topic data and add to store
+        try {
+          const newTopic = await topicApi.getTopic(currentTopicId);
+          addTopic(newTopic);
+        } catch (error) {
+          console.error("Failed to fetch topic after creation:", error);
+        }
       } else {
         // 2번째 메시지부터: 메시지 체이닝 (ask API)
         await topicApi.askTopic(currentTopicId, {
@@ -309,7 +321,6 @@ const MainChatPage: React.FC = () => {
       <Sidebar
         isOpen={isLeftSidebarOpen}
         onToggle={handleToggleSidebar}
-        selectedTopicId={selectedTopicId}
         onTopicSelect={handleTopicSelect}
         onNewTopic={handleNewTopic}
       />

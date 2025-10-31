@@ -10,6 +10,7 @@
   flex-direction: column;
   transition: width 0.3s ease-out;
   gap: var(--spacing-md);
+  overflow: hidden; /* 넘치는 컨텐츠 숨김 */
 }
 
 .sidebar.collapsed {
@@ -28,11 +29,25 @@
 
 /* Collapsed State (닫힌 상태) */
 .collapsedContent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: var(--spacing-md) var(--spacing-sm);
   gap: 2rem;
+  background-color: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.sidebar.collapsed .collapsedContent {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .iconBtn {
@@ -54,7 +69,13 @@
   background-color: #f5f5f5;
   color: #1a1a1a;
 }
-
+.plusIcon {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .plusCircle {
   width: 1.5rem;
   height: 1.5rem;
@@ -72,10 +93,24 @@
 }
 
 .collapsedSidebarHeader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   display: flex;
   align-items: center;
   padding: var(--spacing-md) var(--spacing-sm);
   height: 5rem;
+  background-color: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+  z-index: 1;
+}
+
+.sidebar.collapsed .collapsedSidebarHeader {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Expanded State (열린 상태) */

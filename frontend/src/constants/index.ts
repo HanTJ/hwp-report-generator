@@ -98,3 +98,23 @@ export const STORAGE_KEYS = {
   ACCESS_TOKEN: "access_token", // JWT 토큰 저장 키
   USER: "user", // 사용자 정보 저장 키
 } as const;
+
+/**
+ * UI 설정 상수
+ */
+export const UI_CONFIG = {
+  /**
+   * 페이지네이션 설정
+   */
+  PAGINATION: {
+    /**
+     * TopicListPage에서 한 페이지당 표시할 토픽 개수
+     */
+    TOPICS_PER_PAGE: 2,
+    /**
+     * Sidebar에 표시할 최대 토픽 개수
+     * - 이 개수 이상의 토픽이 있으면 "모든 대화" 버튼이 표시됨
+     */
+    SIDEBAR_TOPICS_PER_PAGE: 2,
+  },
+} as const;
