@@ -26,7 +26,7 @@ import PublicRoute from './components/auth/PublicRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import MainPage from './pages/MainPage';
-import MainChatPage from './pages/MainChatPage';
+import MainBakPage from './pages/MainBakPage';
 import TopicListPage from './pages/TopicListPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import AdminPage from './pages/AdminPage';
@@ -84,18 +84,18 @@ const App: React.FC = () => {
                   }
                 />
                 <Route
-                  path="/change-password"
+                  path="/chat"
                   element={
                     <PrivateRoute>
-                      <ChangePasswordPage />
+                      <MainPage />
                     </PrivateRoute>
                   }
                 />
                 <Route
-                  path="/chat"
+                  path="/change-password"
                   element={
                     <PrivateRoute>
-                      <MainChatPage />
+                      <ChangePasswordPage />
                     </PrivateRoute>
                   }
                 />
