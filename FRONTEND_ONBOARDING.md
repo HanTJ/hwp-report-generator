@@ -341,7 +341,7 @@ Topic (대화 스레드)
 - `/` - 메인 채팅 페이지 (MainPage)
 - `/topics` - 모든 대화 목록 (TopicListPage)
 - `/change-password` - 비밀번호 변경 페이지
-- `/chat` - 레거시 경로 (`/`로 리다이렉트)
+- `/bak` - 레거시 메인 경로
 
 **관리자 전용 라우트** (PrivateRoute + requireAdmin):
 

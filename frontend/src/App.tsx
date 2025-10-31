@@ -15,21 +15,26 @@
  *         → Router: URL 라우팅
  */
 
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider, App as AntdApp } from 'antd';
-import koKR from 'antd/locale/ko_KR';
-import { AuthProvider } from './context/AuthContext';
-import PrivateRoute from './components/auth/PrivateRoute';
-import PublicRoute from './components/auth/PublicRoute';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import MainPage from './pages/MainPage';
-import MainBakPage from './pages/MainBakPage';
-import TopicListPage from './pages/TopicListPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
-import AdminPage from './pages/AdminPage';
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ConfigProvider, App as AntdApp } from "antd";
+import koKR from "antd/locale/ko_KR";
+import { AuthProvider } from "./context/AuthContext";
+import PrivateRoute from "./components/auth/PrivateRoute";
+import PublicRoute from "./components/auth/PublicRoute";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import MainPage from "./pages/MainPage";
+import MainBakPage from "./pages/MainBakPage";
+import TopicListPage from "./pages/TopicListPage";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
+import AdminPage from "./pages/AdminPage";
 
 // React Query 설정
 // - retry: API 실패 시 1번만 재시도
@@ -84,8 +89,12 @@ const App: React.FC = () => {
                   }
                 />
                 <Route
-                  path="/chat"
-                  element={<Navigate to="/" replace />}
+                  path="/bak"
+                  element={
+                    <PrivateRoute>
+                      <MainBakPage />
+                    </PrivateRoute>
+                  }
                 />
                 <Route
                   path="/change-password"

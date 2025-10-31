@@ -55,7 +55,6 @@ npm run dev
 ```
 
 브라우저에서 http://localhost:5173 으로 접속
-현재 http://localhost:5173/chat에서 메인 화면 테스트 중
 
 ### 4. 프로덕션 빌드
 
@@ -70,7 +69,7 @@ npm run build
 - `/login` - 로그인 페이지
 - `/register` - 회원가입 페이지
 - `/` - 메인 페이지 (보고서 생성 및 목록)
-- `/chat` - 메인 테스트 페이지 (보고서 생성 및 목록)
+- `/bak` - 메인 레거시 페이지 (보고서 생성 및 목록)
 - `/change-password` - 비밀번호 변경 페이지
 - `/admin` - 관리자 페이지 (관리자 전용)
 
