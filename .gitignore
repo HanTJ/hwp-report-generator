@@ -54,6 +54,7 @@ temp/
 *.tmp
 *.log
 logs/
+backend/artifacts/
 
 # OS
 .DS_Store
