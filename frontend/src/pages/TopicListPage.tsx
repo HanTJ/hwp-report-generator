@@ -51,12 +51,12 @@ const TopicListPage: React.FC = () => {
 
   const handleTopicSelect = (topicId: number) => {
     setSelectedTopicId(topicId);
-    navigate("/chat");
+    navigate("/");
   };
 
   const handleNewTopic = () => {
     setSelectedTopicId(null);
-    navigate("/chat");
+    navigate("/");
   };
 
   const handleEdit = (topic: Topic, e: React.MouseEvent) => {

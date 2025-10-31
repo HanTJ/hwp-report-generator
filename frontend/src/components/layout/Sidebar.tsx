@@ -71,7 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const handleLogoClick = () => {
-    navigate("/chat");
+    navigate("/");
   };
 
   const handleAdminClick = () => {

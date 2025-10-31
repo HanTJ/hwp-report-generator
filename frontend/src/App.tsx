@@ -85,11 +85,7 @@ const App: React.FC = () => {
                 />
                 <Route
                   path="/chat"
-                  element={
-                    <PrivateRoute>
-                      <MainPage />
-                    </PrivateRoute>
-                  }
+                  element={<Navigate to="/" replace />}
                 />
                 <Route
                   path="/change-password"

@@ -2,8 +2,8 @@
 
 > HWP Report Generator 프론트엔드 온보딩 가이드
 >
-> 작성일: 2025-10-30
-> 버전: v2.0 (대화형 시스템)
+> 작성일: 2025-10-31
+> 버전: v2.1 (Zustand 상태 관리 + 페이지네이션)
 
 ---
 
@@ -40,7 +40,6 @@
 **v2.0 특징**:
 
 - 단일 요청 → **대화형 시스템** 전환
-- 실시간 스트리밍 응답 (예정)
 - 대화 이력 저장 및 관리
 - 아티팩트(산출물) 관리 시스템
 
@@ -69,8 +68,10 @@
 | 기술                     | 버전     | 역할                    |
 | ------------------------ | -------- | ----------------------- |
 | **TanStack React Query** | 5.90.5   | 서버 상태 관리 (미사용) |
+| **Zustand**              | 5.0.8    | 전역 상태 관리 (토픽)   |
 | **Axios**                | 1.12.2   | HTTP 클라이언트         |
 | **Context API**          | Built-in | 전역 상태 관리 (인증)   |
+| **React Markdown**       | 10.1.0   | 마크다운 렌더링         |
 
 ### Dev Tools
 
@@ -91,9 +92,13 @@ frontend/
 │
 ├── src/
 │   ├── assets/                  # 이미지, 폰트 등
-│   │   └── logo.png
+│   │   └── react.svg
 │   │
 │   ├── components/              # 재사용 가능한 컴포넌트
+│   │   ├── auth/                       # 인증 관련
+│   │   │   ├── PrivateRoute.tsx        # 로그인 필요 라우트
+│   │   │   └── PublicRoute.tsx         # 로그인 시 접근 불가 라우트
+│   │   │
 │   │   ├── chat/
 │   │   │   ├── ChatInput.tsx           # 메시지 입력 UI
 │   │   │   ├── ChatInput.module.css
@@ -104,26 +109,42 @@ frontend/
 │   │   │   ├── Sidebar.tsx             # 좌측 사이드바 (토픽 목록)
 │   │   │   ├── Sidebar.module.css
 │   │   │   ├── MainLayout.tsx          # 페이지 레이아웃
-│   │   │   └── MainLayout.module.css
+│   │   │   ├── MainLayout.module.css
+│   │   │   ├── Header.tsx              # 헤더 컴포넌트
+│   │   │   ├── Header.module.css
+│   │   │   ├── Footer.tsx              # 푸터 컴포넌트
+│   │   │   └── Footer.module.css
 │   │   │
-│   │   └── report/
-│   │       ├── ReportPreview.tsx       # 보고서 미리보기
-│   │       ├── ReportPreview.module.css
-│   │       ├── DownloadedFiles.tsx     # 다운로드 파일 목록
-│   │       └── DownloadedFiles.module.css
+│   │   ├── report/
+│   │   │   ├── ReportPreview.tsx       # 보고서 미리보기
+│   │   │   ├── ReportPreview.module.css
+│   │   │   ├── DownloadedFiles.tsx     # 다운로드 파일 목록
+│   │   │   └── DownloadedFiles.module.css
+│   │   │
+│   │   ├── topic/                      # 토픽 관련
+│   │   │   ├── TopicEditModal.tsx      # 토픽 수정 모달
+│   │   │   ├── TopicEditModal.module.css
+│   │   │   ├── TopicDeleteModal.tsx    # 토픽 삭제 모달
+│   │   │   └── TopicDeleteModal.module.css
+│   │   │
+│   │   └── common/                     # 공통 컴포넌트
 │   │
 │   ├── context/                 # React Context
 │   │   └── AuthContext.tsx             # 인증 상태 관리
 │   │
 │   ├── hooks/                   # Custom Hooks
-│   │   └── useAuth.ts                  # AuthContext 래퍼
+│   │   ├── useAuth.ts                  # AuthContext 래퍼
+│   │   ├── useReports.ts               # 보고서 관련 hook
+│   │   └── useUsers.ts                 # 사용자 관련 hook
 │   │
 │   ├── pages/                   # 페이지 컴포넌트
-│   │   ├── LoginPage.tsx               # 로그인
-│   │   ├── RegisterPage.tsx            # 회원가입
-│   │   ├── MainChatPage.tsx            # 메인 채팅 페이지 (개발 중) ⭐
-│   │   ├── MainPage.tsx                # 메인 페이지 ⭐
+│   │   ├── LoginPage.tsx               # 로그인 페이지
+│   │   ├── RegisterPage.tsx            # 회원가입 페이지
+│   │   ├── MainPage.tsx                # 메인 채팅 페이지 ⭐
+│   │   ├── TopicListPage.tsx           # 모든 대화 목록 페이지 ⭐
+│   │   ├── ChangePasswordPage.tsx      # 비밀번호 변경 페이지
 │   │   ├── AdminPage.tsx               # 관리자 페이지
+│   │   ├── MainBakPage.tsx             # 백업 페이지
 │   │   └── *.module.css
 │   │
 │   ├── services/                # API 클라이언트
@@ -135,6 +156,14 @@ frontend/
 │   │   ├── adminApi.ts                 # 관리자 API
 │   │   └── reportApi.ts                # 보고서 API (Deprecated)
 │   │
+│   ├── stores/                  # Zustand Store ⭐
+│   │   └── useTopicStore.ts            # 토픽 상태 관리 (Zustand)
+│   │
+│   ├── styles/                  # 글로벌 스타일 ⭐
+│   │   ├── global.css                  # 전역 스타일
+│   │   ├── variables.css               # CSS 변수
+│   │   └── common.css                  # 공통 스타일
+│   │
 │   ├── types/                   # TypeScript 타입 정의
 │   │   ├── api.ts                      # 공통 API 응답 타입
 │   │   ├── auth.ts                     # 인증 관련 타입
@@ -145,21 +174,21 @@ frontend/
 │   │   └── report.ts                   # 보고서 타입 (Deprecated)
 │   │
 │   ├── utils/                   # 유틸리티 함수
-│   │   └── storage.ts                  # 로컬스토리지 래퍼
+│   │   ├── storage.ts                  # 로컬스토리지 래퍼
+│   │   └── formatters.ts               # 포맷팅 유틸리티
 │   │
 │   ├── constants/               # 상수 정의
-│   │   └── index.ts                    # API 엔드포인트, 키 등
+│   │   └── index.ts                    # API 엔드포인트, UI 설정, 스토리지 키 등
 │   │
 │   ├── App.tsx                  # 앱 루트 컴포넌트
 │   ├── main.tsx                 # 엔트리 포인트
-│   └── index.css                # 글로벌 스타일
+│   └── index.css                # 글로벌 스타일 (Deprecated)
 │
 ├── package.json                 # 의존성 관리
 ├── tsconfig.json                # TypeScript 설정
 ├── vite.config.ts               # Vite 설정 (프록시 포함)
 ├── eslint.config.js             # ESLint 설정
-├── CLAUDE.md                    # 프론트엔드 가이드
-└── FRONTEND_API_STATUS.md       # API 구현 현황
+└── CLAUDE.md                    # 프론트엔드 가이드
 ```
 
 ---
@@ -291,11 +320,101 @@ Topic (대화 스레드)
 **Public vs Protected 엔드포인트**:
 
 - **Public** (토큰 불필요):
+
   - `POST /api/auth/login` - 로그인
   - `POST /api/auth/register` - 회원가입
 
 - **Protected** (토큰 필요):
   - 나머지 모든 API (토픽, 메시지, 아티팩트, 로그아웃 등)
+
+### 5. **라우팅 구조** ⭐
+
+**App.tsx** 라우트 구성:
+
+**공개 라우트** (PublicRoute - 로그인 안 한 사용자만):
+
+- `/login` - 로그인 페이지
+- `/register` - 회원가입 페이지
+
+**보호된 라우트** (PrivateRoute - 로그인 필요):
+
+- `/` - 메인 채팅 페이지 (MainPage)
+- `/topics` - 모든 대화 목록 (TopicListPage)
+- `/change-password` - 비밀번호 변경 페이지
+- `/chat` - 레거시 경로 (`/`로 리다이렉트)
+
+**관리자 전용 라우트** (PrivateRoute + requireAdmin):
+
+- `/admin` - 관리자 페이지
+
+**특수 처리**:
+
+- `*` (404) - 존재하지 않는 경로는 `/`로 리다이렉트
+- 로그인한 사용자가 `/login` 또는 `/register` 접근 시 `/`로 리다이렉트
+- 미인증 사용자가 보호된 라우트 접근 시 `/login`으로 리다이렉트
+
+**구현 예시**:
+
+```typescript
+<Routes>
+  {/* 공개 라우트 */}
+  <Route
+    path="/login"
+    element={
+      <PublicRoute>
+        <LoginPage />
+      </PublicRoute>
+    }
+  />
+  <Route
+    path="/register"
+    element={
+      <PublicRoute>
+        <RegisterPage />
+      </PublicRoute>
+    }
+  />
+
+  {/* 보호된 라우트 */}
+  <Route
+    path="/"
+    element={
+      <PrivateRoute>
+        <MainPage />
+      </PrivateRoute>
+    }
+  />
+  <Route
+    path="/topics"
+    element={
+      <PrivateRoute>
+        <TopicListPage />
+      </PrivateRoute>
+    }
+  />
+  <Route
+    path="/change-password"
+    element={
+      <PrivateRoute>
+        <ChangePasswordPage />
+      </PrivateRoute>
+    }
+  />
+
+  {/* 관리자 전용 */}
+  <Route
+    path="/admin"
+    element={
+      <PrivateRoute requireAdmin={true}>
+        <AdminPage />
+      </PrivateRoute>
+    }
+  />
+
+  {/* 404 리다이렉트 */}
+  <Route path="*" element={<Navigate to="/" replace />} />
+</Routes>
+```
 
 ---
 
@@ -316,13 +435,13 @@ Topic (대화 스레드)
    - localStorage에 토큰 저장
    - user 상태 업데이트
    ↓
-6. navigate('/') → MainChatPage
+6. navigate('/') → MainPage
 ```
 
 ### 2. 보고서 생성 플로우 (첫 번째 메시지)
 
 ```
-1. MainChatPage: 사용자가 "디지털뱅킹 트렌드 보고서" 입력
+1. MainPage: 사용자가 "디지털뱅킹 트렌드 보고서" 입력
    ↓
 2. handleSendMessage()
    - tempUserMessage를 UI에 추가
@@ -335,19 +454,23 @@ Topic (대화 스레드)
    - Topic, Message, Artifact(MD) 저장
    - 응답: { topic_id, md_path }
    ↓
-5. messageApi.listMessages(topic_id)
+5. Zustand: addTopic(newTopic)
+   - Sidebar와 TopicListPage 모두에 새 토픽 추가
+   ↓
+6. messageApi.listMessages(topic_id)
    - 모든 메시지 불러오기
    ↓
-6. artifactApi.listArtifactsByTopic(topic_id)
+7. artifactApi.listArtifactsByTopic(topic_id)
    - 아티팩트 목록 불러오기
    ↓
-7. artifactApi.getArtifactContent(artifact_id)
+8. artifactApi.getArtifactContent(artifact_id)
    - MD 파일 내용 불러오기
    ↓
-8. UI 업데이트
+9. UI 업데이트
    - messages 상태 업데이트
    - 보고서 버튼 표시
    - setIsGenerating(false)
+   - Sidebar에 새 토픽 표시
 ```
 
 ### 3. 보고서 다운로드 플로우
@@ -377,7 +500,41 @@ Topic (대화 스레드)
    - antdMessage.success("HWPX 파일이 다운로드되었습니다.")
 ```
 
-### 4. 로그아웃 플로우
+### 4. 토픽 목록 조회 플로우 ⭐
+
+**Sidebar 로드:**
+
+```
+1. Sidebar 컴포넌트 마운트
+   ↓
+2. useEffect() → loadSidebarTopics()
+   ↓
+3. topicApi.listTopics("active", 1, SIDEBAR_TOPICS_PER_PAGE)
+   ↓
+4. Backend: GET /api/topics?status=active&page=1&limit=20
+   ↓
+5. Zustand: setSidebarTopics(topics)
+   ↓
+6. UI 업데이트 - Sidebar에 최근 토픽 표시
+```
+
+**TopicListPage 로드:**
+
+```
+1. TopicListPage 컴포넌트 마운트
+   ↓
+2. useEffect() → loadPageTopics(1, TOPICS_PER_PAGE)
+   ↓
+3. topicApi.listTopics("active", 1, TOPICS_PER_PAGE)
+   ↓
+4. Backend: GET /api/topics?status=active&page=1&limit=20
+   ↓
+5. Zustand: setPageTopics(topics), setPageTotalTopics(total), setPageCurrentPage(1)
+   ↓
+6. UI 업데이트 - 테이블에 토픽 목록 표시 + 페이지네이션
+```
+
+### 5. 로그아웃 플로우
 
 ```
 1. Sidebar: 사용자가 "로그아웃" 버튼 클릭
@@ -411,14 +568,11 @@ Topic (대화 스레드)
 import axios from "axios";
 
 // Public 엔드포인트 목록 (JWT 불필요)
-const PUBLIC_ENDPOINTS = [
-  '/api/auth/login',
-  '/api/auth/register',
-];
+const PUBLIC_ENDPOINTS = ["/api/auth/login", "/api/auth/register"];
 
 const isPublicEndpoint = (url?: string): boolean => {
   if (!url) return false;
-  return PUBLIC_ENDPOINTS.some(endpoint => url.includes(endpoint));
+  return PUBLIC_ENDPOINTS.some((endpoint) => url.includes(endpoint));
 };
 
 const api = axios.create({
@@ -514,7 +668,7 @@ export default defineConfig({
 
 ## 상태 관리
 
-### 1. AuthContext (전역)
+### 1. AuthContext (전역 - 인증)
 
 **위치**: `src/context/AuthContext.tsx`
 
@@ -547,19 +701,90 @@ const MyComponent = () => {
 };
 ```
 
-### 2. 컴포넌트 로컬 상태 (useState)
+### 2. Zustand Store (전역 - 토픽) ⭐
 
-**MainChatPage 예시**:
+**위치**: `src/stores/useTopicStore.ts`
+
+**관리 상태**:
+
+**Sidebar용 상태:**
+
+- `sidebarTopics`: Sidebar에 표시할 토픽 목록 (첫 페이지만)
+- `sidebarLoading`: Sidebar 로딩 상태
+
+**TopicListPage용 상태:**
+
+- `pageTopics`: TopicListPage의 토픽 목록 (페이지네이션)
+- `pageLoading`: 페이지 로딩 상태
+- `pageTotalTopics`: 전체 토픽 개수
+- `pageCurrentPage`: 현재 페이지
+- `pagePageSize`: 페이지당 토픽 개수
+
+**공통 상태:**
+
+- `selectedTopicId`: 현재 선택된 토픽 ID
+
+**주요 함수**:
+
+- `loadSidebarTopics()`: Sidebar용 토픽 로드 (첫 페이지만)
+- `loadPageTopics(page, pageSize)`: TopicListPage용 토픽 로드 (페이지네이션)
+- `addTopic(topic)`: 새 토픽 추가 (양쪽 리스트 반영)
+- `updateTopicInBothLists(topicId, updates)`: 토픽 업데이트 (양쪽 리스트 반영)
+- `removeTopicFromBothLists(topicId)`: 토픽 삭제 (양쪽 리스트 반영)
+- `setSelectedTopicId(id)`: 선택된 토픽 변경
+- `refreshTopic(topicId)`: 특정 토픽 새로고침
+- `updateTopicById(topicId, data)`: 토픽 업데이트 (API 호출)
+- `deleteTopicById(topicId)`: 토픽 삭제 (API 호출)
+
+**사용 방법**:
+
+```typescript
+import { useTopicStore } from "../stores/useTopicStore";
+
+const MyComponent = () => {
+  const {
+    sidebarTopics,
+    selectedTopicId,
+    setSelectedTopicId,
+    loadSidebarTopics,
+  } = useTopicStore();
+
+  useEffect(() => {
+    loadSidebarTopics();
+  }, []);
+
+  return (
+    <div>
+      {sidebarTopics.map((topic) => (
+        <div key={topic.id} onClick={() => setSelectedTopicId(topic.id)}>
+          {topic.generated_title || topic.input_prompt}
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+**특징**:
+
+- Sidebar와 TopicListPage가 **독립적인 상태**를 가짐
+- 토픽 생성/수정/삭제 시 **양쪽 리스트 동시 업데이트**
+- Sidebar는 항상 첫 페이지만 표시
+- TopicListPage는 서버 사이드 페이지네이션 지원
+
+### 3. 컴포넌트 로컬 상태 (useState)
+
+**MainPage 예시**:
 
 ```typescript
 const [messages, setMessages] = useState<Message[]>([]);
 const [selectedReport, setSelectedReport] = useState<ReportData | null>(null);
 const [downloadedFiles, setDownloadedFiles] = useState<DownloadedFile[]>([]);
 const [isGenerating, setIsGenerating] = useState(false);
-const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
+const [currentTopicId, setCurrentTopicId] = useState<number | null>(null);
 ```
 
-### 3. 로컬스토리지 (영속성)
+### 4. 로컬스토리지 (영속성)
 
 **위치**: `src/utils/storage.ts`
 
@@ -571,6 +796,84 @@ export const storage = {
   setUser: (user: User) => localStorage.setItem("user", JSON.stringify(user)),
   clear: () => localStorage.clear(),
 };
+```
+
+### 5. 상수 (Constants) ⭐
+
+**위치**: `src/constants/index.ts`
+
+**주요 상수**:
+
+**API_ENDPOINTS**: API 엔드포인트 URL 모음
+
+```typescript
+export const API_ENDPOINTS = {
+  // 인증 API
+  LOGIN: "/api/auth/login",
+  REGISTER: "/api/auth/register",
+  LOGOUT: "/api/auth/logout",
+  CHANGE_PASSWORD: "/api/auth/change-password",
+
+  // 토픽 API
+  CREATE_TOPIC: "/api/topics",
+  GENERATE_TOPIC: "/api/topics/generate",
+  LIST_TOPICS: "/api/topics",
+  GET_TOPIC: (topicId: number) => `/api/topics/${topicId}`,
+  UPDATE_TOPIC: (topicId: number) => `/api/topics/${topicId}`,
+  DELETE_TOPIC: (topicId: number) => `/api/topics/${topicId}`,
+  ASK_TOPIC: (topicId: number) => `/api/topics/${topicId}/ask`,
+
+  // 메시지 API
+  LIST_MESSAGES: (topicId: number) => `/api/topics/${topicId}/messages`,
+  CREATE_MESSAGE: (topicId: number) => `/api/topics/${topicId}/messages`,
+
+  // 아티팩트 API
+  GET_ARTIFACT: (artifactId: number) => `/api/artifacts/${artifactId}`,
+  GET_ARTIFACT_CONTENT: (artifactId: number) =>
+    `/api/artifacts/${artifactId}/content`,
+  DOWNLOAD_ARTIFACT: (artifactId: number) =>
+    `/api/artifacts/${artifactId}/download`,
+  DOWNLOAD_MESSAGE_HWPX: (messageId: number, locale: string = "ko") =>
+    `/api/artifacts/messages/${messageId}/hwpx/download?locale=${locale}`,
+  // ... 기타 엔드포인트
+} as const;
+```
+
+**STORAGE_KEYS**: 로컬스토리지 키 이름
+
+```typescript
+export const STORAGE_KEYS = {
+  ACCESS_TOKEN: "access_token",
+  USER: "user",
+} as const;
+```
+
+**UI_CONFIG**: UI 설정 상수
+
+```typescript
+export const UI_CONFIG = {
+  PAGINATION: {
+    // TopicListPage에서 한 페이지당 표시할 토픽 개수
+    TOPICS_PER_PAGE: 20,
+    // Sidebar에 표시할 최대 토픽 개수
+    SIDEBAR_TOPICS_PER_PAGE: 20,
+  },
+} as const;
+```
+
+**사용 방법**:
+
+```typescript
+import { API_ENDPOINTS, UI_CONFIG } from "../constants";
+
+// API 호출
+const response = await api.get(API_ENDPOINTS.LIST_TOPICS);
+
+// 동적 엔드포인트
+const topicUrl = API_ENDPOINTS.GET_TOPIC(123);
+
+// UI 설정 사용
+const pageSize = UI_CONFIG.PAGINATION.TOPICS_PER_PAGE;
 ```
 
 ---
@@ -674,7 +977,9 @@ import { ConfigProvider } from "antd";
 
 ## 주요 컴포넌트
 
-### 1. MainChatPage
+### 1. MainPage (메인 채팅 페이지) ⭐
+
+**위치**: `src/pages/MainPage.tsx`
 
 **역할**: 대화형 보고서 생성의 핵심 페이지
 
@@ -690,10 +995,77 @@ import { ConfigProvider } from "antd";
 
 - `messages`: 대화 메시지 목록
 - `selectedReport`: 선택된 보고서 (미리보기용)
-- `selectedTopicId`: 현재 토픽 ID
+- `currentTopicId`: 현재 토픽 ID (Zustand에서 가져옴)
 - `isGenerating`: AI 응답 생성 중 여부
 
-### 2. ChatMessage
+### 2. TopicListPage (모든 대화 페이지) ⭐
+
+**위치**: `src/pages/TopicListPage.tsx`
+
+**역할**: 모든 대화 목록을 테이블 형식으로 표시하는 페이지
+
+**주요 기능**:
+
+- 토픽 목록 테이블 표시 (ID, 주제, 생성일, 액션)
+- 서버 사이드 페이지네이션 (기본 20개/페이지)
+- 토픽 검색 및 필터링
+- 토픽 수정/삭제
+- 토픽 클릭 시 MainPage로 이동
+
+**상태** (Zustand에서 관리):
+
+- `pageTopics`: 현재 페이지의 토픽 목록
+- `pageLoading`: 로딩 상태
+- `pageTotalTopics`: 전체 토픽 개수
+- `pageCurrentPage`: 현재 페이지 번호
+- `pagePageSize`: 페이지당 토픽 개수
+
+**주요 함수**:
+
+- `handleTopicSelect(topicId)`: 토픽 선택 후 MainPage로 이동
+- `handleEdit(topic)`: 토픽 수정 모달 열기
+- `handleDelete(topic)`: 토픽 삭제 모달 열기
+- `handleGoToPage(page)`: 특정 페이지로 이동
+- `handlePrevGroup()`: 이전 10페이지 그룹으로 이동
+- `handleNextGroup()`: 다음 10페이지 그룹으로 이동
+
+**페이지네이션 특징**:
+
+- 한 번에 최대 10개의 페이지 번호 표시 (1-10, 11-20, ...)
+- "< >" 버튼으로 페이지 그룹 이동
+- 서버에서 필터링된 데이터만 가져옴 (성능 최적화)
+
+### 3. Sidebar (좌측 사이드바)
+
+**위치**: `src/components/layout/Sidebar.tsx`
+
+**역할**: 최근 대화 목록 및 사용자 메뉴 표시
+
+**주요 기능**:
+
+- 최근 토픽 목록 표시 (기본 20개)
+- 새 대화 시작 버튼
+- "모든 대화" 버튼 (TopicListPage로 이동)
+- 사용자 프로필 메뉴
+- 설정 (비밀번호 변경)
+- 로그아웃
+- 관리자 페이지 링크 (관리자만)
+
+**상태** (Zustand에서 관리):
+
+- `sidebarTopics`: 최근 토픽 목록 (첫 페이지만)
+- `sidebarLoading`: 로딩 상태
+- `selectedTopicId`: 선택된 토픽 ID
+
+**특징**:
+
+- Collapsed/Expanded 두 가지 상태
+- 모바일에서는 Overlay와 함께 표시
+- 토픽 클릭 시 MainPage에서 해당 토픽의 대화 로드
+
+### 4. ChatMessage
+
+**위치**: `src/components/chat/ChatMessage.tsx`
 
 **역할**: 메시지 버블 UI
 
@@ -710,9 +1082,10 @@ interface ChatMessageProps {
 **특징**:
 
 - `reportData`가 있으면: "보고서가 성공적으로 생성되었습니다!" 표시 + 보고서 카드
-- `reportData`가 없으면: 일반 메시지 내용 표시
+- `reportData`가 없으면: 일반 메시지 내용 표시 (Markdown 지원)
+- 사용자 메시지와 AI 메시지 구분 표시
 
-### 3. ChatInput
+### 5. ChatInput
 
 **역할**: 메시지 입력 UI
 
@@ -732,24 +1105,91 @@ interface ChatInputProps {
 - 웹 검색 토글 (미사용)
 - Enter 전송 (Shift+Enter는 줄바꿈)
 
-### 4. Sidebar
+### 6. TopicEditModal / TopicDeleteModal ⭐
 
-**역할**: 대화 목록 및 사용자 메뉴
+**위치**: `src/components/topic/`
 
-**기능**:
+**역할**: 토픽 수정 및 삭제 모달
 
-- 토픽 목록 표시
-- 새 대화 시작
-- 사용자 프로필
-- 로그아웃
-- 관리자 페이지 링크
+**TopicEditModal Props**:
 
-**상태**:
+```typescript
+interface TopicEditModalProps {
+  topic: Topic | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+```
 
-- `isOpen`: 사이드바 열림/닫힘
-- `topics`: 토픽 목록
+**TopicDeleteModal Props**:
 
-### 5. ReportPreview
+```typescript
+interface TopicDeleteModalProps {
+  topic: Topic | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+```
+
+**특징**:
+
+- Zustand의 `updateTopicById`, `deleteTopicById` 사용
+- 수정/삭제 후 양쪽 리스트 (Sidebar, TopicListPage) 자동 업데이트
+- 성공/실패 메시지 표시
+
+### 7. PrivateRoute / PublicRoute ⭐
+
+**위치**: `src/components/auth/`
+
+**역할**: 라우트 보호 컴포넌트
+
+**PrivateRoute**:
+
+- 로그인한 사용자만 접근 가능
+- `requireAdmin` prop으로 관리자 전용 라우트 설정 가능
+- 미인증 시 `/login`으로 리다이렉트
+
+**PublicRoute**:
+
+- 로그인하지 않은 사용자만 접근 가능
+- 인증된 사용자는 `/`로 리다이렉트
+- 로그인/회원가입 페이지에 사용
+
+**사용 예시**:
+
+```typescript
+// 일반 사용자용 보호 라우트
+<Route
+  path="/"
+  element={
+    <PrivateRoute>
+      <MainPage />
+    </PrivateRoute>
+  }
+/>
+
+// 관리자 전용 라우트
+<Route
+  path="/admin"
+  element={
+    <PrivateRoute requireAdmin={true}>
+      <AdminPage />
+    </PrivateRoute>
+  }
+/>
+
+// 공개 라우트 (로그인 안 한 사람만)
+<Route
+  path="/login"
+  element={
+    <PublicRoute>
+      <LoginPage />
+    </PublicRoute>
+  }
+/>
+```
+
+### 8. ReportPreview
 
 **역할**: 보고서 미리보기 (우측 사이드바)
 
@@ -772,24 +1212,6 @@ interface ReportPreviewProps {
 - 파일명
 - Markdown 내용 (줄바꿈 포함)
 - 다운로드 버튼
-
-### 6. AuthContext Provider
-
-**역할**: 인증 상태 전역 관리
-
-**제공 값**:
-
-```typescript
-{
-  user: User | null,
-  isAuthenticated: boolean,
-  isLoading: boolean,
-  login: (data) => Promise<void>,
-  logout: () => Promise<void>,
-  register: (data) => Promise<void>,
-  changePassword: (data) => Promise<void>,
-}
-```
 
 ---
 
@@ -952,14 +1374,34 @@ const handleSubmit = async () => {
 ✅ **DO**:
 
 - 최소한의 상태만 유지
-- 상태 끌어올리기 (Lift State Up)
+- 상태 끌어올리기 (Lift State Up) 또는 Zustand 사용
 - 파생 상태는 계산으로 (useMemo)
+- **토픽 관련 상태는 Zustand 사용** (useTopicStore)
+- **인증 관련 상태는 Context API 사용** (AuthContext)
+- Zustand 액션을 통해 상태 업데이트 (직접 set 호출 지양)
 
 ❌ **DON'T**:
 
 - 중복 상태
 - Props를 State에 복사
 - 불필요한 전역 상태
+- Zustand 상태를 직접 수정 (immutable 유지)
+- 여러 store에 같은 데이터 중복 저장
+
+**Zustand 사용 예시**:
+
+```typescript
+// ✅ Good - Zustand 액션 사용
+const { updateTopicById, deleteTopicById } = useTopicStore();
+
+const handleUpdate = async () => {
+  await updateTopicById(topicId, { generated_title: "새 제목" });
+};
+
+// ❌ Bad - 직접 상태 수정 시도
+const { sidebarTopics } = useTopicStore();
+sidebarTopics[0].generated_title = "새 제목"; // 작동하지 않음!
+```
 
 ### 4. 스타일링 규칙
 
@@ -1043,30 +1485,33 @@ feat: implement logout API integration
 
 - **프로젝트 가이드**: `CLAUDE.md`
 - **프론트엔드 가이드**: `frontend/CLAUDE.md`
-- **API 구현 현황**: `frontend/FRONTEND_API_STATUS.md`
 - **백엔드 온보딩**: `BACKEND_ONBOARDING.md`
 
 ---
 
 ## 자주 묻는 질문 (FAQ)
 
-### Q1. TanStack React Query는 왜 설치되어 있지만 사용하지 않나요?
+### Q1. Context API와 Zustand를 같이 사용하는 이유는?
 
-**A**: 초기 설치했으나 현재는 Axios + useState 조합을 사용합니다. 향후 실시간 데이터 동기화가 필요하면 React Query 활용 예정입니다.
+**A**:
 
-### Q2. 왜 Context API만 사용하고 Redux/Zustand를 안 쓰나요?
+- **Context API**: 인증(Auth) 전용 - 앱 전체에서 사용자 정보 필요
+- **Zustand**: 토픽 관리 전용 - 복잡한 상태 업데이트와 여러 컴포넌트 간 공유 필요
+- 각 상태의 특성에 맞게 도구를 선택하여 사용합니다.
 
-**A**: 현재는 전역 상태가 인증(Auth)만 필요하여 Context API로 충분합니다. 복잡해지면 Zustand 도입 고려 예정입니다.
+### Q2. Sidebar와 TopicListPage가 별도의 상태를 가지는 이유는?
+
+**A**:
+
+- **Sidebar**: 최근 토픽만 표시 (첫 페이지, 고정 개수)
+- **TopicListPage**: 모든 토픽 표시 (페이지네이션)
+- 각각의 목적이 다르므로 독립적인 상태로 관리하되, 토픽 생성/수정/삭제 시에는 **양쪽 모두 업데이트**하여 동기화합니다.
 
 ### Q3. reportData가 있을 때만 간결한 메시지를 표시하는 이유는?
 
 **A**: AI가 생성한 Markdown 전체 내용이 메시지에 포함되어 있어, 화면이 너무 길어지는 문제를 방지하기 위함입니다. 대신 보고서 카드를 클릭하면 미리보기로 볼 수 있습니다.
 
-### Q4. 다운로드 버튼이 작동하지 않는 이유는?
-
-**A**: 백엔드의 `/api/artifacts/{artifact_id}/convert` API가 아직 구현되지 않았습니다 (501 에러). Phase 6에서 구현 예정입니다.
-
-### Q5. 개발 서버 포트를 변경하려면?
+### Q4. 개발 서버 포트를 변경하려면?
 
 **A**: `vite.config.ts`에서 설정:
 
@@ -1078,18 +1523,32 @@ export default defineConfig({
 });
 ```
 
+### Q5. 페이지네이션이 두 곳에서 다르게 작동하는 이유는?
+
+**A**:
+
+- **Sidebar**: 클라이언트 사이드 - 첫 페이지만 로드, "모든 대화" 버튼으로 전체 목록 이동
+- **TopicListPage**: 서버 사이드 - 실제 데이터베이스에서 페이지별로 조회 (성능 최적화)
+
+### Q6. MainBakPage는 무엇인가요?
+
+**A**: 백업 또는 이전 버전의 메인 페이지입니다. 현재는 `MainPage`가 실제로 사용되는 메인 채팅 페이지이며, `MainBakPage`는 참고용으로 남겨둔 것입니다.
+
 ---
 
 ## 다음 단계
 
-1. **`GET /api/auth/me` 구현**: 페이지 새로고침 시 사용자 정보 복구
-2. **Artifact Convert 백엔드 구현**: HWPX 다운로드 기능 완성
-3. **실시간 스트리밍 응답**: AI 응답을 실시간으로 표시
-4. **메시지 삭제 기능**: DELETE 메시지 API 활용
-5. **토큰 사용량 대시보드**: 관리자 페이지에 추가
+1. ✅ **Zustand 상태 관리 도입**: 토픽 관리 완료
+2. ✅ **TopicListPage 구현**: 모든 대화 목록 페이지 완료
+3. ✅ **토픽 수정/삭제 기능**: 모달 컴포넌트 완료
+4. ✅ **라우트 보호**: PrivateRoute/PublicRoute 완료
+5. ✅ **서버 사이드 페이지네이션**: TopicListPage 완료
+6. **내 정보 조회 기능**: /api/users/me (예정)
+7. **메시지 삭제 기능**: DELETE 메시지 API 활용 (예정)
+8. **토큰 사용량 대시보드**: 관리자 페이지에 추가 (예정)
 
 ---
 
 **작성자**: Claude Code
-**최종 업데이트**: 2025-10-30
-**버전**: 2.0
+**최종 업데이트**: 2025-10-31
+**버전**: 2.1
