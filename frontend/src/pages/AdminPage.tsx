@@ -3,9 +3,12 @@ import { Card, Table, Switch, Button, Space, message, Tag, Modal } from 'antd';
 import { ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, KeyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import MainLayout from '../components/layout/MainLayout';
+import AdminSidebar from '../components/layout/AdminSidebar';
+import PromptManagement from '../components/admin/PromptManagement';
 import { useUsers } from '../hooks/useUsers';
 import type { UserData } from '../types/user';
 import { formatDate } from '../utils/formatters';
+import styles from './AdminPage.module.css';
 
 const AdminPage: React.FC = () => {
   const { users, isLoading, refetch, approveUser, rejectUser, resetPassword } = useUsers();
@@ -13,6 +16,7 @@ const AdminPage: React.FC = () => {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [resetMessage, setResetMessage] = useState('');
+  const [activeMenu, setActiveMenu] = useState('users');
 
   const handleToggleActive = async (userId: number, currentValue: boolean) => {
     try {
@@ -126,31 +130,63 @@ const AdminPage: React.FC = () => {
 
   return (
     <MainLayout showHeader={true}>
-      <Card
-        title="사용자 관리"
-        bordered={false}
-        extra={
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={() => refetch()}
-            loading={isLoading}
-          >
-            새로고침
-          </Button>
-        }
-      >
-        <Table
-          columns={columns}
-          dataSource={users}
-          rowKey="id"
-          loading={isLoading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: false,
-            showTotal: (total) => `총 ${total}명`,
-          }}
+      <div className={styles.adminPageContainer}>
+        <AdminSidebar
+          activeMenu={activeMenu}
+          onMenuChange={setActiveMenu}
         />
-      </Card>
+        <div className={styles.adminContent}>
+          {activeMenu === 'users' && (
+            <Card
+              title="사용자 관리"
+              bordered={false}
+              extra={
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => refetch()}
+                  loading={isLoading}
+                >
+                  새로고침
+                </Button>
+              }
+            >
+              <Table
+                columns={columns}
+                dataSource={users}
+                rowKey="id"
+                loading={isLoading}
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: false,
+                  showTotal: (total) => `총 ${total}명`,
+                }}
+              />
+            </Card>
+          )}
+
+          {activeMenu === 'dashboard' && (
+            <Card title="대시보드" bordered={false}>
+              <p>대시보드 기능은 준비 중입니다.</p>
+            </Card>
+          )}
+
+          {activeMenu === 'prompts' && (
+            <PromptManagement />
+          )}
+
+          {activeMenu === 'reports' && (
+            <Card title="보고서 관리" bordered={false}>
+              <p>보고서 관리 기능은 준비 중입니다.</p>
+            </Card>
+          )}
+
+          {activeMenu === 'settings' && (
+            <Card title="시스템 설정" bordered={false}>
+              <p>시스템 설정 기능은 준비 중입니다.</p>
+            </Card>
+          )}
+        </div>
+      </div>
 
       <Modal
         title="비밀번호 초기화 완료"

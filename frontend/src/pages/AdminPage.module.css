@@ -1,0 +1,40 @@
+/* AdminPage.module.css - 관리자 페이지 레이아웃 */
+
+.adminPageContainer {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.adminContent {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  padding: var(--spacing-lg);
+  transition: margin-left var(--transition-base) ease;
+  min-height: calc(100vh - var(--header-height) - var(--footer-height));
+  overflow-y: auto;
+}
+
+/* 사이드바가 collapsed 상태일 때 */
+.adminPageContainer:has(.adminSidebar.collapsed) .adminContent {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+/* Tablet and Below (≤1024px) - 사이드바가 오버레이 */
+@media (max-width: 1024px) {
+  .adminContent {
+    margin-left: 0;
+  }
+
+  .adminPageContainer:has(.adminSidebar.collapsed) .adminContent {
+    margin-left: 0;
+  }
+}
+
+/* Mobile (≤768px) */
+@media (max-width: 768px) {
+  .adminContent {
+    padding: var(--spacing-md);
+  }
+}

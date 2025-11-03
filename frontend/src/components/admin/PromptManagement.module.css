@@ -1,0 +1,27 @@
+/* PromptManagement.module.css */
+
+.promptManagement {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.infoSection {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: #f6f8fa;
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--primary-color);
+}
+
+/* Mobile (≤768px) */
+@media (max-width: 768px) {
+  .promptManagement {
+    width: 100%;
+  }
+
+  .infoSection {
+    padding: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+}

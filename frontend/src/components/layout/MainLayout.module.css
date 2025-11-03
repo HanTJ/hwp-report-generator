@@ -7,7 +7,14 @@
 .content {
   background-color: #ffffff;
   padding: var(--spacing-lg);
+  /* 헤더가 없을 때: 100vh - footer 높이 */
   min-height: calc(100vh - var(--footer-height));
+}
+
+/* 헤더가 있을 때: 100vh - header 높이 - footer 높이 */
+.content[data-has-header="true"] {
+  min-height: calc(100vh - var(--header-height) - var(--footer-height));
+  padding-top: calc(var(--spacing-lg) + var(--header-height));
 }
 
 .content > div {

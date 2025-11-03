@@ -20,7 +20,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   return (
     <Layout className={styles.main}>
       {showHeader && <Header />}
-      <Content className={styles.content}>
+      <Content
+        className={styles.content}
+        data-has-header={showHeader}
+      >
         <div>{children}</div>
       </Content>
       <Footer sidebarCollapsed={sidebarCollapsed} />
