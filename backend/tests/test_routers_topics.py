@@ -140,19 +140,25 @@ class TestTopicsRouter:
         temp_dir
     ):
         """보고서 생성 성공 테스트"""
-        # Mock Claude response
+        # Mock Claude response - Markdown 형식으로 반환
         mock_claude_instance = MagicMock()
-        mock_claude_instance.generate_report.return_value = {
-            "title": "디지털뱅킹 트렌드 분석 보고서",
-            "title_summary": "요약",
-            "summary": "2025년 디지털뱅킹 주요 트렌드입니다.",
-            "title_background": "배경 및 목적",
-            "background": "디지털 전환이 가속화되고 있습니다.",
-            "title_main_content": "주요 내용",
-            "main_content": "AI 기반 금융 서비스가 확대되고 있습니다.",
-            "title_conclusion": "결론 및 제언",
-            "conclusion": "디지털 전환에 적극 대응해야 합니다."
-        }
+        mock_claude_instance.generate_report.return_value = """# 디지털뱅킹 트렌드 분석 보고서
+
+## 요약
+
+2025년 디지털뱅킹 주요 트렌드입니다.
+
+## 배경 및 목적
+
+디지털 전환이 가속화되고 있습니다.
+
+## 주요 내용
+
+AI 기반 금융 서비스가 확대되고 있습니다.
+
+## 결론 및 제언
+
+디지털 전환에 적극 대응해야 합니다."""
         mock_claude_instance.model = "claude-sonnet-4-5-20250929"
         mock_claude_instance.last_input_tokens = 1000
         mock_claude_instance.last_output_tokens = 2000

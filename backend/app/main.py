@@ -46,6 +46,7 @@ import logging
 from app.utils.claude_client import ClaudeClient
 from app.utils.hwp_handler import HWPHandler
 from app.utils.auth import hash_password
+from app.utils.markdown_parser import parse_markdown_to_content
 from app.database import init_db, UserDB
 from app.routers import (
     auth_router,
@@ -204,8 +205,12 @@ async def generate_report(request: ReportRequest):
 
         # 보고서 내용 생성
         logger.info("Claude AI로 보고서 내용 생성 중...")
-        content = claude_client.generate_report(request.topic)
-        logger.info("보고서 내용 생성 완료")
+        md_content = claude_client.generate_report(request.topic)
+        logger.info("보고서 내용 생성 완료 (Markdown)")
+
+        # Markdown을 파싱하여 content dict로 변환
+        content = parse_markdown_to_content(md_content)
+        logger.info("Markdown 파싱 완료")
 
         # HWP 파일 생성
         logger.info("HWPX 파일 생성 중...")

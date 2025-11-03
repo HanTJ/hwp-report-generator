@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '\"[\"$(date -Iseconds)\"] \\(.tool_input.command) - \\(.tool_input.description // \"설명 없음\")\"' >> ~/.claude/bash-command-log.txt"
+            "command": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path $env:USERPROFILE\\.claude | Out-Null; Add-Content -Path $env:USERPROFILE\\.claude\\bash-command-log.txt -Value (Get-Date -Format o)\""
           }
         ]
       }

@@ -26,85 +26,85 @@ BACKEND_DIR = Path(_path_project_home) / "backend"
 TEMPLATE_PATH = str(BACKEND_DIR / "templates" / "report_template.hwpx")
 
 
-@router.post("/generate")
-async def generate_report(
-    request: ReportCreate,
-    current_user = Depends(get_current_active_user)
-):
-    """보고서 생성 API.
+# @router.post("/generate")
+# async def generate_report(
+#     request: ReportCreate,
+#     current_user = Depends(get_current_active_user)
+# ):
+#     """보고서 생성 API.
 
-    로그인한 사용자만 접근 가능.
-    토큰 사용량 자동 기록.
+#     로그인한 사용자만 접근 가능.
+#     토큰 사용량 자동 기록.
 
-    Args:
-        request: 보고서 생성 요청 (토픽)
-        current_user: 현재 로그인한 사용자
+#     Args:
+#         request: 보고서 생성 요청 (토픽)
+#         current_user: 현재 로그인한 사용자
 
-    Returns:
-        표준 API 응답 (생성된 보고서 정보)
-    """
-    try:
-        # Claude 클라이언트 초기화
-        claude_client = ClaudeClient()
+#     Returns:
+#         표준 API 응답 (생성된 보고서 정보)
+#     """
+#     try:
+#         # Claude 클라이언트 초기화
+#         claude_client = ClaudeClient()
 
-        # 보고서 내용 생성
-        content = claude_client.generate_report(request.topic)
+#         # 보고서 내용 생성
+#         content = claude_client.generate_report(request.topic)
 
-        # HWP 파일 생성
-        hwp_handler = HWPHandler(
-            template_path=TEMPLATE_PATH,
-            temp_dir=str(BACKEND_DIR / "temp"),
-            output_dir=str(BACKEND_DIR / "output")
-        )
+#         # HWP 파일 생성
+#         hwp_handler = HWPHandler(
+#             template_path=TEMPLATE_PATH,
+#             temp_dir=str(BACKEND_DIR / "temp"),
+#             output_dir=str(BACKEND_DIR / "output")
+#         )
 
-        output_path = hwp_handler.generate_report(content)
-        filename = os.path.basename(output_path)
-        file_size = os.path.getsize(output_path)
+#         output_path = hwp_handler.generate_report(content)
+#         filename = os.path.basename(output_path)
+#         file_size = os.path.getsize(output_path)
 
-        # 데이터베이스에 보고서 정보 저장
-        report = ReportDB.create_report(
-            user_id=current_user.id,
-            topic=request.topic,
-            title=content.get("title", request.topic),
-            filename=filename,
-            file_path=output_path,
-            file_size=file_size
-        )
+#         # 데이터베이스에 보고서 정보 저장
+#         report = ReportDB.create_report(
+#             user_id=current_user.id,
+#             topic=request.topic,
+#             title=content.get("title", request.topic),
+#             filename=filename,
+#             file_path=output_path,
+#             file_size=file_size
+#         )
 
-        # 토큰 사용량 기록
-        input_tokens = getattr(claude_client, 'last_input_tokens', 0)
-        output_tokens = getattr(claude_client, 'last_output_tokens', 0)
-        total_tokens = input_tokens + output_tokens
+#         # 토큰 사용량 기록
+#         input_tokens = getattr(claude_client, 'last_input_tokens', 0)
+#         output_tokens = getattr(claude_client, 'last_output_tokens', 0)
+#         total_tokens = input_tokens + output_tokens
 
-        if total_tokens > 0:
-            token_usage = TokenUsageCreate(
-                user_id=current_user.id,
-                report_id=report.id,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                total_tokens=total_tokens
-            )
-            TokenUsageDB.create_token_usage(token_usage)
+#         if total_tokens > 0:
+#             token_usage = TokenUsageCreate(
+#                 user_id=current_user.id,
+#                 report_id=report.id,
+#                 input_tokens=input_tokens,
+#                 output_tokens=output_tokens,
+#                 total_tokens=total_tokens
+#             )
+#             TokenUsageDB.create_token_usage(token_usage)
 
-        report_data = ReportResponse(
-            id=report.id,
-            user_id=report.user_id,
-            topic=report.topic,
-            title=report.title,
-            filename=report.filename,
-            file_size=report.file_size,
-            created_at=report.created_at
-        )
+#         report_data = ReportResponse(
+#             id=report.id,
+#             user_id=report.user_id,
+#             topic=report.topic,
+#             title=report.title,
+#             filename=report.filename,
+#             file_size=report.file_size,
+#             created_at=report.created_at
+#         )
 
-        return success_response(report_data.dict())
+#         return success_response(report_data.dict())
 
-    except Exception as e:
-        return error_response(
-            code=ErrorCode.REPORT_GENERATION_FAILED,
-            http_status=500,
-            message="보고서 생성 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )
+#     except Exception as e:
+#         return error_response(
+#             code=ErrorCode.REPORT_GENERATION_FAILED,
+#             http_status=500,
+#             message="보고서 생성 중 오류가 발생했습니다.",
+#             details={"error": str(e)}
+#         )
 
 
 @router.get("/my-reports")

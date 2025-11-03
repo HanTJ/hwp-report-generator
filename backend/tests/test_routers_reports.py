@@ -34,9 +34,10 @@ def mock_hwp_handler_path(temp_dir):
     return file_path
 
 
+@pytest.mark.skip(reason="DEPRECATED: /api/reports/generate endpoint has been moved to /api/topics/generate. See test_routers_topics.py for updated tests.")
 @pytest.mark.api
 class TestGenerateReportEndpoint:
-    """POST /api/reports/generate 테스트"""
+    """POST /api/reports/generate 테스트 - DEPRECATED"""
 
     @patch('app.routers.reports.ClaudeClient')
     @patch('app.routers.reports.HWPHandler')
@@ -187,6 +188,7 @@ class TestGenerateReportEndpoint:
 class TestGetMyReportsEndpoint:
     """GET /api/reports/my-reports 테스트"""
 
+    @pytest.mark.skip(reason="DEPRECATED: This test uses /api/reports/generate which has been moved to /api/topics/generate")
     @patch('app.routers.reports.ClaudeClient')
     @patch('app.routers.reports.HWPHandler')
     def test_get_my_reports_success(self, mock_hwp_handler_class, mock_claude_client_class,
@@ -244,6 +246,7 @@ class TestGetMyReportsEndpoint:
 class TestDownloadReportEndpoint:
     """GET /api/reports/download/{report_id} 테스트"""
 
+    @pytest.mark.skip(reason="DEPRECATED: This test uses /api/reports/generate which has been moved to /api/topics/generate")
     @patch('app.routers.reports.ClaudeClient')
     @patch('app.routers.reports.HWPHandler')
     def test_download_report_success(self, mock_hwp_handler_class, mock_claude_client_class,
@@ -337,9 +340,10 @@ class TestDeleteReportEndpoint:
         assert response.status_code == 403
 
 
+@pytest.mark.skip(reason="DEPRECATED: This test uses /api/reports/generate which has been moved to /api/topics/generate. See test_routers_topics.py for updated tests.")
 @pytest.mark.integration
 class TestReportsEndToEnd:
-    """보고서 API 전체 플로우 통합 테스트"""
+    """보고서 API 전체 플로우 통합 테스트 - DEPRECATED"""
 
     @patch('app.routers.reports.ClaudeClient')
     @patch('app.routers.reports.HWPHandler')
