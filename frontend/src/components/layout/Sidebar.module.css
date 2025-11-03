@@ -33,20 +33,17 @@
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: var(--spacing-md) var(--spacing-sm);
   gap: 2rem;
   background-color: #ffffff;
-  opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease-out;
 }
 
 .sidebar.collapsed .collapsedContent {
-  opacity: 1;
   pointer-events: auto;
 }
 

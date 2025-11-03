@@ -23,6 +23,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import "@ant-design/v5-patch-for-react-19";
 import { ConfigProvider, App as AntdApp } from "antd";
 import koKR from "antd/locale/ko_KR";
 import { AuthProvider } from "./context/AuthContext";

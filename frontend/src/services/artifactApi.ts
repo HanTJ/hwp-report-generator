@@ -66,6 +66,7 @@ export const artifactApi = {
   },
 
   /**
+   * 미사용
    * 파일 다운로드 (브라우저에서 다운로드 트리거)
    * GET /api/artifacts/{artifactId}/download
    * @param artifactId 아티팩트 ID
@@ -95,16 +96,28 @@ export const artifactApi = {
       const blob = await response.blob();
 
       // 파일명 추출 (Content-Disposition 헤더에서)
+      console.log("🔍 Response headers:", response);
       const contentDisposition = response.headers.get("content-disposition");
+      console.log("🔍 Content-Disposition:", contentDisposition);
+
       let filename = fallbackFilename || `artifact_${artifactId}.md`;
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(
           /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
         );
+        console.log("🔍 Regex match result:", filenameMatch);
+
         if (filenameMatch && filenameMatch[1]) {
           filename = filenameMatch[1].replace(/['"]/g, "");
+          console.log("✅ Extracted filename:", filename);
+        } else {
+          console.log("❌ Failed to parse filename from header");
         }
+      } else {
+        console.log("❌ No Content-Disposition header found");
       }
+
+      console.log("📥 Final download filename:", filename);
 
       // Blob을 다운로드
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -159,6 +172,7 @@ export const artifactApi = {
   },
 
   /**
+   * 미사용
    * MD 파일을 HWPX로 변환
    * POST /api/artifacts/{artifactId}/convert
    * @param artifactId 소스 MD 아티팩트 ID
@@ -180,6 +194,7 @@ export const artifactApi = {
 
   /**
    * 메시지 기반 HWPX 다운로드
+   * 메시지에서 다운로드 버튼을 클릭 시 호출합니다.
    * GET /api/artifacts/messages/{messageId}/hwpx/download
    * @param messageId 메시지 ID
    * @param filename 다운로드할 파일명
@@ -195,6 +210,8 @@ export const artifactApi = {
       messageId,
       locale
     )}`;
+
+    console.log("downloadMessageHwpx > filename >", filename);
 
     try {
       // Authorization 헤더를 포함한 다운로드를 위해 fetch 사용
@@ -221,6 +238,8 @@ export const artifactApi = {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
+
+      // artifact 추가
     } catch (error) {
       console.log("downloadMessageHwpx > failed >", error);
 

@@ -36,7 +36,7 @@ const TopicListPage: React.FC = () => {
       try {
         await loadPageTopics(1, pageSize);
       } catch (error: any) {
-        antdMessage.error("토픽 목록을 불러오는데 실패했습니다.");
+        antdMessage.error("대화 목록을 불러오는데 실패했습니다.");
         console.error("Failed to load topics:", error);
       }
     };
@@ -105,7 +105,7 @@ const TopicListPage: React.FC = () => {
     try {
       await loadPageTopics(page, pageSize);
     } catch (error: any) {
-      antdMessage.error("토픽 목록을 불러오는데 실패했습니다.");
+      antdMessage.error("대화 목록을 불러오는데 실패했습니다.");
       console.error("Failed to load topics:", error);
     }
   };

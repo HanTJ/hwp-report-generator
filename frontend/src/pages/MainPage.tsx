@@ -4,6 +4,7 @@ import { MenuOutlined } from "@ant-design/icons";
 import ChatMessage from "../components/chat/ChatMessage";
 import ChatInput from "../components/chat/ChatInput";
 import ReportPreview from "../components/report/ReportPreview";
+import ReportsDropdown from "../components/chat/ReportsDropdown";
 import Sidebar from "../components/layout/Sidebar";
 import styles from "./MainPage.module.css";
 import MainLayout from "../components/layout/MainLayout";
@@ -11,6 +12,7 @@ import { topicApi } from "../services/topicApi";
 import { messageApi } from "../services/messageApi";
 import { artifactApi } from "../services/artifactApi";
 import { useTopicStore } from "../stores/useTopicStore";
+import { useArtifactStore } from "../stores/useArtifactStore";
 
 interface Message {
   id: string;
@@ -45,11 +47,151 @@ const MainPage: React.FC = () => {
   const [downloadedFiles, setDownloadedFiles] = useState<DownloadedFile[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
+  const [isReportsDropdownOpen, setIsReportsDropdownOpen] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
+  const reportsDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Use Zustand store for topic management
-  const { selectedTopicId, setSelectedTopicId, addTopic, refreshTopic } =
-    useTopicStore();
+  // Zustand store for topic management
+  const { selectedTopicId, setSelectedTopicId, addTopic } = useTopicStore();
+
+  // Zustand store for artifact management
+  const {
+    loadArtifacts,
+    invalidateCache,
+    artifactsByTopic,
+    loadingTopics,
+    selectArtifact,
+    getSelectedArtifactId,
+    autoSelectLatest,
+  } = useArtifactStore();
+
+  // Close reports dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        reportsDropdownRef.current &&
+        !reportsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsReportsDropdownOpen(false);
+      }
+    };
+
+    if (isReportsDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isReportsDropdownOpen]);
+
+  // 선택된 토픽이 변경되면 해당 토픽의 메시지 로드
+  useEffect(() => {
+    const loadTopicMessages = async () => {
+      if (selectedTopicId) {
+        setIsLoadingMessages(true);
+        try {
+          // 메시지 목록 조회
+          const messagesResponse = await messageApi.listMessages(
+            selectedTopicId
+          );
+
+          // 기본 메시지 배열 생성
+          const uiMessages: Message[] = messagesResponse.messages.map(
+            (msg) => ({
+              id: msg.id.toString(),
+              messageId: msg.id,
+              type: msg.role === "user" ? "user" : "assistant",
+              content: msg.content,
+              timestamp: new Date(msg.created_at),
+            })
+          );
+
+          // 아티팩트 목록 불러오기
+          try {
+            const artifactsResponse = await artifactApi.listArtifactsByTopic(
+              selectedTopicId
+            );
+
+            // 아티팩트가 있으면 메시지에 연결
+            if (artifactsResponse.artifacts.length > 0) {
+              // assistant 메시지만 필터링하여 artifact 내용 로드
+              const assistantMessages = uiMessages.filter(
+                (msg) => msg.type === "assistant"
+              );
+
+              // artifact 내용을 병렬로 로드 (assistant 메시지만)
+              const artifactContents = await Promise.all(
+                assistantMessages.map(async (msg) => {
+                  const relatedArtifact = artifactsResponse.artifacts.find(
+                    (art) =>
+                      art.kind === "md" && art.message_id === msg.messageId
+                  );
+
+                  if (relatedArtifact) {
+                    try {
+                      const contentResponse =
+                        await artifactApi.getArtifactContent(
+                          relatedArtifact.id
+                        );
+                      return {
+                        messageId: msg.messageId,
+                        reportData: {
+                          filename: relatedArtifact.filename,
+                          reportId: relatedArtifact.id,
+                          messageId: msg.messageId,
+                          content: contentResponse.content,
+                        },
+                      };
+                    } catch (error) {
+                      console.error("Failed to load artifact content:", error);
+                      return null;
+                    }
+                  }
+
+                  return null;
+                })
+              );
+
+              // artifact 내용을 메시지에 매핑
+              const artifactMap = new Map(
+                artifactContents
+                  .filter((item) => item !== null)
+                  .map((item) => [item!.messageId, item!.reportData])
+              );
+
+              const messagesWithArtifacts = uiMessages.map((msg) => {
+                const reportData = artifactMap.get(msg.messageId);
+                return reportData ? { ...msg, reportData } : msg;
+              });
+
+              // 아티팩트 연결 후 한 번만 업데이트
+              setMessages(messagesWithArtifacts);
+            } else {
+              // 아티팩트가 없으면 기본 메시지만 업데이트
+              setMessages(uiMessages);
+            }
+          } catch (error) {
+            console.error("Failed to load artifacts:", error);
+            // 아티팩트 로드 실패 시에도 메시지는 표시
+            setMessages(uiMessages);
+          }
+        } catch (error: any) {
+          console.error("Failed to load messages:", error);
+          antdMessage.error("메시지를 불러오는데 실패했습니다.");
+        } finally {
+          setIsLoadingMessages(false);
+        }
+      } else {
+        // selectedTopicId가 null이면 메시지 초기화
+        setMessages([]);
+        setIsLoadingMessages(false);
+      }
+    };
+
+    loadTopicMessages();
+  }, [selectedTopicId]);
 
   // 두 번째 메시지부터 마지막 사용자 메시지를 헤더 아래로 스크롤
   useEffect(() => {
@@ -66,12 +208,88 @@ const MainPage: React.FC = () => {
     }
   }, [messages]);
 
+  const handleReportsClick = async () => {
+    if (!selectedTopicId) {
+      antdMessage.info("새로운 주제를 먼저 입력하세요.");
+      return;
+    }
+
+    setIsReportsDropdownOpen(true);
+
+    try {
+      const artifacts = await loadArtifacts(selectedTopicId);
+
+      // 아직 선택된 아티팩트가 없으면 자동으로 마지막 선택
+      if (!getSelectedArtifactId(selectedTopicId) && artifacts.length > 0) {
+        autoSelectLatest(selectedTopicId, artifacts);
+      }
+    } catch (error: any) {
+      antdMessage.error("보고서 목록을 불러오는데 실패했습니다.");
+      console.error("Failed to load artifacts:", error);
+    }
+  };
+
+  const handleArtifactSelect = (artifactId: number) => {
+    if (selectedTopicId) {
+      selectArtifact(selectedTopicId, artifactId);
+    }
+  };
+
+  /*
+   * artifact 목록에서 다운로드 핸들러
+   */
+  const handleArtifactDownload = async (artifact: any) => {
+    try {
+      antdMessage.loading({
+        content: "HWPX 파일 다운로드 중...",
+        key: "download",
+        duration: 0,
+      });
+
+      // message_id가 있으면 메시지 기반 HWPX 다운로드 사용
+      if (artifact.message_id) {
+        const hwpxFilename = artifact.filename.replace(".md", ".hwpx");
+        await artifactApi.downloadMessageHwpx(
+          artifact.message_id,
+          hwpxFilename
+        );
+      } else {
+        antdMessage.error("HWPX 파일 다운로드에 실패했습니다.");
+        return;
+      }
+      antdMessage.destroy("download");
+      antdMessage.success("HWPX 파일이 다운로드되었습니다.");
+    } catch (error: any) {
+      antdMessage.error("HWPX 파일 다운로드에 실패했습니다.");
+    }
+  };
+
+  // 보고서 미리보기
+  const handleArtifactPreview = async (artifact: any) => {
+    try {
+      const contentResponse = await artifactApi.getArtifactContent(artifact.id);
+      setSelectedReport({
+        filename: artifact.filename,
+        content: contentResponse.content,
+        messageId: artifact.message_id,
+        reportId: artifact.id,
+      });
+      setIsReportsDropdownOpen(false);
+    } catch (error: any) {
+      antdMessage.error("미리보기를 불러오는데 실패했습니다.");
+      console.error("Failed to preview artifact:", error);
+    }
+  };
+
+  /*
+   * 메시지 전송 핸들러
+   */
   const handleSendMessage = async (
     message: string,
     files: File[],
     webSearchEnabled: boolean
   ) => {
-    // Add user message to UI immediately
+    // 사용자 메시지 임시 추가
     const tempUserMessage: Message = {
       id: "temp-" + Date.now(),
       messageId: 0, // 임시 ID, 서버 응답 후 실제 ID로 교체
@@ -80,7 +298,12 @@ const MainPage: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, tempUserMessage]);
+    // 새 대화인 경우 이전 메시지를 무시하고 새로 시작
+    if (selectedTopicId === null) {
+      setMessages([tempUserMessage]);
+    } else {
+      setMessages((prev) => [...prev, tempUserMessage]);
+    }
     setIsGenerating(true);
 
     try {
@@ -93,7 +316,7 @@ const MainPage: React.FC = () => {
           language: "ko",
         });
         currentTopicId = generateResponse.topic_id;
-        setSelectedTopicId(generateResponse.topic_id);
+        // Note: setSelectedTopicId는 메시지 로드 완료 후에 호출 (중복 로드 방지)
 
         // Fetch the complete topic data and add to store
         try {
@@ -104,8 +327,21 @@ const MainPage: React.FC = () => {
         }
       } else {
         // 2번째 메시지부터: 메시지 체이닝 (ask API)
+        let selectedArtifactId = getSelectedArtifactId(currentTopicId);
+
+        // 선택된 아티팩트가 없으면 자동으로 최신 선택
+        if (!selectedArtifactId) {
+          const artifacts = await loadArtifacts(currentTopicId);
+          if (artifacts.length > 0) {
+            autoSelectLatest(currentTopicId, artifacts);
+            selectedArtifactId = getSelectedArtifactId(currentTopicId);
+          }
+        }
+
         await topicApi.askTopic(currentTopicId, {
           content: message,
+          artifact_id: selectedArtifactId, // 체크된 보고서 ID 전달
+          include_artifact_content: true,
         });
       }
 
@@ -121,7 +357,8 @@ const MainPage: React.FC = () => {
         timestamp: new Date(msg.created_at),
       }));
 
-      setMessages(uiMessages);
+      // 메시지가 추가되었으므로 아티팩트 캐시 무효화
+      invalidateCache(currentTopicId);
 
       // 아티팩트 목록 불러오기 (보고서가 생성되었는지 확인)
       try {
@@ -163,14 +400,23 @@ const MainPage: React.FC = () => {
           );
 
           setMessages(messagesWithArtifacts);
+        } else {
+          // 아티팩트가 없으면 기본 메시지만 표시
+          setMessages(uiMessages);
         }
       } catch (error) {
         console.error("Failed to load artifacts:", error);
-        // 아티팩트 로딩 실패해도 메시지는 표시
+        // 아티팩트 로드 실패 시에도 메시지는 표시
+        setMessages(uiMessages);
+      }
+
+      // 메시지 로드 완료 후 selectedTopicId 업데이트 (useEffect 중복 실행 방지)
+      if (selectedTopicId !== currentTopicId) {
+        setSelectedTopicId(currentTopicId);
       }
     } catch (error: any) {
       console.error("Error sending message:", error);
-      antdMessage.error(error.message || "메시지 전송에 실패했습니다.");
+      antdMessage.error("메시지 전송에 실패했습니다.");
 
       // 에러 메시지 추가
       const errorMessage: Message = {
@@ -195,6 +441,9 @@ const MainPage: React.FC = () => {
     setSelectedReport(reportData);
   };
 
+  /*
+   * 메시지 내 보고서 다운로드 핸들러
+   */
   const handleDownload = async (reportData: {
     filename: string;
     content: string;
@@ -204,7 +453,7 @@ const MainPage: React.FC = () => {
     try {
       // 메시지 기반 HWPX 다운로드 (자동 생성)
       antdMessage.loading({
-        content: "HWPX 파일 생성 중...",
+        content: "HWPX 파일 다운로드 중...",
         key: "download",
         duration: 0,
       });
@@ -214,7 +463,7 @@ const MainPage: React.FC = () => {
 
       antdMessage.destroy("download");
 
-      // Add to downloaded files
+      // 미사용 Add to downloaded files
       const downloadedFile: DownloadedFile = {
         id: reportData.messageId,
         filename: hwpxFilename,
@@ -227,17 +476,21 @@ const MainPage: React.FC = () => {
       antdMessage.success("HWPX 파일이 다운로드되었습니다.");
     } catch (error: any) {
       console.error("Download failed:", error);
-      antdMessage.error(error.message || "파일 다운로드에 실패했습니다.");
+      antdMessage.error("HWPX 파일 다운로드에 실패했습니다.");
     }
   };
 
+  /*
+   * 보고서 미리보기 닫기
+   */
   const handleClosePreview = () => {
     setSelectedReport(null);
   };
 
   const handleTopicSelect = async (topicId: number) => {
     setSelectedTopicId(topicId);
-    setIsGenerating(true);
+    console.log("Selected topic ID:", topicId);
+    setIsGenerating(false);
 
     try {
       // 선택된 토픽의 메시지 불러오기
@@ -294,9 +547,7 @@ const MainPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error("Error loading topic messages:", error);
-      antdMessage.error(
-        error.message || "토픽 메시지를 불러오는데 실패했습니다."
-      );
+      antdMessage.error("메시지를 불러오는데 실패했습니다.");
     } finally {
       setIsGenerating(false);
     }
@@ -340,7 +591,10 @@ const MainPage: React.FC = () => {
         </button>
         <div className={styles.chatContainer}>
           <div className={styles.chatContent}>
-            {messages.length === 0 ? (
+            {isLoadingMessages ? (
+              // 메시지 로딩 중일 때는 빈 화면 표시
+              <div></div>
+            ) : messages.length === 0 ? (
               <div className={styles.chatWelcome}>
                 <div className={styles.welcomeIcon}>
                   <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
@@ -392,7 +646,25 @@ const MainPage: React.FC = () => {
           </div>
 
           <div className={styles.chatInputWrapper}>
-            <ChatInput onSend={handleSendMessage} disabled={isGenerating} />
+            <ChatInput
+              onSend={handleSendMessage}
+              disabled={isGenerating}
+              onReportsClick={handleReportsClick}
+              reportsDropdown={
+                isReportsDropdownOpen && selectedTopicId ? (
+                  <ReportsDropdown
+                    ref={reportsDropdownRef}
+                    artifacts={artifactsByTopic[selectedTopicId] || []}
+                    loading={loadingTopics.has(selectedTopicId)}
+                    selectedArtifactId={getSelectedArtifactId(selectedTopicId)}
+                    onSelect={handleArtifactSelect}
+                    onClose={() => setIsReportsDropdownOpen(false)}
+                    onDownload={handleArtifactDownload}
+                    onPreview={handleArtifactPreview}
+                  />
+                ) : null
+              }
+            />
           </div>
         </div>
 

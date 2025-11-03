@@ -5,13 +5,16 @@ import {
   GlobalOutlined,
   CloseOutlined,
   ControlOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
-import { Switch } from "antd";
 import styles from "./ChatInput.module.css";
+import SettingsDropdown from "./SettingsDropdown";
 
 interface ChatInputProps {
   onSend: (message: string, files: File[], webSearchEnabled: boolean) => void;
   disabled?: boolean;
+  onReportsClick?: () => void;
+  reportsDropdown?: React.ReactNode;
 }
 
 {
@@ -26,17 +29,23 @@ interface ChatInputProps {
 */
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
+const ChatInput: React.FC<ChatInputProps> = ({
+  onSend,
+  disabled = false,
+  onReportsClick,
+  reportsDropdown,
+}) => {
   const [message, setMessage] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isMultiline, setIsMultiline] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  /*
+   * 드롭다운 외부 클릭 시 닫기 핸들러
+   */
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -71,12 +80,14 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  /*
+   * 메시지 전송 핸들러
+   */
   const handleSend = () => {
     if (message.trim() || files.length > 0) {
       onSend(message, files, webSearchEnabled);
       setMessage("");
       setFiles([]);
-      setIsMultiline(false);
       // Reset textarea height
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
@@ -84,6 +95,9 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
     }
   };
 
+  /*
+   * 엔터키 입력 시, 메시지 전송 핸들러
+   */
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -97,11 +111,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-
-      // Check if textarea has multiple lines (scrollHeight > 1.5rem line height)
-      const lineHeight = parseFloat(getComputedStyle(textareaRef.current).lineHeight);
-      const lines = Math.floor(textareaRef.current.scrollHeight / lineHeight);
-      setIsMultiline(lines > 1);
     }
   };
 
@@ -110,6 +119,14 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
     setMessage((prev) =>
       prev ? `${prev}\n${websiteMessage}` : websiteMessage
     );
+  };
+
+  /*
+   * 웹 검색 스위치 핸들러
+   */
+  const handleWebSearchChange = (enabled: boolean) => {
+    setWebSearchEnabled(enabled);
+    setIsDropdownOpen(false);
   };
 
   return (
@@ -152,9 +169,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
       )}
 
       {/* Input Box */}
-      <div
-        className={`${styles.chatInputBox} ${webSearchEnabled || isMultiline ? styles.multiRow : ""}`}
-      >
+      <div className={`${styles.chatInputBox} ${styles.multiRow}`}>
         <div className={styles.leftButtons}>
           <button
             className={styles.attachBtn}
@@ -165,8 +180,22 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
             <PaperClipOutlined />
           </button>
 
+          {/* Reports Button with Dropdown */}
+          <div className={styles.reportsWrapper}>
+            <button
+              className={styles.reportsBtn}
+              onClick={onReportsClick}
+              disabled={disabled}
+              title="참조 보고서 선택"
+            >
+              <FileTextOutlined />
+            </button>
+            {/* Reports Dropdown */}
+            {reportsDropdown}
+          </div>
+
           {/* Settings Button with Dropdown */}
-          <div className={styles.settingsWrapper} ref={dropdownRef}>
+          <div className={styles.settingsWrapper}>
             <button
               className={styles.settingsBtn}
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -177,19 +206,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
             </button>
 
             {isDropdownOpen && (
-              <div className={styles.dropdown}>
-                <div className={styles.dropdownItem}>
-                  <div className={styles.dropdownLabel}>
-                    <GlobalOutlined />
-                    <span>웹 검색</span>
-                  </div>
-                  <Switch
-                    checked={webSearchEnabled}
-                    onChange={setWebSearchEnabled}
-                    size="small"
-                  />
-                </div>
-              </div>
+              <SettingsDropdown
+                ref={dropdownRef}
+                webSearchEnabled={webSearchEnabled}
+                onWebSearchChange={handleWebSearchChange}
+              />
             )}
           </div>
 

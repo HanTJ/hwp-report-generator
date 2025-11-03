@@ -131,6 +131,7 @@
 }
 
 .attachBtn,
+.reportsBtn,
 .settingsBtn {
   flex-shrink: 0;
   width: 2rem;
@@ -148,6 +149,7 @@
 }
 
 .attachBtn:hover:not(:disabled),
+.reportsBtn:hover:not(:disabled),
 .settingsBtn:hover:not(:disabled) {
   background-color: #f5f5f5;
   border-color: #d0d0d0;
@@ -155,68 +157,22 @@
 }
 
 .attachBtn:disabled,
+.reportsBtn:disabled,
 .settingsBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.reportsWrapper {
+  position: relative;
 }
 
 .settingsWrapper {
   position: relative;
 }
 
-.dropdown {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 0.5rem;
-  background-color: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 12rem;
-  padding: 0.5rem;
-  z-index: 1000;
-  animation: dropdownFadeIn 0.2s ease-out;
-}
-
-@keyframes dropdownFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(0.5rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.dropdownItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.625rem 0.75rem;
-  border-radius: 0.375rem;
-  transition: background-color 0.2s ease;
-  color: #ffffff;
-}
-
-.dropdownItem:hover {
-  background-color: #3a3a3a;
-}
-
-.dropdownLabel {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  font-size: 0.875rem;
-}
-
-.dropdownLabel > :first-child {
-  font-size: 1rem;
-  color: #90caf9;
-}
-
 .webSearchChip {
+  height: 2rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -268,7 +224,7 @@
 
 .chatTextarea {
   grid-area: textarea;
-  min-height: 1.5rem;
+  min-height: 2rem; /* 1줄 기본 높이 (1.5rem line-height × 1) */
   max-height: 12rem;
   padding: 0.25rem 0;
   border: none;
@@ -280,7 +236,7 @@
   background: transparent;
   min-width: 0;
   width: 100%;
-  overflow: hidden;
+  overflow-y: auto; /* 스크롤 가능하도록 변경 */
   word-wrap: break-word;
 }
 

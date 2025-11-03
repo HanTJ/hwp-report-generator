@@ -187,6 +187,9 @@ export const topicApi = {
    * @returns Ask 응답 (user/assistant 메시지, artifact, usage)
    */
   askTopic: async (topicId: number, data: AskRequest): Promise<AskResponse> => {
+    // 요청 데이터 확인
+    console.log("askTopic > request data > topicId: ${topicId}", data);
+
     const response = await api.post<ApiResponse<AskResponse>>(
       API_ENDPOINTS.ASK_TOPIC(topicId),
       data
