@@ -27,14 +27,15 @@
 ## Preferences
 
 - Use functional components when writing components.
-- Follow ESLint/Prettier rules.
+- Follow ESLint/Prettier rules in .prettier.js file.
 - Avoid inline styles.
 - Prefer common, global, or module CSS.
 - Use CSS Modules for component-specific styles.
 - Use CSS variables (rem units) for spacing, font sizes.
 - Use the `rem` unit instead of `px`, except in special cases.
+- Do not write comments before `import`
 
 ## Important Rules
 
-- Do not modify or delete codes except `frontend` folder.
-- Add new code only under the `frontend` folder.
+- Do not modify or delete codes except frontend folder.
+- Add new code only under the frontend folder.

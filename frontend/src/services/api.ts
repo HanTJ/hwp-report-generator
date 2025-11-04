@@ -22,19 +22,16 @@
  * const response = await api.post('/login', { email, password });
  */
 
-import axios from 'axios';
-import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { API_BASE_URL } from '../constants/';
-import { storage } from '../utils/storage';
+import axios from 'axios'
+import type {AxiosInstance, InternalAxiosRequestConfig} from 'axios'
+import {API_BASE_URL} from '../constants/'
+import {storage} from '../utils/storage'
 
 /**
  * JWT 인증이 필요 없는 Public 엔드포인트 목록
  * - 로그인/회원가입 시에는 토큰이 없으므로 헤더에 추가하지 않음
  */
-const PUBLIC_ENDPOINTS = [
-  '/api/auth/login',
-  '/api/auth/register',
-];
+const PUBLIC_ENDPOINTS = ['/api/auth/login', '/api/auth/register']
 
 /**
  * 주어진 URL이 Public 엔드포인트인지 확인
@@ -42,9 +39,9 @@ const PUBLIC_ENDPOINTS = [
  * @returns Public 엔드포인트 여부
  */
 const isPublicEndpoint = (url?: string): boolean => {
-  if (!url) return false;
-  return PUBLIC_ENDPOINTS.some(endpoint => url.includes(endpoint));
-};
+    if (!url) return false
+    return PUBLIC_ENDPOINTS.some((endpoint) => url.includes(endpoint))
+}
 
 /**
  * Axios 인스턴스 생성
@@ -52,11 +49,11 @@ const isPublicEndpoint = (url?: string): boolean => {
  * - headers: 모든 요청에 포함될 기본 헤더
  */
 const api: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,  // 환경변수 또는 기본값
-  headers: {
-    'Content-Type': 'application/json',  // JSON 형식으로 데이터 전송
-  },
-});
+    baseURL: API_BASE_URL, // 환경변수 또는 기본값
+    headers: {
+        'Content-Type': 'application/json' // JSON 형식으로 데이터 전송
+    }
+})
 
 /**
  * 요청 인터셉터 (Request Interceptor)
@@ -72,25 +69,25 @@ const api: AxiosInstance = axios.create({
  * 3. 수정된 요청을 서버로 전송
  */
 api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    // Public 엔드포인트는 토큰 추가 안 함
-    if (isPublicEndpoint(config.url)) {
-      return config;
-    }
+    (config: InternalAxiosRequestConfig) => {
+        // Public 엔드포인트는 토큰 추가 안 함
+        if (isPublicEndpoint(config.url)) {
+            return config
+        }
 
-    // Protected 엔드포인트는 토큰 추가
-    const token = storage.getToken();
-    if (token && config.headers) {
-      // Authorization: Bearer eyJhbGc... 형태로 추가
-      config.headers.Authorization = `Bearer ${token}`;
+        // Protected 엔드포인트는 토큰 추가
+        const token = storage.getToken()
+        if (token && config.headers) {
+            // Authorization: Bearer eyJhbGc... 형태로 추가
+            config.headers.Authorization = `Bearer ${token}`
+        }
+        return config // 수정된 설정 반환
+    },
+    (error) => {
+        // 요청 설정 중 에러 발생 시
+        return Promise.reject(error)
     }
-    return config;  // 수정된 설정 반환
-  },
-  (error) => {
-    // 요청 설정 중 에러 발생 시
-    return Promise.reject(error);
-  }
-);
+)
 
 /**
  * 응답 인터셉터 (Response Interceptor)
@@ -105,16 +102,16 @@ api.interceptors.request.use(
  * 3. 기타 에러: 그대로 에러 반환
  */
 api.interceptors.response.use(
-  (response) => response,  // 정상 응답은 그대로 통과
-  (error) => {
-    // 401 에러 = 인증 실패 (토큰 없음/만료/잘못됨)
-    if (error.response?.status === 401) {
-      storage.clear();  // 토큰, 사용자 정보 삭제
-      window.location.href = '/login';  // 로그인 페이지로 강제 이동
+    (response) => response, // 정상 응답은 그대로 통과
+    (error) => {
+        // 401 에러 = 인증 실패 (토큰 없음/만료/잘못됨)
+        if (error.response?.status === 401) {
+            storage.clear() // 토큰, 사용자 정보 삭제
+            window.location.href = '/login' // 로그인 페이지로 강제 이동
+        }
+        return Promise.reject(error)
     }
-    return Promise.reject(error);
-  }
-);
+)
 
 // 다른 파일에서 사용할 수 있도록 내보내기
-export default api;
+export default api

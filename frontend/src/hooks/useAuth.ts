@@ -1,3 +1,6 @@
+import {useContext} from 'react'
+import {AuthContext} from '../context/AuthContext'
+
 /**
  * useAuth.ts
  *
@@ -23,9 +26,6 @@
  * }
  */
 
-import { useContext } from 'react';
-import { AuthContext } from '../context/AuthContext';
-
 /**
  * useAuth Custom Hook
  *
@@ -33,14 +33,14 @@ import { AuthContext } from '../context/AuthContext';
  * @throws AuthProvider로 감싸지 않은 경우 에러 발생
  */
 export const useAuth = () => {
-  // useContext로 AuthContext의 값을 가져옴
-  const context = useContext(AuthContext);
+    // useContext로 AuthContext의 값을 가져옴
+    const context = useContext(AuthContext)
 
-  // context가 undefined라면 AuthProvider 밖에서 사용한 것 → 에러
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+    // context가 undefined라면 AuthProvider 밖에서 사용한 것 → 에러
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider')
+    }
 
-  // Context 값 반환
-  return context;
-};
+    // Context 값 반환
+    return context
+}

@@ -1,24 +1,24 @@
 .content {
-  margin-top: 1rem;
+    margin-top: 1rem;
 }
 
 .input {
-  width: 100%;
-  font-size: 0.875rem;
-  min-height: var(--spacing-xxl);
+    width: 100%;
+    font-size: 0.875rem;
+    min-height: var(--spacing-xxl);
 }
 
 /* Responsive */
 @media (max-width: 767px) {
-  .content {
-    margin-top: 0.75rem;
-  }
+    .content {
+        margin-top: 0.75rem;
+    }
 
-  .label {
-    font-size: 0.8125rem;
-  }
+    .label {
+        font-size: 0.8125rem;
+    }
 
-  .input {
-    font-size: 0.8125rem;
-  }
+    .input {
+        font-size: 0.8125rem;
+    }
 }

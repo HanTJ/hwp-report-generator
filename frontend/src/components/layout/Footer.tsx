@@ -1,26 +1,22 @@
-import React from "react";
-import { Layout } from "antd";
-import styles from "./Footer.module.css";
+import React from 'react'
+import {Layout} from 'antd'
+import styles from './Footer.module.css'
 
-const { Footer: AntFooter } = Layout;
+const {Footer: AntFooter} = Layout
 
 interface FooterProps {
-  sidebarCollapsed?: boolean | null;
+    sidebarCollapsed?: boolean | null
 }
 
-const Footer: React.FC<FooterProps> = ({ sidebarCollapsed = null }) => {
-  const getFooterClass = () => {
-    if (sidebarCollapsed === null) {
-      return styles.noSidebar;
+const Footer: React.FC<FooterProps> = ({sidebarCollapsed = null}) => {
+    const getFooterClass = () => {
+        if (sidebarCollapsed === null) {
+            return styles.noSidebar
+        }
+        return sidebarCollapsed ? styles.sidebarCollapsed : styles.sidebarExpanded
     }
-    return sidebarCollapsed ? styles.sidebarCollapsed : styles.sidebarExpanded;
-  };
 
-  return (
-    <AntFooter className={`${styles.footer} ${getFooterClass()}`}>
-      © 2025 HWP Report Generator | Powered by R&D
-    </AntFooter>
-  );
-};
+    return <AntFooter className={`${styles.footer} ${getFooterClass()}`}>© 2025 HWP Report Generator | Powered by R&D</AntFooter>
+}
 
-export default Footer;
+export default Footer

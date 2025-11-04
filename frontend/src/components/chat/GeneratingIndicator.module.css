@@ -1,0 +1,44 @@
+/* GeneratingIndicator.module.css */
+
+.generatingIndicator {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.generatingDots {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.generatingDots span {
+    width: 6px;
+    height: 6px;
+    background-color: var(--primary-color);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.generatingDots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.generatingDots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

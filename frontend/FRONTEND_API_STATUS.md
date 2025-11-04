@@ -54,16 +54,14 @@
 
 ```typescript
 getCurrentUser: async (): Promise<UserData> => {
-  const response = await api.get<ApiResponse<UserData>>(API_ENDPOINTS.ME);
+    const response = await api.get<ApiResponse<UserData>>(API_ENDPOINTS.ME)
 
-  if (!response.data.success || !response.data.data) {
-    throw new Error(
-      response.data.error?.message || "사용자 정보 조회에 실패했습니다."
-    );
-  }
+    if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.error?.message || '사용자 정보 조회에 실패했습니다.')
+    }
 
-  return response.data.data;
-};
+    return response.data.data
+}
 ```
 
 ---
@@ -124,18 +122,14 @@ getCurrentUser: async (): Promise<UserData> => {
 
 ```typescript
 getMessage: async (topicId: number, messageId: number): Promise<Message> => {
-  const response = await api.get<ApiResponse<Message>>(
-    API_ENDPOINTS.GET_MESSAGE(topicId, messageId)
-  );
+    const response = await api.get<ApiResponse<Message>>(API_ENDPOINTS.GET_MESSAGE(topicId, messageId))
 
-  if (!response.data.success || !response.data.data) {
-    throw new Error(
-      response.data.error?.message || "메시지 조회에 실패했습니다."
-    );
-  }
+    if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.error?.message || '메시지 조회에 실패했습니다.')
+    }
 
-  return response.data.data;
-};
+    return response.data.data
+}
 ```
 
 #### `DELETE /api/topics/{topic_id}/messages/{message_id}`
@@ -151,16 +145,12 @@ getMessage: async (topicId: number, messageId: number): Promise<Message> => {
 
 ```typescript
 deleteMessage: async (topicId: number, messageId: number): Promise<void> => {
-  const response = await api.delete<ApiResponse<void>>(
-    API_ENDPOINTS.DELETE_MESSAGE(topicId, messageId)
-  );
+    const response = await api.delete<ApiResponse<void>>(API_ENDPOINTS.DELETE_MESSAGE(topicId, messageId))
 
-  if (!response.data.success) {
-    throw new Error(
-      response.data.error?.message || "메시지 삭제에 실패했습니다."
-    );
-  }
-};
+    if (!response.data.success) {
+        throw new Error(response.data.error?.message || '메시지 삭제에 실패했습니다.')
+    }
+}
 ```
 
 ---
@@ -211,13 +201,12 @@ return error_response(
 **해결 방안**:
 
 1. **백엔드 convert API 구현** (권장)
-
-   - `app/utils/hwp_handler.py`에 변환 로직 구현
-   - MD 파일을 파싱하여 HWPX 생성
+    - `app/utils/hwp_handler.py`에 변환 로직 구현
+    - MD 파일을 파싱하여 HWPX 생성
 
 2. **임시 해결책** (프론트엔드)
-   - convert API 호출 실패 시 MD 파일 그대로 다운로드
-   - 사용자에게 "HWPX 변환 기능 준비 중" 안내
+    - convert API 호출 실패 시 MD 파일 그대로 다운로드
+    - 사용자에게 "HWPX 변환 기능 준비 중" 안내
 
 **특이사항**:
 
@@ -227,9 +216,9 @@ return error_response(
 **최근 개선사항** (2025-10-30):
 
 - 다운로드 버튼 클릭 시 MD → HWPX 변환 후 다운로드하도록 수정
-  - `handleDownload()` → `convertToHwpx()` → `downloadArtifact()`
-  - 변환 진행 중 로딩 메시지 표시
-  - ⚠️ 단, 백엔드 convert 미구현으로 실제 동작 안 함
+    - `handleDownload()` → `convertToHwpx()` → `downloadArtifact()`
+    - 변환 진행 중 로딩 메시지 표시
+    - ⚠️ 단, 백엔드 convert 미구현으로 실제 동작 안 함
 
 ---
 
@@ -266,30 +255,26 @@ return error_response(
 
 ```typescript
 interface TokenUsageStats {
-  total_input_tokens: number;
-  total_output_tokens: number;
-  total_cost: number;
-  users: Array<{
-    user_id: number;
-    username: string;
-    input_tokens: number;
-    output_tokens: number;
-  }>;
+    total_input_tokens: number
+    total_output_tokens: number
+    total_cost: number
+    users: Array<{
+        user_id: number
+        username: string
+        input_tokens: number
+        output_tokens: number
+    }>
 }
 
 getTokenUsage: async (): Promise<TokenUsageStats> => {
-  const response = await api.get<ApiResponse<TokenUsageStats>>(
-    API_ENDPOINTS.TOKEN_USAGE
-  );
+    const response = await api.get<ApiResponse<TokenUsageStats>>(API_ENDPOINTS.TOKEN_USAGE)
 
-  if (!response.data.success || !response.data.data) {
-    throw new Error(
-      response.data.error?.message || "토큰 사용량 조회에 실패했습니다."
-    );
-  }
+    if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.error?.message || '토큰 사용량 조회에 실패했습니다.')
+    }
 
-  return response.data.data;
-};
+    return response.data.data
+}
 ```
 
 #### `GET /api/admin/token-usage/{user_id}`
@@ -300,18 +285,14 @@ getTokenUsage: async (): Promise<TokenUsageStats> => {
 
 ```typescript
 getUserTokenUsage: async (userId: number): Promise<TokenUsageStats> => {
-  const response = await api.get<ApiResponse<TokenUsageStats>>(
-    API_ENDPOINTS.USER_TOKEN_USAGE(userId)
-  );
+    const response = await api.get<ApiResponse<TokenUsageStats>>(API_ENDPOINTS.USER_TOKEN_USAGE(userId))
 
-  if (!response.data.success || !response.data.data) {
-    throw new Error(
-      response.data.error?.message || "사용자 토큰 사용량 조회에 실패했습니다."
-    );
-  }
+    if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.error?.message || '사용자 토큰 사용량 조회에 실패했습니다.')
+    }
 
-  return response.data.data;
-};
+    return response.data.data
+}
 ```
 
 ---
@@ -364,41 +345,39 @@ getUserTokenUsage: async (userId: number): Promise<TokenUsageStats> => {
 ### 🔴 Critical Priority (긴급 구현 필요)
 
 1. **`POST /api/artifacts/{artifact_id}/convert` - 백엔드** (MD → HWPX 변환)
-   - **현재 상태**: 501 에러 (미구현)
-   - **영향**: 다운로드 기능 전체 차단
-   - **위치**: `backend/app/routers/artifacts.py:419-426`
-   - **필요 작업**: `app/utils/hwp_handler.py`에 변환 로직 구현
-   - **영향도**: 🔴 매우 높음 (핵심 기능)
+    - **현재 상태**: 501 에러 (미구현)
+    - **영향**: 다운로드 기능 전체 차단
+    - **위치**: `backend/app/routers/artifacts.py:419-426`
+    - **필요 작업**: `app/utils/hwp_handler.py`에 변환 로직 구현
+    - **영향도**: 🔴 매우 높음 (핵심 기능)
 
 ### 🔴 High Priority (즉시 구현 필요 - 프론트엔드)
 
 2. **`GET /api/auth/me`** (현재 사용자 정보 조회)
-   - 토큰 유효성 검증
-   - 페이지 새로고침 시 로그인 상태 유지
-   - 백엔드 구현 완료 ✅
-   - **영향도**: 높음 (사용자 경험)
+    - 토큰 유효성 검증
+    - 페이지 새로고침 시 로그인 상태 유지
+    - 백엔드 구현 완료 ✅
+    - **영향도**: 높음 (사용자 경험)
 
 ### 🟡 Medium Priority (기능 개선 시 구현)
 
 3. **`DELETE /api/topics/{topic_id}/messages/{message_id}`** (메시지 삭제)
-
-   - 대화 관리 기능
-   - **영향도**: 중간 (사용성)
+    - 대화 관리 기능
+    - **영향도**: 중간 (사용성)
 
 4. **`GET /api/admin/token-usage`** (토큰 사용량 조회)
-   - 비용 모니터링
-   - **영향도**: 중간 (관리)
+    - 비용 모니터링
+    - **영향도**: 중간 (관리)
 
 ### 🟢 Low Priority (선택적 구현)
 
 5. **`GET /api/topics/{topic_id}/messages/{message_id}`** (특정 메시지 조회)
-
-   - 현재는 목록 조회로 충분
-   - **영향도**: 낮음
+    - 현재는 목록 조회로 충분
+    - **영향도**: 낮음
 
 6. **`GET /api/admin/token-usage/{user_id}`** (사용자별 토큰 사용량)
-   - 관리 기능 강화
-   - **영향도**: 낮음
+    - 관리 기능 강화
+    - **영향도**: 낮음
 
 ---
 
@@ -433,28 +412,28 @@ USER_TOKEN_USAGE: (userId: number) => `/api/admin/token-usage/${userId}`,
 ### 2025-10-30 (v3)
 
 - **로그아웃 API 구현 완료** ✨
-  - `POST /api/auth/logout` 프론트엔드 구현
-  - `authApi.logout()`: 백엔드 API 호출 + 로컬 토큰 삭제
-  - `AuthContext.logout()`: async로 변경, API 호출 추가
-  - `Sidebar.handleLogout()`: async/await 적용, 에러 처리
-  - Auth API 구현률: 60% → 80% (4/5)
-  - 전체 프론트엔드 구현률: 80% → 83% (24/29)
+    - `POST /api/auth/logout` 프론트엔드 구현
+    - `authApi.logout()`: 백엔드 API 호출 + 로컬 토큰 삭제
+    - `AuthContext.logout()`: async로 변경, API 호출 추가
+    - `Sidebar.handleLogout()`: async/await 적용, 에러 처리
+    - Auth API 구현률: 60% → 80% (4/5)
+    - 전체 프론트엔드 구현률: 80% → 83% (24/29)
 
 ### 2025-10-30 (v2)
 
 - **백엔드 API 구현 상태 추가**
-  - 모든 API 테이블에 "BE 상태" 열 추가
-  - 백엔드 구현률 분석 완료
-  - **중요 발견**: `POST /api/artifacts/{artifact_id}/convert` 백엔드 미구현 (501 에러)
+    - 모든 API 테이블에 "BE 상태" 열 추가
+    - 백엔드 구현률 분석 완료
+    - **중요 발견**: `POST /api/artifacts/{artifact_id}/convert` 백엔드 미구현 (501 에러)
 - **프론트엔드 구현 현황**
-  - Auth API: 백엔드 100% 구현됨, 프론트 60% (GET /me, POST /logout 미구현)
-  - Topics API: 양쪽 모두 100% 완벽 구현 ✨
-  - Messages API: 백엔드 100% 구현됨, 프론트 50% (GET/DELETE message 미구현)
-  - Artifacts API: 프론트 100%, **백엔드 80%** (convert만 미구현) ⚠️
-  - Admin API: 백엔드 100% 구현됨, 프론트 67% (token-usage 미구현)
+    - Auth API: 백엔드 100% 구현됨, 프론트 60% (GET /me, POST /logout 미구현)
+    - Topics API: 양쪽 모두 100% 완벽 구현 ✨
+    - Messages API: 백엔드 100% 구현됨, 프론트 50% (GET/DELETE message 미구현)
+    - Artifacts API: 프론트 100%, **백엔드 80%** (convert만 미구현) ⚠️
+    - Admin API: 백엔드 100% 구현됨, 프론트 67% (token-usage 미구현)
 - **우선순위 재조정**
-  - 🔴 Critical: convert API 백엔드 구현 (긴급)
-  - 🔴 High: Auth API 프론트엔드 구현 (GET /me, POST /logout)
+    - 🔴 Critical: convert API 백엔드 구현 (긴급)
+    - 🔴 High: Auth API 프론트엔드 구현 (GET /me, POST /logout)
 
 ### 2025-10-30 (v1)
 

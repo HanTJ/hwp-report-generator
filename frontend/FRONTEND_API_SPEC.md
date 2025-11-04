@@ -17,6 +17,7 @@
 모든 API는 표준화된 응답 형식을 사용합니다.
 
 ### 성공 응답
+
 ```typescript
 {
   success: true,
@@ -30,6 +31,7 @@
 ```
 
 ### 실패 응답
+
 ```typescript
 {
   success: false,
@@ -64,6 +66,7 @@ POST /api/topics/generate
 ```
 
 **Request Body:**
+
 ```typescript
 {
   input_prompt: string,   // 사용자 입력 (보고서 주제)
@@ -72,6 +75,7 @@ POST /api/topics/generate
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -86,11 +90,12 @@ POST /api/topics/generate
 ```
 
 **사용 예시:**
+
 ```typescript
 const response = await topicApi.generateTopic({
-  input_prompt: "2024년 디지털 뱅킹 트렌드 분석",
-  language: "ko"
-});
+    input_prompt: '2024년 디지털 뱅킹 트렌드 분석',
+    language: 'ko'
+})
 // response.topic_id로 토픽 ID 획득
 ```
 
@@ -103,6 +108,7 @@ POST /api/topics
 ```
 
 **Request Body:**
+
 ```typescript
 {
   input_prompt: string,
@@ -111,6 +117,7 @@ POST /api/topics
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -138,11 +145,13 @@ GET /api/topics?status=active&page=1&page_size=20
 ```
 
 **Query Parameters:**
+
 - `status` (optional): "active" | "archived" | "deleted"
 - `page` (optional): 페이지 번호 (기본값: 1)
 - `page_size` (optional): 페이지 크기 (기본값: 20)
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -177,6 +186,7 @@ GET /api/topics/{topicId}
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -204,6 +214,7 @@ PATCH /api/topics/{topicId}
 ```
 
 **Request Body:**
+
 ```typescript
 {
   generated_title?: string,
@@ -212,6 +223,7 @@ PATCH /api/topics/{topicId}
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -239,6 +251,7 @@ DELETE /api/topics/{topicId}
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -260,6 +273,7 @@ POST /api/topics/{topicId}/ask
 ```
 
 **Request Body:**
+
 ```typescript
 {
   content: string,                    // 사용자 메시지 (필수)
@@ -271,6 +285,7 @@ POST /api/topics/{topicId}/ask
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -315,11 +330,12 @@ POST /api/topics/{topicId}/ask
 ```
 
 **사용 예시:**
+
 ```typescript
 // 2번째 메시지부터
 const response = await topicApi.askTopic(topicId, {
-  content: "좀 더 자세히 설명해줘"
-});
+    content: '좀 더 자세히 설명해줘'
+})
 ```
 
 ---
@@ -335,10 +351,12 @@ GET /api/topics/{topicId}/messages?limit=50&offset=0
 ```
 
 **Query Parameters:**
+
 - `limit` (optional): 최대 메시지 수
 - `offset` (optional): 건너뛸 메시지 수 (기본값: 0)
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -364,8 +382,9 @@ GET /api/topics/{topicId}/messages?limit=50&offset=0
 ```
 
 **사용 예시:**
+
 ```typescript
-const response = await messageApi.listMessages(topicId);
+const response = await messageApi.listMessages(topicId)
 // response.messages 배열 사용
 ```
 
@@ -380,6 +399,7 @@ POST /api/topics/{topicId}/messages
 ```
 
 **Request Body:**
+
 ```typescript
 {
   role: "user" | "assistant" | "system",
@@ -388,6 +408,7 @@ POST /api/topics/{topicId}/messages
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -419,6 +440,7 @@ GET /api/artifacts/{artifactId}
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -450,6 +472,7 @@ GET /api/artifacts/{artifactId}/content
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -466,9 +489,10 @@ GET /api/artifacts/{artifactId}/content
 ```
 
 **사용 예시:**
+
 ```typescript
 // 보고서 미리보기용 MD 내용 가져오기
-const response = await artifactApi.getArtifactContent(artifactId);
+const response = await artifactApi.getArtifactContent(artifactId)
 // response.content를 화면에 표시
 ```
 
@@ -481,14 +505,16 @@ GET /api/artifacts/{artifactId}/download
 ```
 
 **Response (200):**
+
 - Content-Type: `text/markdown`, `application/x-hwpx`, 또는 `application/pdf`
 - Content-Disposition: `attachment; filename="..."`
 - 파일 바이너리 데이터
 
 **사용 예시:**
+
 ```typescript
 // 브라우저에서 파일 다운로드
-await artifactApi.downloadArtifact(artifactId, filename);
+await artifactApi.downloadArtifact(artifactId, filename)
 ```
 
 ---
@@ -502,22 +528,26 @@ GET /api/artifacts/messages/{messageId}/hwpx/download?locale=ko
 ```
 
 **Query Parameters:**
+
 - `locale` (optional): 언어 (기본값: "ko")
 
 **Response (200):**
+
 - Content-Type: `application/x-hwpx`
 - Content-Disposition: `attachment; filename="..."`
 - HWPX 파일 바이너리 데이터
 
 **동작 방식:**
+
 1. 백엔드에서 해당 메시지의 HWPX 아티팩트가 있는지 확인
 2. 있으면 캐시된 파일 반환
 3. 없으면 MD 아티팩트를 HWPX로 자동 변환 후 반환
 
 **사용 예시:**
+
 ```typescript
 // 다운로드 버튼 클릭 시
-await artifactApi.downloadMessageHwpx(messageId, "report.hwpx", "ko");
+await artifactApi.downloadMessageHwpx(messageId, 'report.hwpx', 'ko')
 ```
 
 ---
@@ -529,12 +559,14 @@ GET /api/artifacts/topics/{topicId}?kind=md&locale=ko&page=1&page_size=50
 ```
 
 **Query Parameters:**
+
 - `kind` (optional): "md" | "hwpx" | "pdf"
 - `locale` (optional): "ko" | "en"
 - `page` (optional): 페이지 번호 (기본값: 1)
 - `page_size` (optional): 페이지 크기 (기본값: 50)
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -564,9 +596,10 @@ GET /api/artifacts/topics/{topicId}?kind=md&locale=ko&page=1&page_size=50
 ```
 
 **사용 예시:**
+
 ```typescript
 // 토픽의 모든 아티팩트 가져오기
-const response = await artifactApi.listArtifactsByTopic(topicId);
+const response = await artifactApi.listArtifactsByTopic(topicId)
 // response.artifacts 배열 사용
 ```
 
@@ -583,6 +616,7 @@ POST /api/artifacts/{artifactId}/convert
 **Request Body:** 없음
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -613,13 +647,15 @@ POST /api/generate
 ```
 
 **Request Body:**
+
 ```typescript
 {
-  topic: string
+    topic: string
 }
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -644,6 +680,7 @@ GET /api/reports
 ```
 
 **Response (200):**
+
 ```typescript
 {
   success: true,
@@ -671,6 +708,7 @@ GET /api/download/{filename}
 ```
 
 **Response (200):**
+
 - 파일 바이너리 데이터
 
 ---
@@ -678,44 +716,45 @@ GET /api/download/{filename}
 ## 🔄 일반적인 사용 흐름
 
 ### 첫 번째 메시지 (토픽 생성)
+
 ```typescript
 // 1. 토픽 생성 + AI 보고서 자동 생성
 const generateResponse = await topicApi.generateTopic({
-  input_prompt: "디지털 뱅킹 트렌드",
-  language: "ko"
-});
-const topicId = generateResponse.topic_id;
+    input_prompt: '디지털 뱅킹 트렌드',
+    language: 'ko'
+})
+const topicId = generateResponse.topic_id
 
 // 2. 메시지 목록 조회 (AI 응답 포함)
-const messagesResponse = await messageApi.listMessages(topicId);
+const messagesResponse = await messageApi.listMessages(topicId)
 
 // 3. 아티팩트 목록 조회 (보고서 파일)
-const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId);
+const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
 
 // 4. MD 파일 내용 가져오기 (미리보기용)
-const contentResponse = await artifactApi.getArtifactContent(
-  artifactsResponse.artifacts[0].id
-);
+const contentResponse = await artifactApi.getArtifactContent(artifactsResponse.artifacts[0].id)
 ```
 
 ### 두 번째 메시지부터 (메시지 체이닝)
+
 ```typescript
 // 1. 메시지 체이닝 (대화 이어가기)
 const askResponse = await topicApi.askTopic(topicId, {
-  content: "좀 더 자세히 설명해줘"
-});
+    content: '좀 더 자세히 설명해줘'
+})
 
 // 2. 메시지 목록 재조회 (업데이트된 대화 내용)
-const messagesResponse = await messageApi.listMessages(topicId);
+const messagesResponse = await messageApi.listMessages(topicId)
 
 // 3. 아티팩트 목록 재조회
-const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId);
+const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
 ```
 
 ### HWPX 다운로드
+
 ```typescript
 // 메시지 ID로 HWPX 다운로드 (자동 생성)
-await artifactApi.downloadMessageHwpx(messageId, "report.hwpx", "ko");
+await artifactApi.downloadMessageHwpx(messageId, 'report.hwpx', 'ko')
 ```
 
 ---
@@ -724,21 +763,21 @@ await artifactApi.downloadMessageHwpx(messageId, "report.hwpx", "ko");
 
 자주 발생하는 에러 코드:
 
-| 코드 | HTTP Status | 의미 |
-|------|-------------|------|
-| `AUTH.INVALID_TOKEN` | 401 | 인증 토큰이 유효하지 않음 |
-| `AUTH.TOKEN_EXPIRED` | 401 | 토큰이 만료됨 |
-| `AUTH.UNAUTHORIZED` | 403 | 권한 없음 |
-| `TOPIC.NOT_FOUND` | 404 | 토픽을 찾을 수 없음 |
-| `TOPIC.UNAUTHORIZED` | 403 | 토픽 접근 권한 없음 |
-| `MESSAGE.NOT_FOUND` | 404 | 메시지를 찾을 수 없음 |
-| `ARTIFACT.NOT_FOUND` | 404 | 아티팩트를 찾을 수 없음 |
-| `ARTIFACT.INVALID_KIND` | 400 | 잘못된 아티팩트 타입 |
-| `ARTIFACT.DOWNLOAD_FAILED` | 500 | 파일 다운로드 실패 |
-| `ARTIFACT.CONVERSION_FAILED` | 500 | HWPX 변환 실패 |
-| `VALIDATION.INVALID_FORMAT` | 400 | 유효하지 않은 데이터 형식 |
-| `SERVER.DATABASE_ERROR` | 500 | 데이터베이스 오류 |
-| `SERVER.INTERNAL_ERROR` | 500 | 서버 내부 오류 |
+| 코드                         | HTTP Status | 의미                      |
+| ---------------------------- | ----------- | ------------------------- |
+| `AUTH.INVALID_TOKEN`         | 401         | 인증 토큰이 유효하지 않음 |
+| `AUTH.TOKEN_EXPIRED`         | 401         | 토큰이 만료됨             |
+| `AUTH.UNAUTHORIZED`          | 403         | 권한 없음                 |
+| `TOPIC.NOT_FOUND`            | 404         | 토픽을 찾을 수 없음       |
+| `TOPIC.UNAUTHORIZED`         | 403         | 토픽 접근 권한 없음       |
+| `MESSAGE.NOT_FOUND`          | 404         | 메시지를 찾을 수 없음     |
+| `ARTIFACT.NOT_FOUND`         | 404         | 아티팩트를 찾을 수 없음   |
+| `ARTIFACT.INVALID_KIND`      | 400         | 잘못된 아티팩트 타입      |
+| `ARTIFACT.DOWNLOAD_FAILED`   | 500         | 파일 다운로드 실패        |
+| `ARTIFACT.CONVERSION_FAILED` | 500         | HWPX 변환 실패            |
+| `VALIDATION.INVALID_FORMAT`  | 400         | 유효하지 않은 데이터 형식 |
+| `SERVER.DATABASE_ERROR`      | 500         | 데이터베이스 오류         |
+| `SERVER.INTERNAL_ERROR`      | 500         | 서버 내부 오류            |
 
 ---
 
@@ -747,11 +786,13 @@ await artifactApi.downloadMessageHwpx(messageId, "report.hwpx", "ko");
 모든 API 호출에는 JWT 토큰이 필요합니다 (로그인/회원가입 제외).
 
 **헤더:**
+
 ```
 Authorization: Bearer {access_token}
 ```
 
 **토큰 저장:**
+
 ```typescript
 localStorage.getItem('access_token')
 ```

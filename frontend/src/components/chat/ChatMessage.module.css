@@ -1,215 +1,215 @@
 .chatMessage {
-  display: flex;
-  gap: 1rem;
-  animation: fadeIn 0.3s ease-in;
+    display: flex;
+    gap: 1rem;
+    animation: fadeIn 0.3s ease-in;
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(0.5rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .chatMessage.user {
-  flex-direction: row-reverse;
-  justify-content: flex-start;
+    flex-direction: row-reverse;
+    justify-content: flex-start;
 }
 
 .chatMessage.assistant {
-  flex-direction: row;
-  justify-content: flex-start;
+    flex-direction: row;
+    justify-content: flex-start;
 }
 
 .messageAvatar {
-  flex-shrink: 0;
+    flex-shrink: 0;
 }
 
 .userAvatar,
 .assistantAvatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 0.875rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
 }
 
 .userAvatar {
-  background-color: #e8f0fe;
-  color: #1976d2;
+    background-color: #e8f0fe;
+    color: #1976d2;
 }
 
 .assistantAvatar {
-  background-color: #f5f5f5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+    background-color: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .messageContentWrapper {
-  flex: 1;
-  min-width: 0;
+    flex: 1;
+    min-width: 0;
 }
 
 .chatMessage.user .messageContentWrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
 }
 
 .chatMessage.assistant .messageContentWrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 .messageHeader {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
 }
 
 .messageSender {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #1a1a1a;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #1a1a1a;
 }
 
 .messageTime {
-  font-size: 0.75rem;
-  color: #999999;
+    font-size: 0.75rem;
+    color: #999999;
 }
 
 .messageContent {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: #1a1a1a;
-  padding: 0.75rem 1rem;
-  border-radius: 1rem;
-  max-width: 100%;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  word-break: break-word;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: #1a1a1a;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .chatMessage.user .messageContent {
-  background-color: #e8f0fe;
+    background-color: #e8f0fe;
 }
 
 .chatMessage.assistant .messageContent {
-  background-color: #f5f5f5;
+    background-color: #f5f5f5;
 }
 
 .messageContent p {
-  margin: 0 0 0.75rem 0;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  white-space: pre-wrap;
+    margin: 0 0 0.75rem 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: pre-wrap;
 }
 
 .messageContent p:last-child {
-  margin-bottom: 0;
+    margin-bottom: 0;
 }
 
 .reportAttachment {
-  margin-top: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
 .reportFile {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background-color: #f8f9fa;
-  border: 1px solid #e5e5e5;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    background-color: #f8f9fa;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .reportFile:hover {
-  background-color: #e8f0fe;
-  border-color: #1976d2;
+    background-color: #e8f0fe;
+    border-color: #1976d2;
 }
 
 .reportIcon {
-  font-size: 1.5rem;
-  color: #1976d2;
+    font-size: 1.5rem;
+    color: #1976d2;
 }
 
 .reportInfo {
-  flex: 1;
-  min-width: 0;
+    flex: 1;
+    min-width: 0;
 }
 
 .reportFilename {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #1a1a1a;
-  margin-bottom: 0.25rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1a1a1a;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .reportMeta {
-  font-size: 0.75rem;
-  color: #666666;
+    font-size: 0.75rem;
+    color: #666666;
 }
 
 .reportDownloadBtn {
-  flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #1976d2;
-  color: white;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1976d2;
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
 }
 
 .reportDownloadBtn:hover {
-  background-color: #1565c0;
+    background-color: #1565c0;
 }
 
 .reportDownloadBtn:active {
-  background-color: #0d47a1;
+    background-color: #0d47a1;
 }
 
 @media (max-width: 768px) {
-  .chatMessage {
-    gap: 0.75rem;
-  }
+    .chatMessage {
+        gap: 0.75rem;
+    }
 
-  .userAvatar,
-  .assistantAvatar {
-    width: 2rem;
-    height: 2rem;
-    font-size: 0.75rem;
-  }
+    .userAvatar,
+    .assistantAvatar {
+        width: 2rem;
+        height: 2rem;
+        font-size: 0.75rem;
+    }
 
-  .messageContent {
-    font-size: 0.875rem;
-  }
+    .messageContent {
+        font-size: 0.875rem;
+    }
 
-  .reportFile {
-    padding: 0.75rem;
-  }
+    .reportFile {
+        padding: 0.75rem;
+    }
 }

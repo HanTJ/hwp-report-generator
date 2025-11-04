@@ -15,37 +15,37 @@
 
 // 로그인 요청 데이터
 export interface LoginRequest {
-  email: string;
-  password: string;
+    email: string
+    password: string
 }
 
 // 회원가입 요청 데이터
 export interface RegisterRequest {
-  email: string;
-  username: string;
-  password: string;
+    email: string
+    username: string
+    password: string
 }
 
 // 비밀번호 변경 요청 데이터
 export interface ChangePasswordRequest {
-  current_password: string;
-  new_password: string;
+    current_password: string
+    new_password: string
 }
 
 // 로그인 응답 데이터
 export interface LoginResponse {
-  access_token: string;  // JWT 토큰
-  token_type: string;    // "bearer"
-  user: User;            // 사용자 정보
+    access_token: string // JWT 토큰
+    token_type: string // "bearer"
+    user: User // 사용자 정보
 }
 
 // 사용자 정보
 export interface User {
-  id: number;
-  email: string;
-  username: string;
-  is_active: boolean;              // 활성화 여부 (관리자 승인)
-  is_admin: boolean;               // 관리자 권한
-  password_reset_required: boolean; // 비밀번호 변경 필요 여부
-  created_at: string;              // 가입일 (ISO 날짜 문자열)
+    id: number
+    email: string
+    username: string
+    is_active: boolean // 활성화 여부 (관리자 승인)
+    is_admin: boolean // 관리자 권한
+    password_reset_required: boolean // 비밀번호 변경 필요 여부
+    created_at: string // 가입일 (ISO 날짜 문자열)
 }

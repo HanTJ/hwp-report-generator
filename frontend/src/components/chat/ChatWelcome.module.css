@@ -1,0 +1,28 @@
+/* ChatWelcome.module.css */
+
+.chatWelcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    padding: 2rem;
+}
+
+.welcomeIcon {
+    margin-bottom: 1.5rem;
+}
+
+.chatWelcome h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+
+.chatWelcome p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    max-width: 400px;
+}
