@@ -2,8 +2,8 @@ import React, {useEffect, useState} from 'react'
 import {
     PlusOutlined,
     MessageOutlined,
-    LeftOutlined,
-    RightOutlined,
+    VerticalLeftOutlined,
+    VerticalRightOutlined,
     MoreOutlined,
     UserOutlined,
     SettingOutlined,
@@ -128,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
                 <>
                     <div className={styles.collapsedSidebarHeader}>
                         <button className={styles.iconBtn} onClick={onToggle} title="사이드바 열기">
-                            <RightOutlined />
+                            <VerticalLeftOutlined />
                         </button>
                     </div>
                     <div className={styles.collapsedContent}>
@@ -156,7 +156,7 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
                     {/* 사이드바 접기, 로고 */}
                     <div className={styles.sidebarHeader}>
                         <button className={styles.iconBtn} onClick={onToggle} title="사이드바 닫기">
-                            <LeftOutlined />
+                            <VerticalRightOutlined />
                         </button>
                         <div>
                             <h3 className={styles.title}>HWP 보고서 자동 생성 시스템</h3>

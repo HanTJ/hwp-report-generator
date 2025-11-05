@@ -28,7 +28,7 @@
 
 .successMessage {
     margin-top: var(--spacing-md);
-    padding: var(--spacing-xs);
+    padding: var(--spacing-xxs);
     background: #f6ffed;
     border: 1px solid #b7eb8f;
     border-radius: var(--radius-md);

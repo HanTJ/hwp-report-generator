@@ -31,7 +31,7 @@
 .userInfo {
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-xxs);
     padding: 0 var(--spacing-sm);
 }
 
@@ -45,7 +45,7 @@
 }
 
 .btnText {
-    margin-left: var(--spacing-xs);
+    margin-left: var(--spacing-xxs);
 }
 
 /* Mobile (<768px) */
