@@ -158,11 +158,12 @@ hwp-report-generator/
 │   │   │   └── report_db.py       # 보고서 CRUD (Deprecated)
 │   │   └── utils/                 # 유틸리티 함수
 │   │       ├── response_helper.py # ✨ API 표준 응답 헬퍼
+│   │       ├── prompts.py         # ✨ 시스템 프롬프트 중앙 관리 (v2.1)
 │   │       ├── claude_client.py   # Claude API 클라이언트
 │   │       ├── hwp_handler.py     # HWPX 파일 처리
 │   │       ├── artifact_manager.py # ✨ 아티팩트 파일 저장/관리 추상화
 │   │       ├── md_handler.py      # ✨ Markdown 파일 처리 유틸
-│   │       ├── markdown_parser.py # ✨ Markdown 파싱
+│   │       ├── markdown_parser.py # ✨ Markdown 파싱 (동적 섹션 추출)
 │   │       ├── markdown_builder.py# ✨ Markdown 생성
 │   │       ├── file_utils.py      # ✨ 파일/버전 유틸
 │   │       └── auth.py            # JWT 인증 및 비밀번호 해싱
@@ -179,7 +180,9 @@ hwp-report-generator/
 │   │   ├── 02.generateTopic.md
 │   │   ├── 03.hwpxDownload.md
 │   │   ├── 04.messageChaining.md
-│   │   └── 05.downloadApi.md
+│   │   ├── 05.downloadApi.md
+│   │   ├── 06.WebSearchAPI.md    # ✨ 웹 검색 API 설계 (v2.1)
+│   │   └── 07.PromptIntegrate.md # ✨ 프롬프트 통합 가이드 (v2.1)
 │   ├── tests/                     # ✨ 테스트 파일
 │   │   ├── conftest.py            # pytest fixtures
 │   │   ├── test_routers_*.py      # API 테스트
@@ -677,15 +680,33 @@ ErrorCode.VALIDATION_REQUIRED_FIELD
 ErrorCode.SERVER_DATABASE_ERROR
 ```
 
-### 2. Claude Client (`utils/claude_client.py`)
+### 2. System Prompts (`utils/prompts.py`) - v2.1
+
+시스템 프롬프트 중앙 관리 모듈.
+
+**주요 상수:**
+- `FINANCIAL_REPORT_SYSTEM_PROMPT` - 금융 보고서 작성용 시스템 프롬프트 (통합)
+- `TOPIC_CONTEXT_TEMPLATE` - 주제 컨텍스트 메시지 템플릿 (데이터와 분리)
+
+**설계 원칙:**
+- 시스템 프롬프트는 순수 지시사항만 포함 (데이터 제외)
+- 주제/컨텍스트는 메시지 배열로 전달
+- 중복 방지를 위한 단일 소스 원칙
+
+### 3. Claude Client (`utils/claude_client.py`)
 
 Claude API 통신 클라이언트.
 
 **주요 메서드:**
-- `generate_report(topic)` - 단발 보고서 초안 생성 (파서 포함)
+- `generate_report(topic)` - **Markdown 문자열 반환** (v2.1에서 Dict → str 변경)
 - `chat_completion(messages, system_prompt)` - 대화형 응답 + 토큰 사용량 추적
 
-### 3. HWP Handler (`utils/hwp_handler.py`)
+**v2.1 변경사항:**
+- `generate_report()`가 Markdown 문자열을 직접 반환 (파싱 제거)
+- 파싱은 호출자가 `parse_markdown_to_content()` 사용
+- `FINANCIAL_REPORT_SYSTEM_PROMPT` 사용
+
+### 4. HWP Handler (`utils/hwp_handler.py`)
 
 HWPX 파일 처리.
 
@@ -694,15 +715,29 @@ HWPX 파일 처리.
 - 템플릿 미존재 시 기본 템플릿 생성 (`main.py`)
 - 줄바꿈 처리 (`\n\n` → 새 문단, `\n` → `<hp:lineBreak/>`)
 
-### 4. Markdown 파서/빌더 (`utils/markdown_parser.py`, `markdown_builder.py`)
+### 5. Markdown 파서/빌더 (`utils/markdown_parser.py`, `markdown_builder.py`)
 
 Markdown 파일 파싱 및 생성.
 
-### 5. 파일/버전 유틸 (`utils/file_utils.py`)
+**주요 함수 (markdown_parser.py):**
+- `parse_markdown_to_content(md_text)` - Markdown을 HWP content dict로 변환
+- `extract_all_h2_sections(md_text)` - 모든 H2 섹션 추출 (제목 + 내용)
+- `classify_section(section_title)` - 키워드 기반 섹션 분류
+  - 요약: "요약", "summary", "핵심", "개요"
+  - 배경: "배경", "목적", "background", "추진"
+  - 주요내용: "주요", "내용", "분석", "결과"
+  - 결론: "결론", "제언", "conclusion", "향후", "계획"
+
+**v2.1 변경사항:**
+- 동적 섹션 제목 추출 (하드코딩 제거)
+- 키워드 우선순위 조정 (결론 > 배경)
+- H2 섹션 자동 분류 및 매핑
+
+### 6. 파일/버전 유틸 (`utils/file_utils.py`)
 
 버전 산정, 경로 생성, SHA256 해시 등.
 
-### 6. 인증 유틸 (`utils/auth.py`)
+### 7. 인증 유틸 (`utils/auth.py`)
 
 JWT 발급/검증, bcrypt 비밀번호 해싱.
 
@@ -715,7 +750,7 @@ JWT 발급/검증, bcrypt 비밀번호 해싱.
 - `get_current_active_user()` - 활성 사용자 확인
 - `get_current_admin_user()` - 관리자 확인
 
-### 7. Artifact Manager (`utils/artifact_manager.py`)
+### 8. Artifact Manager (`utils/artifact_manager.py`)
 
 아티팩트 파일 저장/관리를 위한 추상화 레이어. 로컬 파일 시스템 지원 (향후 S3, Azure Blob 등 확장 가능).
 
@@ -737,7 +772,7 @@ artifacts/
             └── msg_{message_id}_{filename}
 ```
 
-### 8. Markdown Handler (`utils/md_handler.py`)
+### 9. Markdown Handler (`utils/md_handler.py`)
 
 Markdown 파일 생성, 읽기, 포맷팅 유틸리티.
 
@@ -756,7 +791,7 @@ Markdown 파일 생성, 읽기, 포맷팅 유틸리티.
 - `## 주요 내용`
 - `## 결론 및 제언`
 
-### 9. Transformation Tracking (`models/transformation.py`, `database/transformation_db.py`)
+### 10. Transformation Tracking (`models/transformation.py`, `database/transformation_db.py`)
 
 파일 변환 및 번역 추적 시스템. 아티팩트 간 변환 관계를 기록하여 변환 이력 추적 가능.
 
@@ -1081,55 +1116,89 @@ type .env  # Windows
 
 ---
 
-## 주요 변경사항 (v2.0)
+## 주요 변경사항
 
-### 시스템 아키텍처
+### v2.1 (2025-11-04)
+
+#### 프롬프트 통합 및 아키텍처 개선
+
+**새로운 파일:**
+- `app/utils/prompts.py` - 시스템 프롬프트 중앙 관리
+  - `FINANCIAL_REPORT_SYSTEM_PROMPT` - 통합 금융 보고서 프롬프트
+  - `TOPIC_CONTEXT_TEMPLATE` - 주제 컨텍스트 메시지 템플릿
+
+**아키텍처 변경:**
+1. **ClaudeClient 반환 타입 변경**
+   - `generate_report()`: `Dict[str, str]` → `str` (Markdown)
+   - 파싱 로직 제거 (호출자로 이동)
+   - 시스템 프롬프트에서 주제 정보 제거
+
+2. **Markdown 파서 개선**
+   - 동적 섹션 제목 추출 (하드코딩 제거)
+   - 키워드 기반 섹션 분류 강화
+   - 분류 우선순위 조정 (결론 > 배경)
+
+3. **관심사 분리 (Separation of Concerns)**
+   - ClaudeClient: AI 호출 및 원시 응답 반환
+   - markdown_parser: Markdown → 구조화 데이터 변환
+   - 호출자: 비즈니스 로직 및 데이터 흐름 제어
+
+**테스트 개선:**
+- 19개 실패 테스트 수정 완료
+- 9개 deprecated 테스트 스킵 처리
+- 테스트 커버리지 유지: 70%+
+
+**참고 문서:**
+- `backend/doc/07.PromptIntegrate.md` - 프롬프트 통합 가이드
+
+### v2.0 (2025-10-31)
+
+#### 시스템 아키텍처
 
 - **단일 요청 → 대화형 시스템**
 - **파일 형식**: 직접 HWPX 생성 → Markdown 생성 후 HWPX 변환
 
-### 새로운 기능
+#### 새로운 기능
 
 - `topics` - 대화 주제/스레드
 - `messages` - 사용자 및 AI 메시지
 - `artifacts` - 생성된 파일 (MD, HWPX) + 버전 관리
 - `ai_usage` - 메시지별 AI 사용량 추적
 
-### 새로운 API
+#### 새로운 API
 
 - `/api/topics` - 주제 CRUD + ask (메시지 체이닝)
 - `/api/topics/{topic_id}/messages` - 메시지 관리
 - `/api/artifacts` - 아티팩트 조회 및 변환
-- `/api/artifacts/messages/{message_id}/hwpx/download` - 메시지 단위 HWPX 다운로드. 기존 HWPX가 없으면 최신 MD를 자동 변환하여 반환 (설계 문서: `backend/doc/05.downloadApi.md`).
+- `/api/artifacts/messages/{message_id}/hwpx/download` - 메시지 단위 HWPX 다운로드
 
-### API Response Standard
+#### API Response Standard
 
 모든 API 엔드포인트가 표준화된 응답 형식 사용 (100% compliance)
 
-### 테스트 커버리지 개선
+#### 테스트 커버리지 개선
 
 - 48% → 70%+ (+22%)
 - claude_client: 14% → 100%
 - hwp_handler: 15% → 83%
-- `backend/tests/test_routers_artifacts.py`에 메시지 기반 HWPX 다운로드 시나리오 3종 추가 (기존 HWPX 재사용 / MD 자동 변환 / MD 부재 오류).
 
-### Deprecated
+#### Deprecated
 
 - `/api/reports` - v1.0 호환성 유지, 향후 제거 예정
 - `reports`, `token_usage` 테이블 - v1.0 호환성 유지
 
-### 새로운 유틸리티 컴포넌트
+#### 새로운 유틸리티 컴포넌트
 
 - `app/utils/artifact_manager.py` - 아티팩트 파일 저장/관리 추상화 레이어
 - `app/utils/md_handler.py` - Markdown 파일 처리 유틸리티
 
-### Transformation 추적
+#### Transformation 추적
 
 - `transformations` 테이블 - 파일 변환 이력 추적
 - `TransformOperation` enum - `CONVERT`, `TRANSLATE`
 - 변환 체인 지원 (MD → HWPX → PDF)
 
-### Shared 모듈 확장
+#### Shared 모듈 확장
 
 - `shared/types/enums.py` - `TransformOperation` 추가
 - `shared/constants.py/.ts/.properties` - 공유 상수 관리
@@ -1137,7 +1206,7 @@ type .env  # Windows
 
 ---
 
-**마지막 업데이트:** 2025-10-31
+**마지막 업데이트:** 2025-11-04
 **버전:** 2.1
 **담당자:** Backend Development Team
 

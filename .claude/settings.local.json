@@ -53,7 +53,10 @@
       "Bash(then echo \"File exists\")",
       "Bash(else echo \"File does not exist\")",
       "mcp__serena__list_memories",
-      "mcp__atlassian__atlassianUserInfo"
+      "mcp__atlassian__atlassianUserInfo",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__think_about_task_adherence",
+      "Bash(if [ -f \"backend/.CLAUDE.md\" ])"
     ],
     "deny": [
       "Read(**/.env*)",
@@ -63,7 +66,6 @@
     ],
     "ask": []
   },
-  "outputStyle": "run_fastAPI",
   "hooks": {
     "PreToolUse": [
       {
@@ -76,5 +78,6 @@
         ]
       }
     ]
-  }
+  },
+  "outputStyle": "run_fastAPI"
 }

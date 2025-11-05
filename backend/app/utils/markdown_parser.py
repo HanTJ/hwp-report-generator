@@ -5,6 +5,86 @@ import re
 from typing import Dict, Tuple, List
 
 
+def markdown_to_plain_text(md_text: str) -> str:
+    """Markdown 문법을 Plain Text로 변환합니다.
+
+    HWP에 삽입될 본문 내용에서 Markdown 문법 요소들을 제거하여
+    순수한 텍스트로 변환합니다. 각 문단 앞에는 2칸 공백을 추가하여
+    들여쓰기를 적용합니다.
+
+    Args:
+        md_text: Markdown 형식의 텍스트
+
+    Returns:
+        Plain text로 변환된 텍스트 (들여쓰기 포함)
+
+    Examples:
+        >>> text = "### 소제목\\n\\n**굵은** 글씨와 *기울임*"
+        >>> markdown_to_plain_text(text)
+        '소제목\\n\\n  굵은 글씨와 기울임'
+        >>> text = "1. 첫 번째\\n\\n일반 문단"
+        >>> markdown_to_plain_text(text)
+        '1. 첫 번째\\n\\n  일반 문단'
+    """
+    text = md_text
+
+    # 1. H3~H6 헤더 마커 제거 (텍스트만 남김)
+    text = re.sub(r'^######\s+(.+)$', r'\1', text, flags=re.MULTILINE)
+    text = re.sub(r'^#####\s+(.+)$', r'\1', text, flags=re.MULTILINE)
+    text = re.sub(r'^####\s+(.+)$', r'\1', text, flags=re.MULTILINE)
+    text = re.sub(r'^###\s+(.+)$', r'\1', text, flags=re.MULTILINE)
+
+    # 2. 굵게 + 기울임 (***text*** 또는 ___text___)
+    text = re.sub(r'\*\*\*(.+?)\*\*\*', r'\1', text)
+    text = re.sub(r'___(.+?)___', r'\1', text)
+
+    # 3. 굵게 (**text** 또는 __text__)
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'__(.+?)__', r'\1', text)
+
+    # 4. 기울임 (*text* 또는 _text_)
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    text = re.sub(r'(?<!\w)_(.+?)_(?!\w)', r'\1', text)
+
+    # 5. 취소선 (~~text~~)
+    text = re.sub(r'~~(.+?)~~', r'\1', text)
+
+    # 6. 인라인 코드 (`code`)
+    text = re.sub(r'`(.+?)`', r'\1', text)
+
+    # 7. 링크 ([text](url))
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+
+    # 8. 이미지 (![alt](url))
+    text = re.sub(r'!\[([^\]]*)\]\([^\)]+\)', r'[이미지: \1]', text)
+
+    # 9. 리스트 마커
+    # 순서 없는 리스트 (-, *, +) → 불릿(•)으로 변환
+    text = re.sub(r'^[\s]*[-\*\+]\s+', '• ', text, flags=re.MULTILINE)
+    # 순서 있는 리스트 (1., 2., ...)는 그대로 유지
+
+    # 10. 인용 (> text)
+    text = re.sub(r'^>\s+', '', text, flags=re.MULTILINE)
+
+    # 11. 수평선 (---, ***, ___)
+    text = re.sub(r'^[\s]*[-\*_]{3,}[\s]*$', '', text, flags=re.MULTILINE)
+
+    # 12. 문단 들여쓰기 추가
+    # 각 문단(빈 줄로 구분된 텍스트 블록)의 시작에 2칸 공백 추가
+    # 단, 순서 있는 리스트나 불릿 리스트는 제외
+    paragraphs = text.split('\n\n')
+    indented_paragraphs = []
+    for para in paragraphs:
+        if para.strip():
+            # 순서 있는 리스트나 불릿으로 시작하지 않으면 들여쓰기
+            if not re.match(r'^\d+\.', para.strip()) and not para.strip().startswith('•'):
+                para = '  ' + para
+            indented_paragraphs.append(para)
+    text = '\n\n'.join(indented_paragraphs)
+
+    return text.strip()
+
+
 def parse_markdown_to_content(md_text: str) -> Dict[str, str]:
     """Markdown 텍스트를 파싱하여 HWPHandler.generate_report()에 필요한 content dict로 변환.
 
@@ -89,6 +169,7 @@ def extract_all_h2_sections(md_text: str) -> List[Tuple[str, str]]:
 
     Returns:
         (섹션 제목, 섹션 내용) 튜플의 리스트
+        섹션 내용은 Markdown 문법이 제거된 Plain Text입니다.
 
     Examples:
         >>> md = "# Title\\n\\n## 요약\\n\\nSummary text\\n\\n## 배경\\n\\nBackground text"
@@ -96,14 +177,16 @@ def extract_all_h2_sections(md_text: str) -> List[Tuple[str, str]]:
         >>> len(sections)
         2
         >>> sections[0]
-        ('요약', 'Summary text')
+        ('요약', '  Summary text')
     """
     # H2 헤더와 그 내용을 추출하는 정규식
     # 패턴: ## 제목\n\n내용 (다음 ##까지 또는 끝까지)
     pattern = r'^##\s+(.+?)\s*$\n+(.*?)(?=\n+^##\s|\Z)'
     matches = re.findall(pattern, md_text, re.MULTILINE | re.DOTALL)
 
-    return [(title.strip(), content.strip()) for title, content in matches]
+    # 섹션 내용에서 Markdown 문법 제거 및 들여쓰기 적용
+    return [(title.strip(), markdown_to_plain_text(content.strip()))
+            for title, content in matches]
 
 
 def classify_section(section_title: str) -> str:
