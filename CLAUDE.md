@@ -1,1000 +1,434 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+이 파일은 Claude Code (claude.ai/code)가 이 저장소의 코드 작업 시 참고하는 가이드입니다.
 
-## Project Overview
+## 프로젝트 개요
 
-HWP Report Generator: A FastAPI-based web system that automatically generates Korean HWP (Hangul Word Processor) format reports using Claude AI. Users input a report topic and the system generates a complete report following a bank's internal form template.
+**HWP Report Generator**: Claude AI를 활용하여 한글(HWP) 형식의 금융 보고서를 자동 생성하는 FastAPI 기반 웹 시스템. 사용자가 주제를 입력하면 은행 내부 양식에 맞춰 완전한 보고서를 생성합니다.
 
-## Technology Stack
+## 기술 스택
 
-- **Backend**: FastAPI (Python 3.12)
-- **Package Manager**: uv (recommended) or pip
-- **AI**: Claude API (Anthropic) - Model: claude-sonnet-4-5-20250929, anthropic==0.71.0
-- **HWP Processing**: olefile, zipfile (HWPX format)
+- **Backend**: FastAPI (Python 3.12), SQLite
+- **패키지 관리**: uv (권장) 또는 pip
+- **AI**: Claude API (anthropic==0.71.0) - Model: claude-sonnet-4-5-20250929
+- **HWP 처리**: olefile, zipfile (HWPX 형식)
 - **Frontend**: React 18 + TypeScript + Vite
-- **API Client**: Axios
-- **Routing**: React Router DOM
+- **인증**: JWT (python-jose, passlib)
 
-## Architecture
+## 아키텍처
 
-### Core Components
+### 핵심 컴포넌트
 
 **Backend** (`backend/app/`):
-1. **main.py**: FastAPI application with endpoints for report generation
-2. **routers/**: API route handlers (auth, reports, admin)
-3. **models/**: Pydantic models for request/response validation
-4. **database/**: SQLite database connection and operations
-5. **utils/claude_client.py**: Claude API integration for content generation
-6. **utils/hwp_handler.py**: HWPX file manipulation (unzip → modify XML → rezip)
-7. **utils/auth.py**: JWT authentication and password hashing
+1. **main.py**: FastAPI 앱 진입점, 라우터 등록
+2. **routers/**: API 라우트 핸들러 (auth, topics, messages, artifacts, admin, reports-deprecated)
+3. **models/**: Pydantic 모델 (request/response 검증)
+4. **database/**: SQLite 연결 및 CRUD 작업
+5. **utils/**:
+   - `prompts.py`: 시스템 프롬프트 중앙 관리 (v2.1)
+   - `claude_client.py`: Claude API 통합 (Markdown 생성)
+   - `markdown_parser.py`: Markdown → 구조화 데이터 변환 (동적 섹션 추출)
+   - `hwp_handler.py`: HWPX 파일 조작 (unzip → XML 수정 → rezip)
+   - `response_helper.py`: API 표준 응답 헬퍼
+   - `auth.py`: JWT 인증 및 비밀번호 해싱
 
 **Frontend** (`frontend/src/`):
-1. **components/**: Reusable React components
-2. **pages/**: Page-level components
-3. **services/**: API client services
-4. **types/api.ts**: TypeScript type definitions for API responses
-5. **App.tsx**: Main application component with routing
+1. **components/**: 재사용 가능한 React 컴포넌트
+2. **pages/**: 페이지 컴포넌트
+3. **services/**: API 클라이언트 서비스
+4. **types/api.ts**: TypeScript 타입 정의
 
-**Templates**:
-- **backend/templates/report_template.hwpx**: HWP template with placeholders
+### 데이터 플로우 (v2.0+)
 
-### Data Flow
+1. 사용자가 Topic(대화 주제) 생성 → `/api/topics`
+2. 사용자 메시지 입력 → `/api/topics/{topic_id}/ask`
+3. 컨텍스트 구성 (이전 메시지 + 최신/선택된 MD 내용)
+4. Claude API 호출 → Markdown 응답
+5. `markdown_parser.parse_markdown_to_content()`로 구조화
+6. Message + Artifact(MD) + AI Usage 저장
+7. 필요 시 MD → HWPX 변환 → `/api/artifacts/{id}/convert`
 
-1. User submits report topic via web UI
-2. FastAPI endpoint receives request
-3. Claude API generates structured report content (title, summary, background, main content, conclusion)
-4. HWP handler extracts HWPX (ZIP format), modifies XML content, replaces placeholders
-5. System returns generated HWPX file for download
+### 프롬프트 아키텍처 (v2.1)
 
-### HWP Template Placeholders
+**설계 원칙:**
+- 시스템 프롬프트: 순수 지시사항만 (데이터 제외)
+- 주제/컨텍스트: 메시지 배열로 전달
+- 중앙 관리: `utils/prompts.py`
 
-The HWPX template uses these placeholders that Claude's generated content replaces:
+**주요 상수:**
+```python
+# utils/prompts.py
+FINANCIAL_REPORT_SYSTEM_PROMPT = """당신은 금융 기관의 전문 보고서 작성자입니다.
+다음 구조로 Markdown 보고서를 작성하세요:
 
-**Main Content Placeholders:**
-- `{{TITLE}}` - Report title
-- `{{DATE}}` - Generation date
-- `{{BACKGROUND}}` - Background and purpose section content
-- `{{MAIN_CONTENT}}` - Main body content
-- `{{CONCLUSION}}` - Conclusion and recommendations content
-- `{{SUMMARY}}` - Executive summary content
-
-**Section Title Placeholders:**
-- `{{TITLE_BACKGROUND}}` - Background section heading (default: "배경 및 목적")
-- `{{TITLE_MAIN_CONTENT}}` - Main content section heading (default: "주요 내용")
-- `{{TITLE_CONCLUSION}}` - Conclusion section heading (default: "결론 및 제언")
-- `{{TITLE_SUMMARY}}` - Summary section heading (default: "요약")
-
-Note: Section title placeholders allow customization of section headings while maintaining consistent template structure.
-
-## Environment Setup
-
-Create `backend/.env` file:
+# [보고서 제목]
+## [요약 섹션 제목]
+[요약 내용]
+## [배경 섹션 제목]
+[배경 내용]
+## [주요 내용 섹션 제목]
+[주요 내용]
+## [결론 섹션 제목]
+[결론 내용]
+"""
 ```
+
+**주제 컨텍스트 전달:**
+```python
+# 주제는 시스템 프롬프트가 아닌 메시지로 전달
+messages = [
+    {"role": "user", "content": f"다음 주제로 보고서를 작성해주세요:\n\n{topic}"}
+]
+```
+
+### Markdown 파싱 (v2.1)
+
+**동적 섹션 추출:**
+```python
+# markdown_parser.py
+def parse_markdown_to_content(md_text: str) -> Dict[str, str]:
+    """
+    Markdown을 HWP content dict로 변환
+    - H1: 제목 추출
+    - H2 섹션: 키워드 기반 자동 분류
+      - 요약: "요약", "summary", "핵심"
+      - 배경: "배경", "목적", "background", "추진"
+      - 주요내용: "주요", "내용", "분석", "결과"
+      - 결론: "결론", "제언", "향후", "계획" (우선순위 높음)
+    - 동적 제목 추출: 각 섹션의 실제 H2 제목을 title_xxx로 반환
+    """
+```
+
+**우선순위 조정 (v2.1):**
+- "향후 추진 계획"처럼 "추진"(배경)과 "향후"(결론) 키워드가 겹치는 경우
+- 결론 키워드 체크를 배경보다 먼저 수행하여 올바르게 분류
+
+## 환경 설정
+
+`backend/.env` 파일:
+```env
 CLAUDE_API_KEY=your_api_key_here
 CLAUDE_MODEL=claude-sonnet-4-5-20250929
 
-# JWT Configuration
+# JWT 설정
 JWT_SECRET_KEY=your-secret-key-change-this
 JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=1440
 
-# Admin Account
+# 관리자 계정
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=admin123!@#
 ADMIN_USERNAME=관리자
+
+# 프로젝트 루트 (필수!)
+PATH_PROJECT_HOME=D:\\WorkSpace\\hwp-report\\hwp-report-generator
 ```
 
-**Security**: Never commit `.env` file to git. The `.gitignore` excludes all files starting with `.env`.
+**보안**: `.env` 파일은 절대 Git에 커밋하지 마세요.
 
-## Development Commands
+## 개발 명령어
 
-### Backend Setup
+### Backend
 
-**Install dependencies (using uv - recommended):**
 ```bash
 cd backend
+
+# 의존성 설치 (uv 권장)
 uv pip install -r requirements.txt
-```
 
-**Or using pip:**
-```bash
-cd backend
-pip install -r requirements.txt
-```
-
-**Initialize database:**
-```bash
-cd backend
+# DB 초기화
 uv run python init_db.py
-```
 
-**Run backend server:**
-```bash
-cd backend
+# 개발 서버 실행
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 테스트 실행
+uv run pytest tests/ -v
+
+# 커버리지 포함 테스트
+uv run pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
-**Or with standard python:**
-```bash
-cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+### Frontend
 
-### Frontend Setup
-
-**Install dependencies:**
 ```bash
 cd frontend
+
+# 의존성 설치
 npm install
-```
 
-**Run frontend dev server:**
-```bash
-cd frontend
+# 개발 서버
 npm run dev
-```
 
-**Build for production:**
-```bash
-cd frontend
+# 프로덕션 빌드
 npm run build
 ```
 
-### Access the application:
+### 접속
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- Swagger UI: http://localhost:8000/docs
+
+## API 응답 표준
+
+### ⚠️ 필수 준수 규칙
+
+**모든 신규 API 엔드포인트는 표준 응답 형식을 사용해야 합니다.**
+
+- ✅ **필수**: `success_response()` / `error_response()` 사용 (`utils/response_helper.py`)
+- ✅ **필수**: `ErrorCode` 클래스 상수 사용
+- ❌ **금지**: `HTTPException` 직접 사용
+- ❌ **금지**: 에러 코드 하드코딩
+
+### 표준 응답 구조
+
+**성공:**
+```json
+{
+  "success": true,
+  "data": { /* 실제 데이터 */ },
+  "error": null,
+  "meta": { "requestId": "uuid" },
+  "feedback": []
+}
 ```
-http://localhost:5173       # Frontend (React)
-http://localhost:8000       # Backend API
-http://localhost:8000/docs  # API Documentation (Swagger)
+
+**실패:**
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "DOMAIN.DETAIL",
+    "httpStatus": 404,
+    "message": "에러 메시지",
+    "details": {},
+    "traceId": "uuid",
+    "hint": "해결 방법"
+  },
+  "meta": { "requestId": "uuid" },
+  "feedback": []
+}
 ```
 
-### Running Both Servers
+### 구현 예시
 
-You need to run both backend and frontend servers simultaneously in separate terminals:
+```python
+from app.utils.response_helper import success_response, error_response, ErrorCode
 
-**Terminal 1 (Backend):**
-```bash
-cd backend
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 성공
+return success_response({
+    "id": 123,
+    "name": "example"
+})
+
+# 실패
+return error_response(
+    code=ErrorCode.TOPIC_NOT_FOUND,
+    http_status=404,
+    message="토픽을 찾을 수 없습니다.",
+    hint="토픽 ID를 확인해주세요."
+)
 ```
 
-**Terminal 2 (Frontend):**
-```bash
-cd frontend
-npm run dev
-```
+### 현재 구현 상태
 
-## HWP File Handling Notes
+| Router | 준수율 | 상태 |
+|--------|--------|------|
+| Topics | 100% ✅ | 참조 구현 |
+| Messages | 100% ✅ | 완전 준수 |
+| Artifacts | 100% ✅ | 완전 준수 |
+| Auth | 100% ✅ | 완전 준수 |
+| Admin | 100% ✅ | 완전 준수 |
+| Reports | 100% ✅ | 완전 준수 (Deprecated) |
 
-- **Format**: Use HWPX (not HWP). HWPX is a ZIP archive containing XML files
-- **Processing**: Unzip → Parse/modify XML → Rezip as HWPX
-- **Compatibility**: HWPX format ensures cross-platform compatibility
-- **Character encoding**: Ensure UTF-8 encoding for Korean text
-- **Auto Template Generation**: If `templates/report_template.hwpx` doesn't exist, the system automatically creates a basic template on first report generation (main.py:113-161)
+**전체 준수율**: 100% (28/28 활성 엔드포인트) ✨
 
-### Line Break Handling in HWPX
+## HWP 파일 처리
 
-The system implements a sophisticated approach to handle line breaks in HWPX format:
+- **형식**: HWPX (HWP가 아님). HWPX는 XML 파일을 포함한 ZIP 아카이브
+- **처리**: Unzip → XML 파싱/수정 → Rezip
+- **호환성**: HWPX 형식은 크로스 플랫폼 호환성 보장
+- **인코딩**: 한글 텍스트는 UTF-8 필수
+- **자동 템플릿**: `templates/report_template.hwpx`가 없으면 첫 보고서 생성 시 자동 생성
 
-1. **Paragraph Separation**: Double line breaks (`\n\n`) split text into separate `<hp:p>` (paragraph) tags
-2. **Line Break Tags**: Single line breaks (`\n`) within paragraphs are converted to `<hp:lineBreak/>` XML tags
-3. **Layout Cleanup**: Automatically removes incomplete `<hp:linesegarray>` elements that would prevent proper rendering
-4. **Auto-calculation**: Hangul Word Processor automatically recalculates layout information when opening files without linesegarray data
+### 줄바꿈 처리
 
-This ensures that generated reports display with proper line breaks when opened in Hangul Word Processor, without requiring manual layout calculations.
+1. **문단 분리**: `\n\n` → 별도 `<hp:p>` 태그
+2. **줄바꿈**: `\n` → `<hp:lineBreak/>` XML 태그
+3. **레이아웃 정리**: 불완전한 `<hp:linesegarray>` 요소 자동 제거
+4. **자동 계산**: 한글 워드프로세서가 파일 열 때 레이아웃 정보 자동 재계산
 
-## Project Structure (Monorepo)
+### HWPX 템플릿 플레이스홀더
+
+**컨텐츠:**
+- `{{TITLE}}` - 보고서 제목
+- `{{DATE}}` - 생성 날짜
+- `{{SUMMARY}}` - 요약 내용
+- `{{BACKGROUND}}` - 배경 내용
+- `{{MAIN_CONTENT}}` - 주요 내용
+- `{{CONCLUSION}}` - 결론 내용
+
+**섹션 제목 (동적 추출 - v2.1):**
+- `{{TITLE_SUMMARY}}` - 요약 섹션 제목
+- `{{TITLE_BACKGROUND}}` - 배경 섹션 제목
+- `{{TITLE_MAIN_CONTENT}}` - 주요 내용 섹션 제목
+- `{{TITLE_CONCLUSION}}` - 결론 섹션 제목
+
+## 주요 API 엔드포인트
+
+### 인증 (`/api/auth`)
+- `POST /api/auth/register` - 회원가입
+- `POST /api/auth/login` - 로그인 (JWT 발급)
+- `GET /api/auth/me` - 내 정보
+- `POST /api/auth/logout` - 로그아웃
+
+### 주제 (`/api/topics`) - v2.0
+- `POST /api/topics` - 토픽 생성
+- `POST /api/topics/generate` - 한 번에 MD 생성 (토픽+메시지+아티팩트)
+- `GET /api/topics` - 내 토픽 목록
+- `GET /api/topics/{topic_id}` - 단건 조회
+- `POST /api/topics/{topic_id}/ask` - **메시지 체이닝** (컨텍스트 기반 대화)
+
+### 메시지 (`/api/topics/{topic_id}/messages`)
+- `POST /api/topics/{topic_id}/messages` - 메시지 생성
+- `GET /api/topics/{topic_id}/messages` - 메시지 목록
+
+### 아티팩트 (`/api/artifacts`)
+- `GET /api/artifacts/{artifact_id}` - 메타 조회
+- `GET /api/artifacts/{artifact_id}/content` - 내용 조회 (MD만)
+- `GET /api/artifacts/{artifact_id}/download` - 파일 다운로드
+- `POST /api/artifacts/{artifact_id}/convert` - MD → HWPX 변환
+- `GET /api/artifacts/messages/{message_id}/hwpx/download` - 메시지 기반 HWPX 다운로드 (자동 변환)
+
+### 관리자 (`/api/admin`)
+- `GET /api/admin/users` - 사용자 목록
+- `POST /api/admin/users/{user_id}/approve` - 승인
+- `GET /api/admin/token-usage` - 토큰 사용량
+
+### 레거시 (`/api/reports`) - Deprecated
+- ⚠️ v1.0 호환성 유지, 향후 제거 예정
+- 신규 개발은 `/api/topics` 사용
+
+## 주요 변경사항
+
+### v2.1 (2025-11-04) - 프롬프트 통합
+
+**새로운 파일:**
+- `app/utils/prompts.py` - 시스템 프롬프트 중앙 관리
+
+**아키텍처 변경:**
+1. **ClaudeClient 반환 타입**: `Dict[str, str]` → `str` (Markdown)
+2. **파싱 로직 분리**: ClaudeClient에서 제거, 호출자가 `parse_markdown_to_content()` 사용
+3. **프롬프트 순수성**: 시스템 프롬프트에서 주제 제거, 메시지로 전달
+4. **동적 섹션 추출**: 하드코딩된 제목 제거, 키워드 기반 자동 분류
+5. **관심사 분리**: ClaudeClient(AI 호출) / markdown_parser(파싱) / 호출자(비즈니스 로직)
+
+**테스트:**
+- 19개 실패 테스트 수정
+- 9개 deprecated 테스트 스킵
+- 커버리지 유지: 70%+
+
+**참고:** `backend/doc/07.PromptIntegrate.md`
+
+### v2.0 (2025-10-31) - 대화형 시스템
+
+**시스템 전환:**
+- 단일 요청 → 대화형 시스템 (Topics + Messages)
+- 직접 HWPX 생성 → Markdown 생성 후 변환
+
+**새 기능:**
+- Topics (대화 주제/스레드)
+- Messages (사용자/AI 메시지)
+- Artifacts (MD, HWPX 버전 관리)
+- AI Usage (메시지별 사용량 추적)
+- Transformations (변환 이력)
+
+**API 표준:**
+- 모든 엔드포인트 표준 응답 형식 (100% compliance)
+
+**테스트:**
+- 커버리지 48% → 70%+ (+22%)
+- claude_client: 14% → 100%
+- hwp_handler: 15% → 83%
+
+## 에러 코드
+
+에러 코드는 `DOMAIN.DETAIL` 형식:
+
+**인증 (`AUTH.*`):**
+- `AUTH.INVALID_TOKEN` - 유효하지 않은 토큰
+- `AUTH.INVALID_CREDENTIALS` - 잘못된 이메일/비밀번호
+- `AUTH.UNAUTHORIZED` - 권한 부족
+
+**주제 (`TOPIC.*`):**
+- `TOPIC.NOT_FOUND` - 주제를 찾을 수 없음
+- `TOPIC.UNAUTHORIZED` - 접근 권한 없음
+- `TOPIC.CREATION_FAILED` - 생성 실패
+
+**메시지 (`MESSAGE.*`):**
+- `MESSAGE.NOT_FOUND` - 메시지를 찾을 수 없음
+- `MESSAGE.CREATION_FAILED` - 생성 실패
+
+**아티팩트 (`ARTIFACT.*`):**
+- `ARTIFACT.NOT_FOUND` - 아티팩트를 찾을 수 없음
+- `ARTIFACT.DOWNLOAD_FAILED` - 다운로드 실패
+
+**검증 (`VALIDATION.*`):**
+- `VALIDATION.REQUIRED_FIELD` - 필수 필드 누락
+- `VALIDATION.INVALID_FORMAT` - 잘못된 형식
+
+**서버 (`SERVER.*`):**
+- `SERVER.INTERNAL_ERROR` - 내부 서버 오류
+- `SERVER.DATABASE_ERROR` - 데이터베이스 오류
+
+## 프로젝트 구조
 
 ```
 hwp-report-generator/
-├── backend/                    # FastAPI Backend
+├── backend/
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py            # FastAPI app entry point
-│   │   ├── routers/           # API endpoints
-│   │   │   ├── auth.py        # Authentication API
-│   │   │   ├── reports.py     # Reports API
-│   │   │   └── admin.py       # Admin API
-│   │   ├── models/            # Pydantic models
-│   │   │   ├── user.py
-│   │   │   ├── report.py
-│   │   │   └── token_usage.py
-│   │   ├── database/          # Database layer
-│   │   │   ├── connection.py
-│   │   │   ├── user_db.py
-│   │   │   ├── report_db.py
-│   │   │   └── token_usage_db.py
-│   │   └── utils/             # Utility functions
-│   │       ├── claude_client.py
-│   │       ├── hwp_handler.py
-│   │       └── auth.py
-│   ├── templates/             # HWPX templates only
-│   │   └── report_template.hwpx
-│   ├── output/                # Generated reports
-│   ├── temp/                  # Temporary files
-│   ├── data/                  # SQLite database
-│   ├── requirements.txt
-│   ├── runtime.txt
-│   ├── init_db.py
-│   ├── migrate_db.py
-│   └── .env                   # Backend environment variables
+│   │   ├── main.py
+│   │   ├── routers/        # auth, topics, messages, artifacts, admin, reports
+│   │   ├── models/         # Pydantic 모델
+│   │   ├── database/       # SQLite CRUD
+│   │   └── utils/
+│   │       ├── prompts.py         # ✨ 시스템 프롬프트 (v2.1)
+│   │       ├── claude_client.py   # Claude API (Markdown 반환)
+│   │       ├── markdown_parser.py # ✨ 동적 파싱 (v2.1)
+│   │       ├── hwp_handler.py     # HWPX 처리
+│   │       ├── response_helper.py # API 표준 응답
+│   │       └── auth.py            # JWT
+│   ├── templates/          # report_template.hwpx
+│   ├── artifacts/          # 생성 파일 (MD, HWPX)
+│   ├── data/               # hwp_reports.db
+│   ├── doc/                # 개발 문서
+│   ├── tests/              # pytest 테스트
+│   └── .env
 │
-├── frontend/                  # React Frontend
-│   ├── public/
+├── frontend/               # React + TypeScript
 │   ├── src/
-│   │   ├── components/        # Reusable components
-│   │   ├── pages/             # Page components
-│   │   ├── services/          # API client services
-│   │   ├── types/
-│   │   │   └── api.ts         # TypeScript API types
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts         # Vite config with proxy
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   └── types/api.ts
+│   └── package.json
 │
-├── templates/                 # Legacy HTML templates (will be removed)
-├── static/                    # Legacy static files (will be removed)
-├── .gitignore
-├── CLAUDE.md                  # Project documentation
+├── CLAUDE.md              # 이 파일
+├── BACKEND_ONBOARDING.md  # 백엔드 상세 가이드
 └── README.md
 ```
 
-## API Key Configuration
+## 참고 문서
 
-The system expects `CLAUDE_API_KEY` in environment variables. Check API usage limits and network connectivity if generation fails.
-
-## API Response Standard
-
-All Backend-Frontend API communications follow a standardized response format for consistency and better error handling.
-
-### ⚠️ MANDATORY COMPLIANCE RULE
-
-**ALL new API endpoints MUST use the standard response format.**
-
-- ✅ **REQUIRED**: Use `success_response()` and `error_response()` from `utils/response_helper.py`
-- ❌ **FORBIDDEN**: Direct use of `HTTPException` or returning raw dictionaries/models
-- ✅ **REQUIRED**: Use `ErrorCode` class constants for error codes
-- ❌ **FORBIDDEN**: Hardcoded error code strings
-
-**Pull requests that violate this standard will be rejected.**
-
-### Current Implementation Status
-
-| Router | Endpoints | Compliance | Status |
-|--------|-----------|------------|--------|
-| **Topics** | 5/5 | 100% ✅ | **Reference Implementation** |
-| **Messages** | 4/4 | 100% ✅ | Fully Compliant |
-| **Artifacts** | 5/5 | 100% ✅ | Fully Compliant |
-| **Auth** | 5/5 | 100% ✅ | **Fully Compliant** ✨ |
-| **Admin** | 6/6 | 100% ✅ | **Fully Compliant** ✨ |
-| **Reports** | 3/3 | 100% ✅ | **Fully Compliant** ✨ |
-| **Main Routes** | 0/4 | 0% ❌ | **Legacy - Deprecation Planned** |
-
-**Overall Compliance**: 100% (28/28 active endpoints) ✨
-
-**Legacy Routes**: 4 endpoints pending deprecation (Main Routes)
-
-**Target**: ✅ **ACHIEVED** - 100% compliance for all active routers
-
-### Standard Response Structure
-
-**Success Response:**
-```json
-{
-  "success": true,
-  "data": { /* actual resource or result data */ },
-  "error": null,
-  "meta": {
-    "requestId": "1c0c...f"
-  },
-  "feedback": [
-    {
-      "code": "PROFILE_INCOMPLETE",
-      "level": "info",            // info | warning | error
-      "feedbackCd": "프로필 사진을 등록하면 더 좋아요."
-    }
-  ]
-}
-```
-
-**Failure Response:**
-```json
-{
-  "success": false,
-  "data": null,
-  "error": {
-    "code": "AUTH.INVALID_TOKEN",   // unique error code (DOMAIN.DETAIL)
-    "httpStatus": 401,
-    "message": "유효하지 않은 토큰입니다.",
-    "details": { "reason": "expired" },
-    "traceId": "1c0c...f",
-    "hint": "다시 로그인해 주세요."
-  },
-  "meta": { "requestId": "1c0c...f" },
-  "feedback": []
-}
-```
-
-### Field Descriptions
-
-**Common Fields:**
-- `success`: Boolean indicating request success/failure
-- `data`: Actual response data (null on failure)
-- `error`: Error details object (null on success)
-- `meta`: Metadata including `requestId` for tracing
-- `feedback`: Array of optional user feedback/hints
-
-**Error Object Fields:**
-- `code`: Unique error code in `DOMAIN.DETAIL` format
-- `httpStatus`: HTTP status code (401, 404, 500, etc.)
-- `message`: User-friendly error message
-- `details`: Additional error details (optional)
-- `traceId`: Unique ID for error tracing
-- `hint`: Suggested action for user (optional)
-
-**Feedback Object Fields:**
-- `code`: Feedback identifier
-- `level`: `"info"` | `"warning"` | `"error"`
-- `feedbackCd`: Feedback message for user
-
-### Backend Implementation (FastAPI)
-
-**Type Definitions** (`models/api_response.py`):
-```python
-from pydantic import BaseModel
-from typing import Optional, Any, List, Dict
-from enum import Enum
-
-class FeedbackLevel(str, Enum):
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-
-class Feedback(BaseModel):
-    code: str
-    level: FeedbackLevel
-    feedbackCd: str
-
-class ErrorResponse(BaseModel):
-    code: str
-    httpStatus: int
-    message: str
-    details: Optional[Dict[str, Any]] = None
-    traceId: str
-    hint: Optional[str] = None
-
-class ApiResponse(BaseModel):
-    success: bool
-    data: Optional[Any] = None
-    error: Optional[ErrorResponse] = None
-    meta: Dict[str, str]
-    feedback: List[Feedback] = []
-```
-
-**Helper Functions** (`utils/response_helper.py`):
-```python
-import uuid
-from fastapi.responses import JSONResponse
-
-def success_response(data: Any, feedback: List[Feedback] = []):
-    return {
-        "success": True,
-        "data": data,
-        "error": None,
-        "meta": {"requestId": str(uuid.uuid4())},
-        "feedback": feedback
-    }
-
-def error_response(
-    code: str,
-    http_status: int,
-    message: str,
-    details: Dict = None,
-    hint: str = None
-):
-    return JSONResponse(
-        status_code=http_status,
-        content={
-            "success": False,
-            "data": None,
-            "error": {
-                "code": code,
-                "httpStatus": http_status,
-                "message": message,
-                "details": details,
-                "traceId": str(uuid.uuid4()),
-                "hint": hint
-            },
-            "meta": {"requestId": str(uuid.uuid4())},
-            "feedback": []
-        }
-    )
-```
-
-### Frontend Implementation (React/TypeScript)
-
-**Type Definitions** (`types/api.ts` or `src/types/api.ts`):
-```typescript
-export type FeedbackLevel = 'info' | 'warning' | 'error';
-
-export interface Feedback {
-  code: string;
-  level: FeedbackLevel;
-  feedbackCd: string;
-}
-
-export interface ErrorResponse {
-  code: string;
-  httpStatus: number;
-  message: string;
-  details?: Record<string, any>;
-  traceId: string;
-  hint?: string;
-}
-
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data: T | null;
-  error: ErrorResponse | null;
-  meta: {
-    requestId: string;
-  };
-  feedback: Feedback[];
-}
-```
-
-**Usage Example**:
-```typescript
-import { ApiResponse } from '@/types/api';
-
-async function generateReport(topic: string): Promise<ApiResponse<ReportData>> {
-  const response = await fetch('/api/reports/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic })
-  });
-
-  const result: ApiResponse<ReportData> = await response.json();
-
-  if (result.success) {
-    console.log('Report generated:', result.data);
-  } else {
-    console.error('Error:', result.error?.message);
-    if (result.error?.hint) {
-      console.log('Hint:', result.error.hint);
-    }
-  }
-
-  return result;
-}
-```
-
-### Error Code Conventions
-
-Error codes follow the `DOMAIN.DETAIL` format:
-
-**Authentication (`AUTH.*`):**
-- `AUTH.INVALID_TOKEN` - Invalid authentication token
-- `AUTH.TOKEN_EXPIRED` - Token has expired
-- `AUTH.UNAUTHORIZED` - Insufficient permissions
-- `AUTH.INVALID_CREDENTIALS` - Wrong email/password
-
-**Reports (`REPORT.*`):**
-- `REPORT.GENERATION_FAILED` - Report generation failed
-- `REPORT.NOT_FOUND` - Report not found
-- `REPORT.INVALID_TOPIC` - Invalid topic provided
-- `REPORT.DOWNLOAD_FAILED` - Download failed
-
-**Templates (`TEMPLATE.*`):**
-- `TEMPLATE.INVALID_FORMAT` - Invalid HWPX format
-- `TEMPLATE.UPLOAD_FAILED` - Upload failed
-- `TEMPLATE.NOT_FOUND` - Template not found
-- `TEMPLATE.PERMISSION_DENIED` - No permission to modify
-
-**Validation (`VALIDATION.*`):**
-- `VALIDATION.REQUIRED_FIELD` - Required field missing
-- `VALIDATION.INVALID_FORMAT` - Invalid format
-- `VALIDATION.MAX_LENGTH_EXCEEDED` - Maximum length exceeded
-
-**Server (`SERVER.*`):**
-- `SERVER.INTERNAL_ERROR` - Internal server error
-- `SERVER.SERVICE_UNAVAILABLE` - Service temporarily unavailable
-- `SERVER.DATABASE_ERROR` - Database operation failed
-
-### API Endpoints Coverage
-
-This standard applies to **ALL** API endpoints:
-
-1. **Authentication API** (`/api/auth/*`)
-   - Login, Register, Logout, Token refresh
-
-2. **Reports API** (`/api/reports/*`)
-   - Generate, List, Download, Delete reports
-
-3. **Templates API** (`/api/templates/*`)
-   - Template CRUD, Placeholder management
-
-4. **Prompts API** (`/api/prompts/*`)
-   - Prompt preset CRUD
-
-5. **Admin API** (`/api/admin/*`)
-   - User management, System settings
-
-### Examples
-
-**Report Generation Success:**
-```json
-{
-  "success": true,
-  "data": {
-    "reportId": 123,
-    "filename": "2025년_디지털뱅킹_트렌드.hwpx",
-    "filePath": "/output/report_123.hwpx",
-    "createdAt": "2025-10-27T10:30:00Z"
-  },
-  "error": null,
-  "meta": {
-    "requestId": "req_abc123"
-  },
-  "feedback": []
-}
-```
-
-**Login Failure:**
-```json
-{
-  "success": false,
-  "data": null,
-  "error": {
-    "code": "AUTH.INVALID_CREDENTIALS",
-    "httpStatus": 401,
-    "message": "이메일 또는 비밀번호가 올바르지 않습니다.",
-    "details": { "field": "password" },
-    "traceId": "trace_xyz789",
-    "hint": "비밀번호를 잊으셨다면 '비밀번호 찾기'를 이용해주세요."
-  },
-  "meta": {
-    "requestId": "req_def456"
-  },
-  "feedback": []
-}
-```
-
-**Template Upload with Warning:**
-```json
-{
-  "success": true,
-  "data": {
-    "templateId": 45,
-    "name": "분기보고서_템플릿",
-    "placeholders": ["TITLE", "DATE", "CONTENT"]
-  },
-  "error": null,
-  "meta": {
-    "requestId": "req_ghi789"
-  },
-  "feedback": [
-    {
-      "code": "TEMPLATE.MISSING_PLACEHOLDERS",
-      "level": "warning",
-      "feedbackCd": "SUMMARY 플레이스홀더가 누락되어 있습니다. 추가하시겠습니까?"
-    }
-  ]
-}
-```
+- `BACKEND_ONBOARDING.md` - 백엔드 온보딩 상세 가이드
+- `backend/BACKEND_TEST.md` - 테스트 가이드
+- `backend/doc/07.PromptIntegrate.md` - 프롬프트 통합 가이드
+- `backend/doc/04.messageChaining.md` - 메시지 체이닝 설계
 
 ---
 
-## Migration Guide: Legacy to Standard Response Format
-
-### Why Migrate?
-
-**Problems with Legacy Approach:**
-- ❌ Inconsistent error handling across endpoints
-- ❌ Difficult to parse responses on frontend
-- ❌ No standardized error codes
-- ❌ Missing request tracing capability
-- ❌ No support for user feedback/hints
-
-**Benefits of Standard Format:**
-- ✅ Consistent structure across all endpoints
-- ✅ Easy to parse and handle on frontend
-- ✅ Standardized error codes (DOMAIN.DETAIL)
-- ✅ Built-in request tracing (requestId, traceId)
-- ✅ Support for user feedback and hints
-
-### Step-by-Step Migration
-
-#### Step 1: Import Required Modules
-
-**Before:**
-```python
-from fastapi import APIRouter, HTTPException
-from app.models.user import UserResponse
-```
-
-**After:**
-```python
-from fastapi import APIRouter, Depends
-from app.models.user import UserResponse
-from app.utils.response_helper import success_response, error_response, ErrorCode
-```
-
-#### Step 2: Replace HTTPException with error_response()
-
-**Before (❌ Non-compliant):**
-```python
-@router.post("/login")
-async def login(credentials: UserLogin):
-    user = authenticate_user(credentials.email, credentials.password)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다."
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=403,
-            detail="계정이 비활성화되었습니다."
-        )
-
-    token = create_access_token(data={"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
-```
-
-**After (✅ Compliant):**
-```python
-@router.post("/login")
-async def login(credentials: UserLogin):
-    user = authenticate_user(credentials.email, credentials.password)
-    if not user:
-        return error_response(
-            code=ErrorCode.AUTH_INVALID_CREDENTIALS,
-            http_status=401,
-            message="이메일 또는 비밀번호가 올바르지 않습니다.",
-            hint="입력 정보를 다시 확인해주세요."
-        )
-
-    if not user.is_active:
-        return error_response(
-            code=ErrorCode.AUTH_UNAUTHORIZED,
-            http_status=403,
-            message="계정이 비활성화되었습니다.",
-            hint="관리자에게 문의하여 계정을 활성화해주세요."
-        )
-
-    token = create_access_token(data={"sub": user.email})
-    return success_response({
-        "access_token": token,
-        "token_type": "bearer",
-        "user": UserResponse.from_orm(user)
-    })
-```
-
-#### Step 3: Wrap Success Responses
-
-**Before (❌ Non-compliant):**
-```python
-@router.get("/users", response_model=List[UserResponse])
-async def get_all_users(current_user: User = Depends(get_current_admin)):
-    users = UserDB.get_all_users()
-    return [UserResponse.from_orm(u) for u in users]
-```
-
-**After (✅ Compliant):**
-```python
-@router.get("/users")
-async def get_all_users(current_user: User = Depends(get_current_admin)):
-    try:
-        users = UserDB.get_all_users()
-        return success_response({
-            "users": [UserResponse.from_orm(u) for u in users],
-            "total": len(users)
-        })
-    except Exception as e:
-        return error_response(
-            code=ErrorCode.SERVER_DATABASE_ERROR,
-            http_status=500,
-            message="사용자 목록 조회 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )
-```
-
-#### Step 4: Handle Exceptions Properly
-
-**Before (❌ Non-compliant):**
-```python
-@router.delete("/reports/{report_id}")
-async def delete_report(report_id: int, current_user: User = Depends(get_current_user)):
-    report = ReportDB.get_report_by_id(report_id)
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-
-    if report.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Unauthorized")
-
-    ReportDB.delete_report(report_id)
-    return {"message": "Report deleted successfully"}
-```
-
-**After (✅ Compliant):**
-```python
-@router.delete("/reports/{report_id}")
-async def delete_report(report_id: int, current_user: User = Depends(get_current_user)):
-    try:
-        report = ReportDB.get_report_by_id(report_id)
-        if not report:
-            return error_response(
-                code=ErrorCode.REPORT_NOT_FOUND,
-                http_status=404,
-                message="보고서를 찾을 수 없습니다."
-            )
-
-        if report.user_id != current_user.id:
-            return error_response(
-                code=ErrorCode.REPORT_UNAUTHORIZED,
-                http_status=403,
-                message="이 보고서에 대한 권한이 없습니다."
-            )
-
-        ReportDB.delete_report(report_id)
-        return success_response({
-            "message": "보고서가 성공적으로 삭제되었습니다.",
-            "deleted_id": report_id
-        })
-
-    except Exception as e:
-        return error_response(
-            code=ErrorCode.SERVER_DATABASE_ERROR,
-            http_status=500,
-            message="보고서 삭제 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )
-```
-
-### Migration Checklist
-
-Use this checklist when migrating an endpoint:
-
-- [ ] Import `success_response`, `error_response`, `ErrorCode` from `response_helper`
-- [ ] Replace all `HTTPException` with `error_response()`
-- [ ] Wrap all success returns with `success_response()`
-- [ ] Use `ErrorCode` constants instead of hardcoded strings
-- [ ] Add meaningful `hint` messages to error responses
-- [ ] Add try-except blocks for database/external operations
-- [ ] Remove `response_model` from decorator (if it was direct model return)
-- [ ] Test both success and error cases
-- [ ] Update API documentation/examples
-
----
-
-## Reference Implementation: Topics Router
-
-The `topics.py` router serves as the **reference implementation** for the standard response format. Study this file when implementing new endpoints.
-
-### Example: Create Topic Endpoint
-
-**File**: `backend/app/routers/topics.py`
-
-```python
-from fastapi import APIRouter, Depends
-from app.database.topic_db import TopicDB
-from app.models.topic import TopicCreate, TopicResponse
-from app.utils.response_helper import success_response, error_response, ErrorCode
-from app.utils.auth import get_current_user
-from app.models.user import User
-
-router = APIRouter()
-
-@router.post("/api/topics")
-async def create_topic(
-    topic_data: TopicCreate,
-    current_user: User = Depends(get_current_user)
-):
-    """Create a new conversation topic.
-
-    Args:
-        topic_data: Topic creation data (input_prompt, language)
-        current_user: Authenticated user from JWT token
-
-    Returns:
-        Standard API response with created topic data
-    """
-    try:
-        # Business logic
-        topic = TopicDB.create_topic(
-            user_id=current_user.id,
-            topic_data=topic_data
-        )
-
-        # Success response with created resource
-        return success_response({
-            "id": topic.id,
-            "input_prompt": topic.input_prompt,
-            "language": topic.language,
-            "status": topic.status,
-            "created_at": topic.created_at.isoformat()
-        })
-
-    except ValueError as e:
-        # Handle validation errors
-        return error_response(
-            code=ErrorCode.VALIDATION_INVALID_FORMAT,
-            http_status=400,
-            message="입력 데이터가 올바르지 않습니다.",
-            details={"error": str(e)}
-        )
-
-    except Exception as e:
-        # Handle unexpected errors
-        return error_response(
-            code=ErrorCode.TOPIC_CREATION_FAILED,
-            http_status=500,
-            message="토픽 생성 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )
-
-
-@router.get("/api/topics/{topic_id}")
-async def get_topic(
-    topic_id: int,
-    current_user: User = Depends(get_current_user)
-):
-    """Get a specific topic by ID.
-
-    Args:
-        topic_id: Topic ID to retrieve
-        current_user: Authenticated user from JWT token
-
-    Returns:
-        Standard API response with topic data or error
-    """
-    try:
-        topic = TopicDB.get_topic_by_id(topic_id)
-
-        # Check if topic exists
-        if not topic:
-            return error_response(
-                code=ErrorCode.TOPIC_NOT_FOUND,
-                http_status=404,
-                message="토픽을 찾을 수 없습니다."
-            )
-
-        # Check authorization
-        if topic.user_id != current_user.id:
-            return error_response(
-                code=ErrorCode.TOPIC_UNAUTHORIZED,
-                http_status=403,
-                message="이 토픽에 대한 접근 권한이 없습니다."
-            )
-
-        # Return topic data
-        return success_response(TopicResponse.from_orm(topic).dict())
-
-    except Exception as e:
-        return error_response(
-            code=ErrorCode.SERVER_DATABASE_ERROR,
-            http_status=500,
-            message="토픽 조회 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )
-```
-
-### Key Patterns to Follow
-
-1. **Always use try-except blocks**
-   - Catch specific exceptions first (ValueError, KeyError, etc.)
-   - Catch generic Exception last as fallback
-   - Never let exceptions bubble up unhandled
-
-2. **Return appropriate HTTP status codes**
-   - 200: Success (GET, PATCH, DELETE)
-   - 201: Created (POST for new resources) - but we use 200 for consistency
-   - 400: Bad Request (validation errors)
-   - 401: Unauthorized (authentication failed)
-   - 403: Forbidden (authorization failed)
-   - 404: Not Found (resource doesn't exist)
-   - 500: Internal Server Error (unexpected errors)
-
-3. **Use descriptive error messages in Korean**
-   - User-facing messages should be in Korean
-   - Add helpful `hint` for common errors
-   - Include technical details in `details` field for debugging
-
-4. **Use ErrorCode constants**
-   - Never hardcode error code strings
-   - Use `ErrorCode.DOMAIN_DETAIL` pattern
-   - Add new constants to `ErrorCode` class if needed
-
-5. **Validate authorization**
-   - Check if resource exists first (404)
-   - Check if user has permission second (403)
-   - Return appropriate error codes
-
----
-
-## Available Error Codes
-
-All error codes are defined in `backend/app/utils/response_helper.py` as `ErrorCode` class constants.
-
-### Authentication & Authorization
-- `ErrorCode.AUTH_INVALID_TOKEN` - Invalid or malformed JWT token
-- `ErrorCode.AUTH_TOKEN_EXPIRED` - JWT token has expired
-- `ErrorCode.AUTH_UNAUTHORIZED` - User lacks required permissions
-- `ErrorCode.AUTH_INVALID_CREDENTIALS` - Wrong email/password
-
-### Topics
-- `ErrorCode.TOPIC_NOT_FOUND` - Topic with given ID doesn't exist
-- `ErrorCode.TOPIC_UNAUTHORIZED` - User doesn't own this topic
-- `ErrorCode.TOPIC_CREATION_FAILED` - Failed to create topic
-- `ErrorCode.TOPIC_UPDATE_FAILED` - Failed to update topic
-- `ErrorCode.TOPIC_DELETE_FAILED` - Failed to delete topic
-
-### Messages
-- `ErrorCode.MESSAGE_NOT_FOUND` - Message with given ID doesn't exist
-- `ErrorCode.MESSAGE_CREATION_FAILED` - Failed to create message
-- `ErrorCode.MESSAGE_UPDATE_FAILED` - Failed to update message
-- `ErrorCode.MESSAGE_DELETE_FAILED` - Failed to delete message
-
-### Artifacts
-- `ErrorCode.ARTIFACT_NOT_FOUND` - Artifact with given ID doesn't exist
-- `ErrorCode.ARTIFACT_INVALID_KIND` - Invalid artifact type
-- `ErrorCode.ARTIFACT_DOWNLOAD_FAILED` - Failed to download artifact
-
-### Validation
-- `ErrorCode.VALIDATION_REQUIRED_FIELD` - Required field is missing
-- `ErrorCode.VALIDATION_INVALID_FORMAT` - Data format is invalid
-- `ErrorCode.VALIDATION_MAX_LENGTH_EXCEEDED` - Input exceeds maximum length
-
-### Server Errors
-- `ErrorCode.SERVER_INTERNAL_ERROR` - Unexpected server error
-- `ErrorCode.SERVER_DATABASE_ERROR` - Database operation failed
-- `ErrorCode.SERVER_SERVICE_UNAVAILABLE` - Service temporarily unavailable
-
-**Note**: If you need a new error code, add it to the `ErrorCode` class in `response_helper.py` following the `DOMAIN_DETAIL` naming convention.
-
----
-
-## Testing Standard Responses
-
-When writing tests for endpoints, verify the standard response structure:
-
-```python
-def test_create_topic_success(client, auth_headers):
-    response = client.post(
-        "/api/topics",
-        headers=auth_headers,
-        json={"input_prompt": "Test topic", "language": "ko"}
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-
-    # Verify standard structure
-    assert body["success"] is True
-    assert body["data"] is not None
-    assert body["error"] is None
-    assert "requestId" in body["meta"]
-    assert isinstance(body["feedback"], list)
-
-    # Verify data content
-    assert body["data"]["input_prompt"] == "Test topic"
-
-
-def test_get_topic_not_found(client, auth_headers):
-    response = client.get("/api/topics/999999", headers=auth_headers)
-
-    assert response.status_code == 404
-    body = response.json()
-
-    # Verify standard error structure
-    assert body["success"] is False
-    assert body["data"] is None
-    assert body["error"] is not None
-    assert body["error"]["code"] == "TOPIC.NOT_FOUND"
-    assert body["error"]["httpStatus"] == 404
-    assert body["error"]["message"]
-    assert "traceId" in body["error"]
-```
+**마지막 업데이트:** 2025-11-04
+**버전:** 2.1
+**Claude Code 최적화**

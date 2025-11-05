@@ -1,0 +1,508 @@
+============================================================================================================= test session starts ==============================================================================================================
+platform win32 -- Python 3.11.14, pytest-8.3.4, pluggy-1.6.0 -- D:\WorkSpace\hwp-report\hwp-report-generator\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\WorkSpace\hwp-report\hwp-report-generator\backend
+configfile: pytest.ini
+plugins: anyio-3.7.1, asyncio-0.24.0, cov-6.0.0, mock-3.14.0
+asyncio: mode=Mode.AUTO, default_loop_scope=function
+collected 138 items                                                                                                                                                                                                                             
+
+tests/test_prompt_integration.py::TestPrompts::test_system_prompt_exists PASSED                                                                                                                                                           [  0%]
+tests/test_prompt_integration.py::TestPrompts::test_system_prompt_structure PASSED                                                                                                                                                        [  1%]
+tests/test_prompt_integration.py::TestPrompts::test_create_topic_context_message PASSED                                                                                                                                                   [  2%]
+tests/test_prompt_integration.py::TestPrompts::test_create_topic_context_message_with_special_chars PASSED                                                                                                                                [  2%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_parse_markdown_basic PASSED                                                                                                                                                    [  3%]
+tests/test_prompt_integration.py::TestMarkdownParser::test_parse_markdown_english_sections PASSED                                                                                                                                         [  4%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_extract_all_h2_sections PASSED                                                                                                                                                 [  5%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_classify_section_summary PASSED                                                                                                                                                [  5%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_classify_section_background PASSED                                                                                                                                             [  6%]
+tests/test_prompt_integration.py::TestMarkdownParser::test_classify_section_main_content PASSED                                                                                                                                           [  7%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_classify_section_conclusion PASSED                                                                                                                                             [  7%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_classify_section_unknown PASSED                                                                                                                                                [  8%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_extract_title_from_markdown PASSED                                                                                                                                             [  9%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_parse_markdown_no_sections PASSED                                                                                                                                              [ 10%] 
+tests/test_prompt_integration.py::TestMarkdownParser::test_parse_markdown_multiline_content PASSED                                                                                                                                        [ 10%]
+tests/test_prompt_integration.py::TestMessageConstruction::test_topic_context_message_structure PASSED                                                                                                                                    [ 11%] 
+tests/test_prompt_integration.py::TestMessageConstruction::test_messages_array_with_topic_context PASSED                                                                                                                                  [ 12%] 
+tests/test_prompt_integration.py::TestIntegration::test_end_to_end_markdown_flow FAILED                                                                                                                                                   [ 13%]
+tests/test_prompt_integration.py::TestIntegration::test_system_prompt_purity PASSED                                                                                                                                                       [ 13%] 
+tests/test_routers_admin.py::TestAdminRouter::test_get_all_users_as_admin PASSED                                                                                                                                                          [ 14%]
+tests/test_routers_admin.py::TestAdminRouter::test_approve_user PASSED                                                                                                                                                                    [ 15%]
+tests/test_routers_admin.py::TestAdminRouter::test_reject_user PASSED                                                                                                                                                                     [ 15%]
+tests/test_routers_admin.py::TestAdminRouter::test_reset_user_password PASSED                                                                                                                                                             [ 16%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifact_success PASSED                                                                                                                                                    [ 17%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifact_unauthorized PASSED                                                                                                                                               [ 18%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifact_not_found PASSED                                                                                                                                                  [ 18%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifact_content_success_md PASSED                                                                                                                                         [ 19%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifact_content_wrong_kind PASSED                                                                                                                                         [ 20%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_download_artifact_success PASSED                                                                                                                                               [ 21%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_download_artifact_missing_file PASSED                                                                                                                                          [ 21%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifacts_by_topic_filters PASSED                                                                                                                                          [ 22%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifact_content_not_found PASSED                                                                                                                                          [ 23%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_download_artifact_not_found PASSED                                                                                                                                             [ 23%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_get_artifacts_by_topic_not_found PASSED                                                                                                                                        [ 24%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_download_message_hwpx_existing PASSED                                                                                                                                          [ 25%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_download_message_hwpx_generates_from_md PASSED                                                                                                                                 [ 26%]
+tests/test_routers_artifacts.py::TestArtifactsRouter::test_download_message_hwpx_missing_md PASSED                                                                                                                                        [ 26%]
+tests/test_routers_auth.py::TestAuthRouter::test_register_success PASSED                                                                                                                                                                  [ 27%]
+tests/test_routers_auth.py::TestAuthRouter::test_register_duplicate_email PASSED                                                                                                                                                          [ 28%]
+tests/test_routers_auth.py::TestAuthRouter::test_login_success PASSED                                                                                                                                                                     [ 28%]
+tests/test_routers_auth.py::TestAuthRouter::test_login_wrong_password PASSED                                                                                                                                                              [ 29%]
+tests/test_routers_auth.py::TestAuthRouter::test_get_me PASSED                                                                                                                                                                            [ 30%]
+tests/test_routers_auth.py::TestAuthRouter::test_get_me_unauthorized PASSED                                                                                                                                                               [ 31%]
+tests/test_routers_auth.py::TestAuthRouter::test_logout_success PASSED                                                                                                                                                                    [ 31%]
+tests/test_routers_auth.py::TestAuthRouter::test_change_password_success PASSED                                                                                                                                                           [ 32%]
+tests/test_routers_auth.py::TestAuthRouter::test_change_password_wrong_current PASSED                                                                                                                                                     [ 33%]
+tests/test_routers_messages.py::TestMessagesRouter::test_create_message_success PASSED                                                                                                                                                    [ 34%]
+tests/test_routers_messages.py::TestMessagesRouter::test_create_message_topic_not_found PASSED                                                                                                                                            [ 34%]
+tests/test_routers_messages.py::TestMessagesRouter::test_create_message_unauthorized PASSED                                                                                                                                               [ 35%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_messages_success PASSED                                                                                                                                                      [ 36%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_message_not_found PASSED                                                                                                                                                     [ 36%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_message_wrong_topic PASSED                                                                                                                                                   [ 37%]
+tests/test_routers_messages.py::TestMessagesRouter::test_delete_message_success PASSED                                                                                                                                                    [ 38%]
+tests/test_routers_messages.py::TestMessagesRouter::test_delete_message_unauthorized PASSED                                                                                                                                               [ 39%]
+tests/test_routers_messages.py::TestMessagesRouter::test_delete_message_not_found PASSED                                                                                                                                                  [ 39%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_messages_empty PASSED                                                                                                                                                        [ 40%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_messages_with_pagination PASSED                                                                                                                                              [ 41%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_messages_topic_not_found PASSED                                                                                                                                              [ 42%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_messages_unauthorized PASSED                                                                                                                                                 [ 42%]
+tests/test_routers_messages.py::TestMessagesRouter::test_get_message_success PASSED                                                                                                                                                       [ 43%]
+tests/test_routers_messages.py::TestMessagesRouter::test_create_message_invalid_role PASSED                                                                                                                                               [ 44%]
+tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_success FAILED                                                                                                                                            [ 44%]
+tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_saves_to_db FAILED                                                                                                                                        [ 45%]
+tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_tracks_token_usage FAILED                                                                                                                                 [ 46%]
+tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_claude_api_error FAILED                                                                                                                                   [ 47%]
+tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_unauthorized FAILED                                                                                                                                       [ 47%]
+tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_empty_topic FAILED                                                                                                                                        [ 48%]
+tests/test_routers_reports.py::TestGetMyReportsEndpoint::test_get_my_reports_success FAILED                                                                                                                                               [ 49%]
+tests/test_routers_reports.py::TestGetMyReportsEndpoint::test_get_my_reports_empty PASSED                                                                                                                                                 [ 50%]
+tests/test_routers_reports.py::TestGetMyReportsEndpoint::test_get_my_reports_unauthorized PASSED                                                                                                                                          [ 50%]
+tests/test_routers_reports.py::TestDownloadReportEndpoint::test_download_report_success FAILED                                                                                                                                            [ 51%]
+tests/test_routers_reports.py::TestDownloadReportEndpoint::test_download_report_not_found PASSED                                                                                                                                          [ 52%]
+tests/test_routers_reports.py::TestDownloadReportEndpoint::test_download_report_unauthorized PASSED                                                                                                                                       [ 52%]
+tests/test_routers_reports.py::TestDeleteReportEndpoint::test_delete_report_success SKIPPED (DELETE /api/reports/{id} 엔드포인트가 아직 구현되지 않음)                                                                                    [ 53%] 
+tests/test_routers_reports.py::TestDeleteReportEndpoint::test_delete_report_not_found SKIPPED (DELETE /api/reports/{id} 엔드포인트가 아직 구현되지 않음)                                                                                  [ 54%] 
+tests/test_routers_reports.py::TestDeleteReportEndpoint::test_delete_report_unauthorized SKIPPED (DELETE /api/reports/{id} 엔드포인트가 아직 구현되지 않음)                                                                               [ 55%] 
+tests/test_routers_reports.py::TestReportsEndToEnd::test_full_report_lifecycle FAILED                                                                                                                                                     [ 55%]
+tests/test_routers_topics.py::TestTopicsRouter::test_create_topic_success PASSED                                                                                                                                                          [ 56%]
+tests/test_routers_topics.py::TestTopicsRouter::test_get_my_topics_empty PASSED                                                                                                                                                           [ 57%]
+tests/test_routers_topics.py::TestTopicsRouter::test_get_my_topics_with_one PASSED                                                                                                                                                        [ 57%]
+tests/test_routers_topics.py::TestTopicsRouter::test_get_topic_not_found PASSED                                                                                                                                                           [ 58%]
+tests/test_routers_topics.py::TestTopicsRouter::test_get_topic_unauthorized PASSED                                                                                                                                                        [ 59%]
+tests/test_routers_topics.py::TestTopicsRouter::test_update_topic_success PASSED                                                                                                                                                          [ 60%]
+tests/test_routers_topics.py::TestTopicsRouter::test_update_topic_unauthorized PASSED                                                                                                                                                     [ 60%]
+tests/test_routers_topics.py::TestTopicsRouter::test_delete_topic_success PASSED                                                                                                                                                          [ 61%]
+tests/test_routers_topics.py::TestTopicsRouter::test_delete_topic_not_found PASSED                                                                                                                                                        [ 62%]
+tests/test_routers_topics.py::TestTopicsRouter::test_generate_topic_report_success FAILED                                                                                                                                                 [ 63%]
+tests/test_routers_topics.py::TestTopicsRouter::test_generate_topic_report_empty_prompt PASSED                                                                                                                                            [ 63%]
+tests/test_routers_topics.py::TestTopicsRouter::test_generate_topic_report_whitespace_only PASSED                                                                                                                                         [ 64%]
+tests/test_routers_topics.py::TestTopicsRouter::test_generate_topic_report_claude_error PASSED                                                                                                                                            [ 65%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_success_no_artifact PASSED                                                                                                                                                       [ 65%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_with_latest_md PASSED                                                                                                                                                            [ 66%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_with_specific_md PASSED                                                                                                                                                          [ 67%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_context_too_large PASSED                                                                                                                                                         [ 68%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_artifact_not_found PASSED                                                                                                                                                        [ 68%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_artifact_wrong_kind PASSED                                                                                                                                                       [ 69%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_unauthorized_topic PASSED                                                                                                                                                        [ 70%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_max_messages_limit PASSED                                                                                                                                                        [ 71%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_empty_content PASSED                                                                                                                                                             [ 71%]
+tests/test_routers_topics.py::TestTopicsRouter::test_ask_topic_not_found PASSED                                                                                                                                                           [ 72%]
+tests/test_utils_auth.py::TestPasswordHashing::test_hash_password PASSED                                                                                                                                                                  [ 73%]
+tests/test_utils_auth.py::TestPasswordHashing::test_verify_password_success PASSED                                                                                                                                                        [ 73%]
+tests/test_utils_auth.py::TestPasswordHashing::test_verify_password_failure PASSED                                                                                                                                                        [ 74%]
+tests/test_utils_auth.py::TestJWTToken::test_create_access_token PASSED                                                                                                                                                                   [ 75%] 
+tests/test_utils_auth.py::TestJWTToken::test_create_access_token_with_expires PASSED                                                                                                                                                      [ 76%] 
+tests/test_utils_auth.py::TestJWTToken::test_decode_access_token_success PASSED                                                                                                                                                           [ 76%] 
+tests/test_utils_auth.py::TestJWTToken::test_decode_access_token_invalid PASSED                                                                                                                                                           [ 77%]
+tests/test_utils_auth.py::TestJWTToken::test_decode_access_token_expired PASSED                                                                                                                                                           [ 78%] 
+tests/test_utils_claude_client.py::TestClaudeClientInit::test_init_success PASSED                                                                                                                                                         [ 78%]
+tests/test_utils_claude_client.py::TestClaudeClientInit::test_init_missing_api_key PASSED                                                                                                                                                 [ 79%] 
+tests/test_utils_claude_client.py::TestClaudeClientInit::test_init_default_model PASSED                                                                                                                                                   [ 80%]
+tests/test_utils_claude_client.py::TestClaudeClientGenerateReport::test_generate_report_success FAILED                                                                                                                                    [ 81%]
+tests/test_utils_claude_client.py::TestClaudeClientGenerateReport::test_generate_report_with_valid_structure FAILED                                                                                                                       [ 81%]
+tests/test_utils_claude_client.py::TestClaudeClientGenerateReport::test_generate_report_tracks_token_usage PASSED                                                                                                                         [ 82%]
+tests/test_utils_claude_client.py::TestClaudeClientGenerateReport::test_generate_report_api_error PASSED                                                                                                                                  [ 83%] 
+tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_valid_content FAILED                                                                                                                                    [ 84%]
+tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_missing_sections FAILED                                                                                                                                 [ 84%]
+tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_empty_content FAILED                                                                                                                                    [ 85%]
+tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_malformed_content FAILED                                                                                                                                [ 86%]
+tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_whitespace_handling FAILED                                                                                                                              [ 86%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerInit::test_init_success PASSED                                                                                                                                                             [ 87%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerInit::test_init_missing_template PASSED                                                                                                                                                    [ 88%] 
+tests/test_utils_hwp_handler.py::TestHWPHandlerInit::test_init_creates_directories PASSED                                                                                                                                                 [ 89%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerGenerateReport::test_generate_report_success PASSED                                                                                                                                        [ 89%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerGenerateReport::test_generate_report_custom_filename PASSED                                                                                                                                [ 90%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerGenerateReport::test_generate_report_auto_filename PASSED                                                                                                                                  [ 91%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerGenerateReport::test_generate_report_returns_path PASSED                                                                                                                                   [ 92%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerReplaceContent::test_replace_content_all_placeholders PASSED                                                                                                                               [ 92%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerReplaceContent::test_replace_content_adds_date PASSED                                                                                                                                      [ 93%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerFormatForHwp::test_format_single_linebreak PASSED                                                                                                                                          [ 94%] 
+tests/test_utils_hwp_handler.py::TestHWPHandlerFormatForHwp::test_format_double_linebreak PASSED                                                                                                                                          [ 94%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerFormatForHwp::test_format_xml_special_chars PASSED                                                                                                                                         [ 95%] 
+tests/test_utils_hwp_handler.py::TestHWPHandlerFormatForHwp::test_format_empty_text PASSED                                                                                                                                                [ 96%] 
+tests/test_utils_hwp_handler.py::TestHWPHandlerCleanLinesegarray::test_clean_removes_linesegarray PASSED                                                                                                                                  [ 97%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerCleanLinesegarray::test_clean_preserves_other_content PASSED                                                                                                                               [ 97%] 
+tests/test_utils_hwp_handler.py::TestHWPHandlerEndToEnd::test_full_report_generation PASSED                                                                                                                                               [ 98%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerEndToEnd::test_generated_file_is_valid_hwpx PASSED                                                                                                                                         [ 99%]
+tests/test_utils_hwp_handler.py::TestHWPHandlerEndToEnd::test_placeholders_replaced_in_generated_file PASSED                                                                                                                              [100%]
+
+=================================================================================================================== FAILURES =================================================================================================================== 
+________________________________________________________________________________________________ TestIntegration.test_end_to_end_markdown_flow _________________________________________________________________________________________________ 
+tests\test_prompt_integration.py:303: in test_end_to_end_markdown_flow
+    assert len(content[field]) > 0, f"{field} is empty"
+E   AssertionError: conclusion is empty
+E   assert 0 > 0
+E    +  where 0 = len('')
+___________________________________________________________________________________________ TestGenerateReportEndpoint.test_generate_report_success ____________________________________________________________________________________________ 
+tests\test_routers_reports.py:65: in test_generate_report_success
+    assert response.status_code == 200
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:38,206 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:38,219 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+_________________________________________________________________________________________ TestGenerateReportEndpoint.test_generate_report_saves_to_db __________________________________________________________________________________________ 
+tests\test_routers_reports.py:98: in test_generate_report_saves_to_db
+    assert response.status_code == 200
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:39,045 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:39,055 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+______________________________________________________________________________________ TestGenerateReportEndpoint.test_generate_report_tracks_token_usage ______________________________________________________________________________________ 
+tests\test_routers_reports.py:132: in test_generate_report_tracks_token_usage
+    assert response.status_code == 200
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:39,892 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:39,902 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+_______________________________________________________________________________________ TestGenerateReportEndpoint.test_generate_report_claude_api_error _______________________________________________________________________________________ 
+tests\test_routers_reports.py:164: in test_generate_report_claude_api_error
+    assert response.status_code == 500
+E   assert 404 == 500
+E    +  where 404 = <Response [404 Not Found]>.status_code
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:40,730 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:40,738 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+_________________________________________________________________________________________ TestGenerateReportEndpoint.test_generate_report_unauthorized _________________________________________________________________________________________ 
+tests\test_routers_reports.py:173: in test_generate_report_unauthorized
+    assert response.status_code == 403
+E   assert 404 == 403
+E    +  where 404 = <Response [404 Not Found]>.status_code
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:40,854 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+_________________________________________________________________________________________ TestGenerateReportEndpoint.test_generate_report_empty_topic __________________________________________________________________________________________ 
+tests\test_routers_reports.py:183: in test_generate_report_empty_topic
+    assert response.status_code == 422
+E   assert 404 == 422
+E    +  where 404 = <Response [404 Not Found]>.status_code
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:41,698 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:41,704 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+_____________________________________________________________________________________________ TestGetMyReportsEndpoint.test_get_my_reports_success _____________________________________________________________________________________________ 
+tests\test_routers_reports.py:224: in test_get_my_reports_success
+    assert data["total"] >= 1
+E   assert 0 >= 1
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:42,540 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:42,551 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+2025-11-03 17:54:42,563 - httpx - INFO - HTTP Request: GET http://testserver/api/reports/my-reports "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+INFO     httpx:_client.py:1038 HTTP Request: GET http://testserver/api/reports/my-reports "HTTP/1.1 200 OK"
+___________________________________________________________________________________________ TestDownloadReportEndpoint.test_download_report_success ____________________________________________________________________________________________ 
+tests\test_routers_reports.py:270: in test_download_report_success
+    report_id = create_response.json()["data"]["id"]
+E   KeyError: 'data'
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:44,306 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:44,317 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call ---------------------------------------------------------------------------------------------------------------
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+________________________________________________________________________________________________ TestReportsEndToEnd.test_full_report_lifecycle ________________________________________________________________________________________________ 
+tests\test_routers_reports.py:368: in test_full_report_lifecycle
+    assert create_response.status_code == 200
+E   assert 404 == 200
+E    +  where 404 = <Response [404 Not Found]>.status_code
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:46,069 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:46,079 - httpx - INFO - HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/reports/generate "HTTP/1.1 404 Not Found"
+_____________________________________________________________________________________________ TestTopicsRouter.test_generate_topic_report_success ______________________________________________________________________________________________ 
+tests\test_routers_topics.py:172: in test_generate_topic_report_success
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------------------------------------------------------------------------------------ Captured stderr setup ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:55,241 - httpx - INFO - HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+-------------------------------------------------------------------------------------------------------------- Captured log setup -------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/auth/login "HTTP/1.1 200 OK"
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:54:55,254 - httpx - INFO - HTTP Request: POST http://testserver/api/topics/generate "HTTP/1.1 500 Internal Server Error"
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     httpx:_client.py:1038 HTTP Request: POST http://testserver/api/topics/generate "HTTP/1.1 500 Internal Server Error"
+_________________________________________________________________________________________ TestClaudeClientGenerateReport.test_generate_report_success __________________________________________________________________________________________ 
+tests\test_utils_claude_client.py:95: in test_generate_report_success
+    assert "title" in result
+E   AssertionError: assert 'title' in '[제목]\n디지털 뱅킹 혁신 보고서\n[배경제목]\n추진 배경\n[배경]\n최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.\n[주요내용제목]\n주요 혁신 동향\n[주요내용]\n1. AI 기반 개인화 서비스\n2. 블록체인 기술 활용\n3. 모바일 우선 전략\n[결론제목]\n향후 과제\n[결론]\n지속적인 기술 투자와 인재 육성이 필요합니다.\n[요약제목]\n핵심 요약\n[요약]\n디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.' 
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:55:09,668 - app.utils.claude_client - INFO - Claude API 호출 시작 - 주제: 2025년 디지털 뱅킹 트렌드
+2025-11-03 17:55:09,669 - app.utils.claude_client - INFO - 사용 모델: claude-sonnet-4-5-20250929
+2025-11-03 17:55:09,669 - app.utils.claude_client - INFO - 최대 토큰: 8192
+2025-11-03 17:55:09,669 - app.utils.claude_client - INFO - ================================================================================
+2025-11-03 17:55:09,670 - app.utils.claude_client - INFO - Claude API 응답 내용 (Markdown):
+2025-11-03 17:55:09,670 - app.utils.claude_client - INFO - ================================================================================
+2025-11-03 17:55:09,670 - app.utils.claude_client - INFO - [제목]
+디지털 뱅킹 혁신 보고서
+[배경제목]
+추진 배경
+[배경]
+최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.
+[주요내용제목]
+주요 혁신 동향
+[주요내용]
+1. AI 기반 개인화 서비스
+2. 블록체인 기술 활용
+3. 모바일 우선 전략
+[결론제목]
+향후 과제
+[결론]
+지속적인 기술 투자와 인재 육성이 필요합니다.
+[요약제목]
+핵심 요약
+[요약]
+디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.
+2025-11-03 17:55:09,670 - app.utils.claude_client - INFO - ================================================================================
+2025-11-03 17:55:09,670 - app.utils.claude_client - INFO - 응답 길이: 257 문자
+2025-11-03 17:55:09,670 - app.utils.claude_client - INFO - 토큰 사용량 - Input: 1500, Output: 3200
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     app.utils.claude_client:claude_client.py:59 Claude API 호출 시작 - 주제: 2025년 디지털 뱅킹 트렌드
+INFO     app.utils.claude_client:claude_client.py:60 사용 모델: claude-sonnet-4-5-20250929
+INFO     app.utils.claude_client:claude_client.py:61 최대 토큰: 8192
+INFO     app.utils.claude_client:claude_client.py:75 ================================================================================
+INFO     app.utils.claude_client:claude_client.py:76 Claude API 응답 내용 (Markdown):
+INFO     app.utils.claude_client:claude_client.py:77 ================================================================================
+INFO     app.utils.claude_client:claude_client.py:78 [제목]
+디지털 뱅킹 혁신 보고서
+[배경제목]
+추진 배경
+[배경]
+최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.
+[주요내용제목]
+주요 혁신 동향
+[주요내용]
+1. AI 기반 개인화 서비스
+2. 블록체인 기술 활용
+3. 모바일 우선 전략
+[결론제목]
+향후 과제
+[결론]
+지속적인 기술 투자와 인재 육성이 필요합니다.
+[요약제목]
+핵심 요약
+[요약]
+디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.
+INFO     app.utils.claude_client:claude_client.py:79 ================================================================================
+INFO     app.utils.claude_client:claude_client.py:81 응답 길이: 257 문자
+INFO     app.utils.claude_client:claude_client.py:82 토큰 사용량 - Input: 1500, Output: 3200
+___________________________________________________________________________________ TestClaudeClientGenerateReport.test_generate_report_with_valid_structure ___________________________________________________________________________________ 
+tests\test_utils_claude_client.py:127: in test_generate_report_with_valid_structure
+    assert key in result, f"Missing key: {key}"
+E   AssertionError: Missing key: title
+E   assert 'title' in '[제목]\n디지털 뱅킹 혁신 보고서\n[배경제목]\n추진 배경\n[배경]\n최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.\n[주요내용제목]\n주요 혁신 동향\n[주요내용]\n1. AI 기반 개인화 서비스\n2. 블록체인 기술 활용\n3. 모바일 우선 전략\n[결론제목]\n향후 과제\n[결론]\n지속적인 기술 투자와 인재 육성이 필요합니다.\n[요약제목]\n핵심 요약\n[요약]\n디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.'
+------------------------------------------------------------------------------------------------------------- Captured stderr call ------------------------------------------------------------------------------------------------------------- 
+2025-11-03 17:55:09,696 - app.utils.claude_client - INFO - Claude API 호출 시작 - 주제: 테스트 주제
+2025-11-03 17:55:09,696 - app.utils.claude_client - INFO - 사용 모델: claude-sonnet-4-5-20250929
+2025-11-03 17:55:09,697 - app.utils.claude_client - INFO - 최대 토큰: 8192
+2025-11-03 17:55:09,697 - app.utils.claude_client - INFO - ================================================================================
+2025-11-03 17:55:09,697 - app.utils.claude_client - INFO - Claude API 응답 내용 (Markdown):
+2025-11-03 17:55:09,697 - app.utils.claude_client - INFO - ================================================================================
+2025-11-03 17:55:09,697 - app.utils.claude_client - INFO - [제목]
+디지털 뱅킹 혁신 보고서
+[배경제목]
+추진 배경
+[배경]
+최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.
+[주요내용제목]
+주요 혁신 동향
+[주요내용]
+1. AI 기반 개인화 서비스
+2. 블록체인 기술 활용
+3. 모바일 우선 전략
+[결론제목]
+향후 과제
+[결론]
+지속적인 기술 투자와 인재 육성이 필요합니다.
+[요약제목]
+핵심 요약
+[요약]
+디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.
+2025-11-03 17:55:09,698 - app.utils.claude_client - INFO - ================================================================================
+2025-11-03 17:55:09,698 - app.utils.claude_client - INFO - 응답 길이: 257 문자
+2025-11-03 17:55:09,698 - app.utils.claude_client - INFO - 토큰 사용량 - Input: 1500, Output: 3200
+-------------------------------------------------------------------------------------------------------------- Captured log call --------------------------------------------------------------------------------------------------------------- 
+INFO     app.utils.claude_client:claude_client.py:59 Claude API 호출 시작 - 주제: 테스트 주제
+INFO     app.utils.claude_client:claude_client.py:60 사용 모델: claude-sonnet-4-5-20250929
+INFO     app.utils.claude_client:claude_client.py:61 최대 토큰: 8192
+INFO     app.utils.claude_client:claude_client.py:75 ================================================================================
+INFO     app.utils.claude_client:claude_client.py:76 Claude API 응답 내용 (Markdown):
+INFO     app.utils.claude_client:claude_client.py:77 ================================================================================
+INFO     app.utils.claude_client:claude_client.py:78 [제목]
+디지털 뱅킹 혁신 보고서
+[배경제목]
+추진 배경
+[배경]
+최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.
+[주요내용제목]
+주요 혁신 동향
+[주요내용]
+1. AI 기반 개인화 서비스
+2. 블록체인 기술 활용
+3. 모바일 우선 전략
+[결론제목]
+향후 과제
+[결론]
+지속적인 기술 투자와 인재 육성이 필요합니다.
+[요약제목]
+핵심 요약
+[요약]
+디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.
+INFO     app.utils.claude_client:claude_client.py:79 ================================================================================
+INFO     app.utils.claude_client:claude_client.py:81 응답 길이: 257 문자
+INFO     app.utils.claude_client:claude_client.py:82 토큰 사용량 - Input: 1500, Output: 3200
+_________________________________________________________________________________________ TestClaudeClientParseReportContent.test_parse_valid_content __________________________________________________________________________________________ 
+tests\test_utils_claude_client.py:189: in test_parse_valid_content
+    result = client._parse_report_content(content)
+E   AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+________________________________________________________________________________________ TestClaudeClientParseReportContent.test_parse_missing_sections ________________________________________________________________________________________ 
+tests\test_utils_claude_client.py:226: in test_parse_missing_sections
+    result = client._parse_report_content(content)
+E   AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+_________________________________________________________________________________________ TestClaudeClientParseReportContent.test_parse_empty_content __________________________________________________________________________________________ 
+tests\test_utils_claude_client.py:242: in test_parse_empty_content
+    result = client._parse_report_content("")
+E   AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+_______________________________________________________________________________________ TestClaudeClientParseReportContent.test_parse_malformed_content ________________________________________________________________________________________ 
+tests\test_utils_claude_client.py:259: in test_parse_malformed_content
+    result = client._parse_report_content(content)
+E   AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+______________________________________________________________________________________ TestClaudeClientParseReportContent.test_parse_whitespace_handling _______________________________________________________________________________________ 
+tests\test_utils_claude_client.py:288: in test_parse_whitespace_handling
+    result = client._parse_report_content(content)
+E   AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+
+---------- coverage: platform win32, python 3.11.14-final-0 ----------
+Name                                Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------
+app\__init__.py                         1      0   100%
+app\database\__init__.py               16      2    88%   17-18
+app\database\ai_usage_db.py            66     35    47%   89-96, 108-118, 136-146, 165-203, 223-232
+app\database\artifact_db.py            86      7    92%   260-269
+app\database\connection.py             32      0   100%
+app\database\message_db.py             61      0   100%
+app\database\report_db.py              52     23    56%   23-42, 74-81, 86-94, 99
+app\database\token_usage_db.py         49     32    35%   16-35, 40-50, 55-78, 83-107, 112, 125-129
+app\database\topic_db.py               83      5    94%   107-109, 153-154
+app\database\transformation_db.py      54     36    33%   37-65, 77-84, 102-112, 131-141, 153-162, 174
+app\database\user_db.py                88     10    89%   84-85, 100, 132-140
+app\main.py                           201    132    34%   20-31, 36, 81-98, 145, 151, 157, 163, 169, 175, 193-298, 315-338, 352-374, 382-411, 415-436
+app\models\__init__.py                  4      0   100%
+app\models\ai_usage.py                 40      0   100%
+app\models\artifact.py                 48      0   100%
+app\models\message.py                  35      0   100%
+app\models\report.py                   25      0   100%
+app\models\token_usage.py              34      0   100%
+app\models\topic.py                    36      0   100%
+app\models\transformation.py           27      0   100%
+app\models\user.py                     36      0   100%
+app\routers\__init__.py                 7      0   100%
+app\routers\admin.py                   73     24    67%   49-50, 77, 84, 99-100, 127, 142-143, 170, 195-196, 214-223, 245-257
+app\routers\artifacts.py              127     22    83%   145, 174-182, 225, 255-256, 306, 314, 321, 341, 362, 377, 427-431, 497, 506, 526-527
+app\routers\auth.py                    54     10    81%   57-58, 91, 119-120, 151-152, 210, 224-225
+app\routers\messages.py                69     11    84%   96-97, 195-196, 250, 257, 327, 350, 361-368
+app\routers\reports.py                 39     10    74%   23, 143-144, 180-203
+app\routers\topics.py                 228     51    78%   86-87, 127-184, 240, 260-261, 328, 383, 401-402, 461, 472-479, 538-539, 547-548, 578-579, 640-641, 662-664, 701-702, 723-725, 778-780, 804-805
+app\utils\__init__.py                   0      0   100%
+app\utils\artifact_manager.py          72     72     0%   7-260
+app\utils\auth.py                      61      6    90%   34, 80, 88, 102, 115, 127
+app\utils\claude_client.py             73     30    59%   134-187, 202
+app\utils\file_utils.py                27      1    96%   18
+app\utils\hwp_handler.py              115     19    83%   104, 161-163, 274-286, 296-355
+app\utils\markdown_builder.py          15     12    20%   19-44
+app\utils\markdown_parser.py           51      1    98%   79
+app\utils\md_handler.py                99     99     0%   6-256
+app\utils\prompts.py                    3      0   100%
+app\utils\response_helper.py           43      2    95%   114-120
+-----------------------------------------------------------------
+TOTAL                                2230    652    71%
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+
+=========================================================================================================== short test summary info ============================================================================================================ 
+FAILED tests/test_prompt_integration.py::TestIntegration::test_end_to_end_markdown_flow - AssertionError: conclusion is empty
+assert 0 > 0
+ +  where 0 = len('')
+FAILED tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_success - assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+FAILED tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_saves_to_db - assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+FAILED tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_tracks_token_usage - assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+FAILED tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_claude_api_error - assert 404 == 500
+ +  where 404 = <Response [404 Not Found]>.status_code
+FAILED tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_unauthorized - assert 404 == 403
+ +  where 404 = <Response [404 Not Found]>.status_code
+FAILED tests/test_routers_reports.py::TestGenerateReportEndpoint::test_generate_report_empty_topic - assert 404 == 422
+ +  where 404 = <Response [404 Not Found]>.status_code
+FAILED tests/test_routers_reports.py::TestGetMyReportsEndpoint::test_get_my_reports_success - assert 0 >= 1
+FAILED tests/test_routers_reports.py::TestDownloadReportEndpoint::test_download_report_success - KeyError: 'data'
+FAILED tests/test_routers_reports.py::TestReportsEndToEnd::test_full_report_lifecycle - assert 404 == 200
+ +  where 404 = <Response [404 Not Found]>.status_code
+FAILED tests/test_routers_topics.py::TestTopicsRouter::test_generate_topic_report_success - assert 500 == 200
+ +  where 500 = <Response [500 Internal Server Error]>.status_code
+FAILED tests/test_utils_claude_client.py::TestClaudeClientGenerateReport::test_generate_report_success - AssertionError: assert 'title' in '[제목]\n디지털 뱅킹 혁신 보고서\n[배경제목]\n추진 배경\n[배경]\n최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.\n[주요내용제목]\n주요 혁신 동향\n[주요내용]\n1. AI 기반 개인화 서비스\n2. 블록체인 기술 활용\n3. 모바일 우선 전략\n[결론제목]\n향후 과제\n[결론]\n지속적인 기술 투자와 인재 육성이 필요합니다.\n[요약제목]\n핵심 요약\n[요약]\n디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.'
+FAILED tests/test_utils_claude_client.py::TestClaudeClientGenerateReport::test_generate_report_with_valid_structure - AssertionError: Missing key: title
+assert 'title' in '[제목]\n디지털 뱅킹 혁신 보고서\n[배경제목]\n추진 배경\n[배경]\n최근 디지털 금융 환경의 급격한 변화로 인해 은행들은 새로운 기술 도입이 필수적입니다.\n[주요내용제목]\n주요 혁신 동향\n[주요내용]\n1. AI 기반 개인화 서비스\n2. 블록체인 기술 활용\n3. 모바일 우선 전략\n[결론제목]\n향후 과제\n[결론]\n지속적인 기술 투자와 인재 육성이 필요합니다.\n[요약제목]\n핵심 요약\n[요약]\n디지털 뱅킹은 AI와 빅데이터를 활용하여 고객 경험을 혁신하고 있습니다.'
+FAILED tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_valid_content - AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+FAILED tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_missing_sections - AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+FAILED tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_empty_content - AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+FAILED tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_malformed_content - AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'
+FAILED tests/test_utils_claude_client.py::TestClaudeClientParseReportContent::test_parse_whitespace_handling - AttributeError: 'ClaudeClient' object has no attribute '_parse_report_content'

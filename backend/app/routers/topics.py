@@ -21,6 +21,8 @@ from shared.types.enums import TopicStatus, MessageRole, ArtifactKind
 from app.utils.markdown_builder import build_report_md
 from app.utils.file_utils import next_artifact_version, build_artifact_paths, write_text, sha256_of
 from app.utils.claude_client import ClaudeClient
+from app.utils.prompts import FINANCIAL_REPORT_SYSTEM_PROMPT, create_topic_context_message
+from app.utils.markdown_parser import parse_markdown_to_content
 import time
 import logging
 from shared.constants import ProjectPath
@@ -117,7 +119,10 @@ async def generate_topic_report(
         # 1) Claude 호출
         start_ms = time.time()
         claude = ClaudeClient()
-        result = claude.generate_report(topic_data.input_prompt.strip())
+        md_content = claude.generate_report(topic_data.input_prompt.strip())
+
+        # Markdown을 파싱하여 content dict로 변환
+        result = parse_markdown_to_content(md_content)
 
         latency_ms = int((time.time() - start_ms) * 1000)
 
@@ -669,6 +674,12 @@ async def ask(
         for m in context_messages
     ]
 
+    # Topic context를 첫 번째 메시지로 추가
+    topic_context_msg = create_topic_context_message(topic.input_prompt)
+    claude_messages = [topic_context_msg] + claude_messages
+
+    logger.info(f"[ASK] Added topic context as first message - topic={topic.input_prompt}")
+
     # 길이 검증
     total_chars = sum(len(msg["content"]) for msg in claude_messages)
     MAX_CONTEXT_CHARS = 50000
@@ -685,27 +696,13 @@ async def ask(
             hint="max_messages를 줄이거나 include_artifact_content를 false로 설정해주세요."
         )
 
-    # 시스템 프롬프트 구성
+    # 시스템 프롬프트 구성 (순수 지침만)
     if body.system_prompt:
         system_prompt = body.system_prompt
         logger.info(f"[ASK] Using custom system prompt - length={len(system_prompt)}")
     else:
-        default_prompt = """당신은 금융 기관의 전문 보고서 작성자입니다.
-사용자의 요청에 따라 전문적이고 격식있는 금융 업무보고서를 Markdown 형식으로 작성해주세요.
-
-보고서는 다음 섹션을 포함해야 합니다:
-- # 제목 (H1)
-- ## 요약 (H2)
-- ## 배경 및 목적 (H2)
-- ## 주요 내용 (H2)
-- ## 결론 및 제언 (H2)
-
-명확하고 이해하기 쉽게 작성하되, 금융 용어와 데이터를 적절히 활용하여 신뢰성을 높여주세요.
-모든 출력은 Markdown 형식이어야 합니다."""
-
-        topic_context = f"\n\n**대화 주제**: {topic.input_prompt}\n이전 메시지를 문맥으로 활용하여 일관된 문체와 구조로 답변하세요."
-        system_prompt = default_prompt + topic_context
-        logger.info(f"[ASK] Using default system prompt with topic context")
+        system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
+        logger.info(f"[ASK] Using default system prompt")
 
     # === 5단계: Claude 호출 ===
     logger.info(f"[ASK] Calling Claude API - messages={len(claude_messages)}")
