@@ -8,6 +8,7 @@
 import api from './api'
 import {API_ENDPOINTS} from '../constants/'
 import type {LoginRequest, LoginResponse, RegisterRequest, ChangePasswordRequest} from '../types/auth'
+import type {UserData} from '../types/user'
 import type {ApiResponse} from '../types/api'
 
 export const authApi = {
@@ -69,5 +70,20 @@ export const authApi = {
         if (!response.data.success) {
             throw new Error(response.data.error?.message || '비밀번호 변경에 실패했습니다.')
         }
+    },
+
+    /**
+     * 내 정보 조회
+     * GET /api/auth/me
+     * @returns 현재 로그인한 사용자 정보
+     */
+    getMyInfo: async (): Promise<UserData> => {
+        const response = await api.get<ApiResponse<UserData>>(API_ENDPOINTS.ME)
+
+        if (!response.data.success || !response.data.data) {
+            throw new Error(response.data.error?.message || '사용자 정보를 불러올 수 없습니다.')
+        }
+
+        return response.data.data
     }
 }

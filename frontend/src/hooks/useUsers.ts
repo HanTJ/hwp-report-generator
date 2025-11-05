@@ -7,7 +7,7 @@ import type {UserData} from '../types/user'
  *
  * ⭐ 사용자 관리 로직을 담은 Custom Hook
  *
- * React Query란?
+ * user-gy2znmpzOYSvAeh1A7kV7rSy
  * - 서버 데이터를 캐싱하고 관리하는 라이브러리
  * - 자동으로 로딩, 에러, 데이터 상태를 관리
  * - 데이터를 메모리에 캐시해서 불필요한 API 요청 감소

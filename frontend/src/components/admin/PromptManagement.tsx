@@ -63,9 +63,12 @@ const PromptManagement: React.FC = () => {
 
             // 임시로 기본값 설정
             form.setFieldsValue(defaultPrompts)
-            message.success('프롬프트를 불러왔습니다.')
         } catch (error: any) {
-            message.error('프롬프트를 불러오는데 실패했습니다.')
+            message.error({
+                content: '프롬프트를 불러오는데 실패했습니다.',
+                key: 'load-prompts',
+                duration: 3
+            })
             console.error('Failed to load prompts:', error)
             // 실패 시에도 기본값 표시
             form.setFieldsValue(defaultPrompts)

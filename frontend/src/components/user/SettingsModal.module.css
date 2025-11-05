@@ -1,0 +1,249 @@
+.modal :global(.ant-modal-content) {
+    padding: 0;
+}
+
+.modal :global(.ant-modal-body) {
+    padding: 0;
+}
+
+/* Modal Container */
+.modalContainer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Modal Body - Flexbox Layout */
+.modalBody {
+    display: flex;
+    min-height: 400px;
+    flex: 1;
+}
+
+/* Left Sidebar */
+.sidebar {
+    width: 200px;
+    border-right: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Sidebar Header - X 버튼 */
+.sidebarHeader {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-md) 0 var(--spacing-md) var(--spacing-sm);
+    height: 60px;
+}
+
+.closeButton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #666;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.closeButton:hover {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+/* Sidebar Menu */
+.sidebarMenu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--spacing-sm) 0;
+    flex: 1;
+}
+
+.tabButton {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0 var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    color: #666;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.tabButton:hover {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.tabButton.active {
+    background-color: #e8e8e8;
+    color: #333;
+    font-weight: 500;
+}
+
+.tabIcon {
+    font-size: 1.125rem;
+}
+
+/* Right Content Area */
+.content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Content Header */
+.contentHeader {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid #e0e0e0;
+    height: 60px;
+}
+
+.contentHeaderTitle {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Content Body */
+.tabContent {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: var(--spacing-xs) var(--spacing-md);
+    flex: 1;
+}
+
+/* General Tab - Setting Row */
+.settingRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) 0;
+}
+
+.settingLabel {
+    font-size: 0.9375rem;
+    color: #333;
+    font-weight: 500;
+}
+
+/* Profile Tab - User Info */
+.profileInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: var(--spacing-sm) 0;
+}
+
+.label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.value {
+    font-size: 1rem;
+    color: #333;
+    padding: 0.75rem 1rem;
+    background-color: #f5f5f5;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+/* Loading */
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem 0;
+}
+
+.loading p {
+    margin: 0;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+/* Empty */
+.empty {
+    text-align: center;
+    padding: 3rem 0;
+    color: #999;
+    font-size: 0.875rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .modalBody {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .sidebarHeader {
+        padding: 0.75rem 1rem;
+        height: 50px;
+    }
+
+    .sidebarMenu {
+        flex-direction: row;
+        padding: 0.5rem 0;
+    }
+
+    .tabButton {
+        flex: 1;
+        justify-content: center;
+        padding: 0.75rem;
+    }
+
+    .contentHeader {
+        padding: 0.75rem 1rem;
+        height: 50px;
+    }
+
+    .contentHeaderTitle {
+        font-size: 1.125rem;
+    }
+
+    .tabContent {
+        padding: 1.5rem 1rem;
+    }
+
+    .contentTitle {
+        font-size: 1rem;
+    }
+
+    .value {
+        font-size: 0.875rem;
+        padding: 0.625rem 0.75rem;
+    }
+}

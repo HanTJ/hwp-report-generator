@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react'
+import React, {useEffect, useState} from 'react'
 import {
     PlusOutlined,
     MessageOutlined,
@@ -9,11 +9,13 @@ import {
     SettingOutlined,
     LogoutOutlined
 } from '@ant-design/icons'
-import {message} from 'antd'
+import {message, Dropdown} from 'antd'
+import type {MenuProps} from 'antd'
 import {useNavigate} from 'react-router-dom'
 import {useAuth} from '../../hooks/useAuth'
 import {useTopicStore} from '../../stores/useTopicStore'
 import {UI_CONFIG} from '../../constants'
+import SettingsModal from '../user/SettingsModal'
 import styles from './Sidebar.module.css'
 
 interface SidebarProps {
@@ -26,6 +28,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNewTopic}) => {
     const {user, logout} = useAuth()
     const navigate = useNavigate()
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
     // Use Zustand store for topic management - Sidebar용 상태만 사용
     const {sidebarTopics, sidebarLoading, selectedTopicId, loadSidebarTopics} = useTopicStore()
@@ -83,6 +86,41 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
         }
     }
 
+    // 드롭다운 메뉴 아이템
+    const userMenuItems: MenuProps['items'] = [
+        {
+            key: 'email',
+            label: user?.email,
+            disabled: true,
+            style: {cursor: 'default'}
+        },
+        ...(user?.is_admin
+            ? [
+                  {
+                      key: 'admin',
+                      label: '관리자 페이지',
+                      icon: <SettingOutlined />,
+                      onClick: handleAdminClick
+                  }
+              ]
+            : []),
+        {
+            key: 'settings',
+            label: '설정',
+            icon: <SettingOutlined />,
+            onClick: () => setIsSettingsOpen(true)
+        },
+        {
+            type: 'divider' as const
+        },
+        {
+            key: 'logout',
+            label: '로그아웃',
+            icon: <LogoutOutlined />,
+            onClick: handleLogout
+        }
+    ]
+
     return (
         <nav className={`${styles.sidebar} ${isOpen ? styles.open : styles.collapsed}`}>
             {/* Collapsed State (닫힌 상태) */}
@@ -103,17 +141,11 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
 
                     {/* Bottom Menu - Collapsed */}
                     <div className={styles.bottomMenu}>
-                        {user?.is_admin && (
-                            <button className={styles.iconBtn} onClick={handleAdminClick} title="관리자 페이지">
-                                <SettingOutlined />
+                        <Dropdown menu={{items: userMenuItems}} trigger={['click']} placement="topLeft">
+                            <button className={styles.iconBtn} title={user?.username || '사용자'}>
+                                <UserOutlined />
                             </button>
-                        )}
-                        <button className={styles.iconBtn} title={user?.username || '사용자'}>
-                            <UserOutlined />
-                        </button>
-                        <button className={styles.iconBtn} onClick={handleLogout} title="로그아웃">
-                            <LogoutOutlined />
-                        </button>
+                        </Dropdown>
                     </div>
                 </>
             )}
@@ -186,23 +218,18 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
 
                     {/* Bottom Menu - Expanded */}
                     <div className={styles.bottomMenuExpanded}>
-                        {user?.is_admin && (
-                            <button className={styles.menuItem} onClick={handleAdminClick}>
-                                <SettingOutlined />
-                                <span>관리자 페이지</span>
+                        <Dropdown menu={{items: userMenuItems}} trigger={['click']} placement="topLeft">
+                            <button className={styles.menuItem}>
+                                <UserOutlined />
+                                <span>{user?.username || '사용자'}</span>
                             </button>
-                        )}
-                        <button className={styles.menuItem}>
-                            <UserOutlined />
-                            <span>{user?.username || '사용자'}</span>
-                        </button>
-                        <button className={styles.menuItem} onClick={handleLogout}>
-                            <LogoutOutlined />
-                            <span>로그아웃</span>
-                        </button>
+                        </Dropdown>
                     </div>
                 </>
             )}
+
+            {/* Settings Modal */}
+            <SettingsModal user={null} isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </nav>
     )
 }
