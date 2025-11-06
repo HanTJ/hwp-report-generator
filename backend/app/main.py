@@ -55,6 +55,7 @@ from app.routers import (
     topics_router,
     messages_router,
     artifacts_router,
+    templates_router,
 )
 
 # 로깅 설정
@@ -121,6 +122,9 @@ app.include_router(admin_router)
 app.include_router(topics_router)
 app.include_router(messages_router)
 app.include_router(artifacts_router)
+
+# Template management routers
+app.include_router(templates_router)
 
 # 템플릿 파일 경로 (HWP 템플릿)
 TEMPLATE_PATH = str(BACKEND_DIR / "templates" / "report_template.hwpx")

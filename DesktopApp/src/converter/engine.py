@@ -1,6 +1,8 @@
 """pyhwpx 기반 Markdown → HWPX 변환 엔진."""
 
 from __future__ import annotations
+
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, TYPE_CHECKING
@@ -39,6 +41,12 @@ class SectionStyle:
 TITLE_STYLE = SectionStyle(font_size=20, bold=True, indent_mm=0.0, line_spacing=160, next_spacing_pt=12)
 SUBTITLE_STYLE = SectionStyle(font_size=16, bold=True, indent_mm=0.0, line_spacing=160, next_spacing_pt=6)
 BODY_STYLE = SectionStyle(font_size=11, bold=False, indent_mm=5.0, line_spacing=160, prev_spacing_pt=2)
+TABLE_HEADER_STYLE = SectionStyle(font_size=11, bold=True, indent_mm=0.0, line_spacing=160, prev_spacing_pt=2)
+TABLE_BODY_STYLE = SectionStyle(font_size=11, bold=False, indent_mm=0.0, line_spacing=160, prev_spacing_pt=2)
+H3_STYLE = SectionStyle(font_size=14, bold=True, indent_mm=0.0, line_spacing=160, prev_spacing_pt=4, next_spacing_pt=2)
+H4_STYLE = SectionStyle(font_size=13, bold=True, indent_mm=0.0, line_spacing=160, prev_spacing_pt=3, next_spacing_pt=2)
+H5_STYLE = SectionStyle(font_size=12, bold=True, indent_mm=0.0, line_spacing=160, prev_spacing_pt=2, next_spacing_pt=1)
+H6_STYLE = SectionStyle(font_size=11, bold=True, indent_mm=0.0, line_spacing=160, prev_spacing_pt=2, next_spacing_pt=1)
 TABLE_HEADER_STYLE = SectionStyle(font_size=11, bold=True, indent_mm=0.0, line_spacing=160)
 TABLE_BODY_STYLE = SectionStyle(font_size=11, bold=False, indent_mm=0.0, line_spacing=160)
 
@@ -147,7 +155,8 @@ class ConversionEngine:
         hwp.insert_text(section.title)
         self._break_para(hwp)
 
-        paragraphs = [chunk for chunk in section.content.split("\n\n") if chunk.strip()]
+        source_text = section.raw_content or section.content
+        paragraphs = [chunk for chunk in source_text.split("\n\n") if chunk.strip()]
         if not paragraphs:
             self._break_para(hwp)
             return
@@ -160,6 +169,20 @@ class ConversionEngine:
                     self._write_table(hwp, header, rows)
                     continue
 
+            heading = self._detect_heading(trimmed)
+            if heading is not None:
+                level, heading_text = heading
+                heading_style = {
+                    3: H3_STYLE,
+                    4: H4_STYLE,
+                    5: H5_STYLE,
+                    6: H6_STYLE,
+                }.get(level, H3_STYLE)
+                self._apply_style(hwp, heading_style, bullet_mode=False)
+                self._insert_inline_text(hwp, heading_text)
+                self._break_para(hwp)
+                continue
+
             lines = paragraph.splitlines()
             bullet_mode = self._is_bullet(lines[0] if lines else "")
             self._apply_style(hwp, BODY_STYLE, bullet_mode=bullet_mode)
@@ -167,8 +190,10 @@ class ConversionEngine:
                 if line_idx:
                     self._break_para(hwp)
                 text = line.rstrip()
+                if bullet_mode:
+                    text = self._format_bullet_text(text)
                 if text:
-                    hwp.insert_text(text)
+                    self._insert_inline_text(hwp, text)
             self._break_para(hwp)
             if index < len(paragraphs) - 1:
                 self._break_para(hwp)
@@ -236,7 +261,7 @@ class ConversionEngine:
 
                 text = cell.strip()
                 if text:
-                    hwp.insert_text(text)
+                    self._insert_inline_text(hwp, text)
 
                 if col_index < column_count - 1:
                     hwp.TableRightCell()
@@ -301,3 +326,65 @@ class ConversionEngine:
         if mm <= 0:
             return 0.0
         return mm * 72.0 / 25.4
+
+    def _detect_heading(self, text: str) -> Optional[Tuple[int, str]]:
+        match = re.match(r"^(#{3,6})\s+(.*)$", text)
+        if not match:
+            return None
+        level = len(match.group(1))
+        return level, match.group(2).strip()
+
+    def _format_bullet_text(self, text: str) -> str:
+        stripped = text.lstrip()
+        for prefix in ("- ", "* ", "+ "):
+            if stripped.startswith(prefix):
+                stripped = stripped[len(prefix) :]
+                break
+        if re.match(r"^\d+\.\s+", stripped):
+            return stripped
+        return f"• {stripped}"
+
+    def _insert_inline_text(self, hwp: "Hwp", text: str) -> None:
+        segments = self._split_inline_segments(text)
+        if not segments:
+            segments = [(text, False, False)]
+        for content, bold, italic in segments:
+            if not content:
+                continue
+            self._set_inline_style(hwp, bold, italic)
+            hwp.insert_text(content)
+        self._set_inline_style(hwp, False, False)
+
+    @staticmethod
+    def _set_inline_style(hwp: "Hwp", bold: bool, italic: bool) -> None:
+        hwp.set_font(Bold=bold, Italic=italic)
+
+    @staticmethod
+    def _split_inline_segments(text: str) -> List[Tuple[str, bool, bool]]:
+        segments: List[Tuple[str, bool, bool]] = []
+        i = 0
+        length = len(text)
+        markers = ["***", "___", "**", "__", "*", "_"]
+        while i < length:
+            match_pos = None
+            marker_found = None
+            for marker in markers:
+                pos = text.find(marker, i)
+                if pos != -1 and (match_pos is None or pos < match_pos):
+                    match_pos = pos
+                    marker_found = marker
+            if match_pos is None or marker_found is None:
+                segments.append((text[i:], False, False))
+                break
+            if match_pos > i:
+                segments.append((text[i:match_pos], False, False))
+            closing = text.find(marker_found, match_pos + len(marker_found))
+            if closing == -1:
+                segments.append((text[match_pos:], False, False))
+                break
+            inner = text[match_pos + len(marker_found) : closing]
+            bold = marker_found in ("***", "___", "**", "__")
+            italic = marker_found in ("***", "___", "*", "_")
+            segments.append((inner, bold, italic))
+            i = closing + len(marker_found)
+        return segments

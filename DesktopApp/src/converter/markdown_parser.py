@@ -20,6 +20,7 @@ class ParsedSection:
     role: str
     title: str
     content: str
+    raw_content: str
 
 
 @dataclass(frozen=True)
@@ -77,12 +78,26 @@ class MarkdownParser:
             raw_text = source
 
         content_dict = parse_markdown_to_content(raw_text)
+        payloads = extract_section_payloads(raw_text)
+        role_to_payload = {}
+        for payload in payloads:
+            role_to_payload.setdefault(payload.role, payload)
+
+        def build_section(role: str, title_key: str, content_key: str) -> ParsedSection:
+            payload = role_to_payload.get(role)
+            raw_body = payload.raw if payload else content_dict[content_key]
+            return ParsedSection(
+                role=role,
+                title=content_dict[title_key],
+                content=content_dict[content_key],
+                raw_content=raw_body,
+            )
 
         sections = [
-            ParsedSection("summary", content_dict["title_summary"], content_dict["summary"]),
-            ParsedSection("background", content_dict["title_background"], content_dict["background"]),
-            ParsedSection("main_content", content_dict["title_main_content"], content_dict["main_content"]),
-            ParsedSection("conclusion", content_dict["title_conclusion"], content_dict["conclusion"]),
+            build_section("summary", "title_summary", "summary"),
+            build_section("background", "title_background", "background"),
+            build_section("main_content", "title_main_content", "main_content"),
+            build_section("conclusion", "title_conclusion", "conclusion"),
         ]
 
         # 내용이 없는 섹션은 제외
@@ -169,21 +184,20 @@ def parse_markdown_to_content(md_text: str) -> Dict[str, str]:
     if title_match:
         content["title"] = title_match.group(1).strip()
 
-    h2_sections = extract_all_h2_sections(md_text)
-    for section_title, section_body in h2_sections:
-        section_type = classify_section(section_title)
-        if section_type == "summary":
-            content["title_summary"] = section_title
-            content["summary"] = section_body
-        elif section_type == "background":
-            content["title_background"] = section_title
-            content["background"] = section_body
-        elif section_type == "main_content":
-            content["title_main_content"] = section_title
-            content["main_content"] = section_body
-        elif section_type == "conclusion":
-            content["title_conclusion"] = section_title
-            content["conclusion"] = section_body
+    payloads = extract_section_payloads(md_text)
+    for payload in payloads:
+        if payload.role == "summary":
+            content["title_summary"] = payload.title
+            content["summary"] = payload.plain
+        elif payload.role == "background":
+            content["title_background"] = payload.title
+            content["background"] = payload.plain
+        elif payload.role == "main_content":
+            content["title_main_content"] = payload.title
+            content["main_content"] = payload.plain
+        elif payload.role == "conclusion":
+            content["title_conclusion"] = payload.title
+            content["conclusion"] = payload.plain
 
     if not any(
         (
@@ -210,6 +224,27 @@ def extract_all_h2_sections(md_text: str) -> List[Tuple[str, str]]:
         (title.strip(), markdown_to_plain_text(body.strip()))
         for title, body in matches
     ]
+
+
+def extract_section_payloads(md_text: str) -> List[SectionPayload]:
+    """H2 섹션을 파싱해 서식 정보를 유지한다."""
+    pattern = r"^##\s+(.+?)\s*$\n+(.*?)(?=\n+^##\s|\Z)"
+    matches = re.findall(pattern, md_text, re.MULTILINE | re.DOTALL)
+    payloads: List[SectionPayload] = []
+    for title, body in matches:
+        cleaned_title = title.strip()
+        raw_body = body.strip()
+        plain_body = markdown_to_plain_text(raw_body)
+        role = classify_section(cleaned_title)
+        payloads.append(
+            SectionPayload(
+                role=role,
+                title=cleaned_title,
+                plain=plain_body,
+                raw=raw_body,
+            )
+        )
+    return payloads
 
 
 def classify_section(section_title: str) -> str:
@@ -241,3 +276,11 @@ def extract_title_from_markdown(md_text: str) -> str:
     if match:
         return match.group(1).strip()
     return "보고서"
+@dataclass(frozen=True)
+class SectionPayload:
+    """H2 섹션에서 추출한 페이로드."""
+
+    role: str
+    title: str
+    plain: str
+    raw: str

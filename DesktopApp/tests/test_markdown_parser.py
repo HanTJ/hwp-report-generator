@@ -40,7 +40,7 @@ def test_parse_basic_sections() -> None:
 
     assert sections["summary"].title == "핵심 요약"
     assert "은행권은 2026년" in sections["summary"].content
+    assert "**은행권**" in sections["summary"].raw_content
     assert sections["background"].title == "추진 배경"
     assert sections["main_content"].content.startswith("1. 시장 규모 확대")
     assert sections["conclusion"].content.endswith("필요합니다.")
-
