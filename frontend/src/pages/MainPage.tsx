@@ -10,13 +10,12 @@ import {GeneratingIndicator} from '../components/chat/GeneratingIndicator'
 import Sidebar from '../components/layout/Sidebar'
 import styles from './MainPage.module.css'
 import MainLayout from '../components/layout/MainLayout'
-import {messageApi} from '../services/messageApi'
 import {artifactApi} from '../services/artifactApi'
 import {useTopicStore} from '../stores/useTopicStore'
 import {useMessages} from '../hooks/useMessages'
+import {useMessageStore} from '../stores/useMessageStore'
 import {useArtifactHandlers} from '../hooks/useArtifactHandlers'
 import {useChatActions} from '../hooks/useChatActions'
-import {toUIMessages, enrichMessagesWithArtifacts} from '../utils/messageHelpers'
 
 interface DownloadedFile {
     id: number
@@ -28,16 +27,10 @@ interface DownloadedFile {
 
 const MainPage: React.FC = () => {
     // 🎯 Custom Hooks로 상태 관리 간소화
-    const {selectedTopicId, setSelectedTopicId, addTopic} = useTopicStore()
-    const {
-        messages,
-        setMessages,
-        isLoadingMessages,
-        isGenerating,
-        setIsGenerating,
-        reloadMessagesWithArtifacts
-    } = useMessages(selectedTopicId)
-    
+    const {selectedTopicId, setSelectedTopicId} = useTopicStore()
+    const {messages, setMessages, isLoadingMessages, refreshMessages} = useMessages(selectedTopicId)
+    const {isGeneratingMessage, isDeletingMessage} = useMessageStore()
+
     const {
         isReportsDropdownOpen,
         setIsReportsDropdownOpen,
@@ -49,13 +42,12 @@ const MainPage: React.FC = () => {
         handleArtifactDownload,
         handleArtifactPreview
     } = useArtifactHandlers()
-    
-    const {handleSendMessage: sendMessage} = useChatActions({
+
+    const {handleSendMessage: sendMessage, handleDeleteMessage: deleteMessage} = useChatActions({
         selectedTopicId,
         setSelectedTopicId,
         setMessages,
-        setIsGenerating,
-        reloadMessagesWithArtifacts
+        refreshMessages
     })
 
     // UI 상태
@@ -67,6 +59,7 @@ const MainPage: React.FC = () => {
     } | null>(null)
     const [downloadedFiles, setDownloadedFiles] = useState<DownloadedFile[]>([])
     const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false)
+
     const lastUserMessageRef = useRef<HTMLDivElement>(null)
     const reportsDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -142,39 +135,17 @@ const MainPage: React.FC = () => {
     }
 
     /**
+     * 메시지 삭제 핸들러 (useChatActions 훅 래핑)
+     */
+    const handleDeleteMessage = async (messageId: number) => {
+        await deleteMessage(messageId, setSelectedReport, selectedReport, messages)
+    }
+
+    /**
      * 보고서 미리보기 닫기
      */
     const handleClosePreview = () => {
         setSelectedReport(null)
-    }
-
-    /**
-     * 토픽 선택 (사이드바에서)
-     */
-    const handleTopicSelect = async (topicId: number) => {
-        setSelectedTopicId(topicId)
-        setIsGenerating(false)
-
-        try {
-            const messagesResponse = await messageApi.listMessages(topicId)
-            const uiMessages = toUIMessages(messagesResponse.messages)
-            setMessages(uiMessages)
-
-            const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
-
-            if (artifactsResponse.artifacts.length > 0) {
-                const messagesWithArtifacts = await enrichMessagesWithArtifacts(
-                    uiMessages,
-                    artifactsResponse.artifacts
-                )
-                setMessages(messagesWithArtifacts)
-            }
-        } catch (error: any) {
-            console.error('Error loading topic messages:', error)
-            antdMessage.error('메시지를 불러오는데 실패했습니다.')
-        } finally {
-            setIsGenerating(false)
-        }
     }
 
     /**
@@ -197,7 +168,7 @@ const MainPage: React.FC = () => {
             {/* Dim Overlay - 모바일/태블릿에서 사이드바 열렸을 때 */}
             {isLeftSidebarOpen && <div className={styles.dimOverlay} onClick={handleToggleSidebar} />}
 
-            <Sidebar isOpen={isLeftSidebarOpen} onToggle={handleToggleSidebar} onTopicSelect={handleTopicSelect} onNewTopic={handleNewTopic} />
+            <Sidebar isOpen={isLeftSidebarOpen} onToggle={handleToggleSidebar} onTopicSelect={setSelectedTopicId} onNewTopic={handleNewTopic} />
 
             <div className={`${styles.mainChatPage} ${isLeftSidebarOpen ? styles.sidebarExpanded : styles.sidebarCollapsed}`}>
                 {/* 햄버거 메뉴 버튼 - 모바일/태블릿에서만 표시 */}
@@ -218,11 +189,18 @@ const MainPage: React.FC = () => {
 
                                     return (
                                         <div key={message.id} ref={isLastUserMessage ? lastUserMessageRef : null}>
-                                            <ChatMessage message={message} onReportClick={handleReportClick} onDownload={handleDownload} />
+                                            <ChatMessage
+                                                message={message}
+                                                onReportClick={handleReportClick}
+                                                onDownload={handleDownload}
+                                                onDelete={handleDeleteMessage}
+                                                isGenerating={isGeneratingMessage}
+                                                isDeleting={isDeletingMessage}
+                                            />
                                         </div>
                                     )
                                 })}
-                                {isGenerating && <GeneratingIndicator />}
+                                {isGeneratingMessage && <GeneratingIndicator />}
                             </div>
                         )}
                     </div>
@@ -230,7 +208,7 @@ const MainPage: React.FC = () => {
                     <div className={styles.chatInputWrapper}>
                         <ChatInput
                             onSend={sendMessage}
-                            disabled={isGenerating}
+                            disabled={isGeneratingMessage}
                             onReportsClick={() => handleReportsClick(selectedTopicId)}
                             reportsDropdown={
                                 isReportsDropdownOpen && selectedTopicId ? (

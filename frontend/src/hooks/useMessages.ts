@@ -2,43 +2,35 @@ import {useState, useEffect} from 'react'
 import {message as antdMessage} from 'antd'
 import {messageApi} from '../services/messageApi'
 import {artifactApi} from '../services/artifactApi'
-import {
-    toUIMessages,
-    enrichMessagesWithArtifacts,
-    type Message
-} from '../utils/messageHelpers'
+import {toUIMessages, enrichMessagesWithArtifacts, type Message} from '../utils/messageHelpers'
 
 /**
  * useMessages.ts
- * 
- * 메시지 상태 및 로딩 관리 커스텀 훅
+ *
+ * 메시지 조회 커스텀 훅
  */
 
 export const useMessages = (selectedTopicId: number | null) => {
     const [messages, setMessages] = useState<Message[]>([])
     const [isLoadingMessages, setIsLoadingMessages] = useState(false)
-    const [isGenerating, setIsGenerating] = useState(false)
 
     /**
-     * 선택된 토픽의 메시지 로드 (아티팩트 포함)
+     * 특정 주제의 메시지 리스트 조회 (아티팩트 포함)
      */
-    const loadTopicMessages = async (topicId: number) => {
+    const fetchMessages = async (topicId: number) => {
         setIsLoadingMessages(true)
         try {
-            // 메시지 목록 조회
+            // 메시지 리스트 조회
             const messagesResponse = await messageApi.listMessages(topicId)
             const uiMessages = toUIMessages(messagesResponse.messages)
 
-            // 아티팩트 목록 불러오기
+            // 아티팩트 리스트 불러오기
             try {
                 const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
 
                 // 아티팩트가 있으면 메시지에 연결
                 if (artifactsResponse.artifacts.length > 0) {
-                    const messagesWithArtifacts = await enrichMessagesWithArtifacts(
-                        uiMessages,
-                        artifactsResponse.artifacts
-                    )
+                    const messagesWithArtifacts = await enrichMessagesWithArtifacts(uiMessages, artifactsResponse.artifacts)
                     setMessages(messagesWithArtifacts)
                 } else {
                     setMessages(uiMessages)
@@ -57,9 +49,9 @@ export const useMessages = (selectedTopicId: number | null) => {
     }
 
     /**
-     * 메시지 목록 재조회 (AI 응답 후)
+     * 메시지 리스트 재조회 (AI 응답 후)
      */
-    const reloadMessagesWithArtifacts = async (topicId: number) => {
+    const refreshMessages = async (topicId: number) => {
         try {
             const messagesResponse = await messageApi.listMessages(topicId)
             const uiMessages = toUIMessages(messagesResponse.messages)
@@ -68,26 +60,24 @@ export const useMessages = (selectedTopicId: number | null) => {
             const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
 
             if (artifactsResponse.artifacts.length > 0) {
-                const messagesWithArtifacts = await enrichMessagesWithArtifacts(
-                    uiMessages,
-                    artifactsResponse.artifacts
-                )
+                const messagesWithArtifacts = await enrichMessagesWithArtifacts(uiMessages, artifactsResponse.artifacts)
                 setMessages(messagesWithArtifacts)
             } else {
                 setMessages(uiMessages)
             }
         } catch (error) {
             console.error('Failed to reload messages:', error)
+            antdMessage.error('메시지를 불러오는데 실패했습니다.')
             throw error
         }
     }
 
     /**
-     * 선택된 토픽이 변경되면 메시지 자동 로드
+     * 선택된 주제가 변경되면 메시지 자동 조회
      */
     useEffect(() => {
         if (selectedTopicId) {
-            loadTopicMessages(selectedTopicId)
+            fetchMessages(selectedTopicId)
         } else {
             setMessages([])
             setIsLoadingMessages(false)
@@ -98,9 +88,7 @@ export const useMessages = (selectedTopicId: number | null) => {
         messages,
         setMessages,
         isLoadingMessages,
-        isGenerating,
-        setIsGenerating,
-        loadTopicMessages,
-        reloadMessagesWithArtifacts
+        fetchMessages,
+        refreshMessages
     }
 }

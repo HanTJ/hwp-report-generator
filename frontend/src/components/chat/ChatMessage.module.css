@@ -79,7 +79,7 @@
 
 .messageSender {
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     color: #1a1a1a;
 }
 
@@ -88,7 +88,41 @@
     color: #999999;
 }
 
+.deleteBtn {
+    position: absolute;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    background-color: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+
+.deleteBtn:hover:not(:disabled) {
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+.deleteBtn:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.deleteBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .messageContent {
+    position: relative;
     font-size: 0.9375rem;
     line-height: 1.6;
     color: #1a1a1a;

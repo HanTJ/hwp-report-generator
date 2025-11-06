@@ -1,0 +1,56 @@
+.modalTitle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.titleIcon {
+    color: var(--error-color);
+    font-size: var(--font-size-lg);
+}
+
+.modalContent {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) 0;
+}
+
+.modalContent p {
+    margin: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+}
+
+.icon {
+    font-size: var(--font-size-md);
+    flex-shrink: 0;
+}
+
+.warningText {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-medium);
+}
+
+.infoText {
+    color: var(--text-secondary);
+}
+
+.cautionText {
+    color: var(--error-color);
+    font-weight: var(--font-weight-medium);
+}
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+    .modalContent {
+        gap: var(--spacing-sm);
+    }
+
+    .modalContent p {
+        font-size: var(--font-size-xs);
+    }
+}

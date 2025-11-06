@@ -73,6 +73,7 @@ export const API_ENDPOINTS = {
     // 메시지 API
     LIST_MESSAGES: (topicId: number) => `/api/topics/${topicId}/messages`, // 토픽의 메시지 목록
     CREATE_MESSAGE: (topicId: number) => `/api/topics/${topicId}/messages`, // 새 메시지 생성 (AI 응답 자동)
+    DELETE_MESSAGE: (topicId: number, messageId: number) => `/api/topics/${topicId}/messages/${messageId}`, // 메시지 삭제
 
     // 아티팩트 API
     GET_ARTIFACT: (artifactId: number) => `/api/artifacts/${artifactId}`, // 아티팩트 메타데이터 조회

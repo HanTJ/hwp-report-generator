@@ -176,7 +176,7 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
                         {/* 최근 항목 */}
                         <div className={styles.recentLabel}>최근 항목</div>
 
-                        {/* 토픽 리스트 */}
+                        {/* 대화 리스트 */}
                         <div className={styles.topicList}>
                             {sidebarLoading ? (
                                 <div className={styles.loadingState}>

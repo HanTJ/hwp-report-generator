@@ -33,7 +33,7 @@ interface TopicStore {
     // Actions - 공통 (양쪽 리스트에 모두 반영)
     addTopic: (topic: Topic) => void
     updateTopicInBothLists: (topicId: number, updates: Partial<Topic>) => void
-    removeTopicFromBothLists: (topicId: number) => void
+    removeTopicFromBothLists: (topicId: number) => Promise<void>
     setSelectedTopicId: (id: number | null) => void
     refreshTopic: (topicId: number) => Promise<void>
     updateTopicById: (topicId: number, data: TopicUpdate) => Promise<void>
@@ -94,10 +94,18 @@ export const useTopicStore = create<TopicStore>((set, get) => ({
 
     // 토픽 생성 후 양쪽 리스트에 추가
     addTopic: (topic) => {
-        set((state) => ({
-            sidebarTopics: [topic, ...state.sidebarTopics],
-            pageTopics: [topic, ...state.pageTopics]
-        }))
+        set((state) => {
+            // Sidebar: 최신 토픽을 앞에 추가하고, SIDEBAR_TOPICS_PER_PAGE 제한 적용
+            const newSidebarTopics = [topic, ...state.sidebarTopics].slice(0, UI_CONFIG.PAGINATION.SIDEBAR_TOPICS_PER_PAGE)
+
+            // Page: 제한 없이 추가 (페이지네이션은 loadPageTopics에서 관리)
+            const newPageTopics = [topic, ...state.pageTopics]
+
+            return {
+                sidebarTopics: newSidebarTopics,
+                pageTopics: newPageTopics
+            }
+        })
     },
 
     // 토픽 업데이트 (양쪽 리스트에 모두 반영)
@@ -109,12 +117,19 @@ export const useTopicStore = create<TopicStore>((set, get) => ({
     },
 
     // 양쪽 리스트에서 토픽 삭제
-    removeTopicFromBothLists: (topicId) => {
+    removeTopicFromBothLists: async (topicId) => {
         set((state) => ({
             sidebarTopics: state.sidebarTopics.filter((topic) => topic.id !== topicId),
             pageTopics: state.pageTopics.filter((topic) => topic.id !== topicId),
             selectedTopicId: state.selectedTopicId === topicId ? null : state.selectedTopicId
         }))
+
+        // 사이드바 토픽 재로드 (삭제 후 빈 자리를 채우기 위해)
+        try {
+            await get().loadSidebarTopics()
+        } catch (error) {
+            console.error('Failed to reload sidebar topics after deletion:', error)
+        }
     },
 
     // 선택된 토픽 ID 설정
