@@ -17,7 +17,6 @@
 
 import React from 'react'
 import {BrowserRouter as Router, Routes, Route, Navigate} from 'react-router-dom'
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import '@ant-design/v5-patch-for-react-19'
 import {ConfigProvider, App as AntdApp} from 'antd'
 import koKR from 'antd/locale/ko_KR'
@@ -32,30 +31,16 @@ import TopicListPage from './pages/TopicListPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import AdminPage from './pages/AdminPage'
 
-// React Query 설정
-// - retry: API 실패 시 1번만 재시도
-// - refetchOnWindowFocus: 브라우저 탭 전환 시 자동 새로고침 안 함
-const queryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            retry: 1,
-            refetchOnWindowFocus: false
-        }
-    }
-})
-
 const App: React.FC = () => {
     return (
-        // React Query: 서버 데이터 캐싱 및 상태 관리
-        <QueryClientProvider client={queryClient}>
-            {/* Ant Design 한글 설정 */}
-            <ConfigProvider locale={koKR}>
-                {/* Ant Design App: Modal, message 같은 전역 컴포넌트 사용 가능하게 함 */}
-                <AntdApp>
-                    {/* 인증 Context: 로그인 사용자 정보를 앱 전체에서 사용 가능 */}
-                    <AuthProvider>
-                        {/* 라우터: URL에 따라 다른 페이지를 보여줌 */}
-                        <Router>
+        // Ant Design 한글 설정
+        <ConfigProvider locale={koKR}>
+            {/* Ant Design App: Modal, message 같은 전역 컴포넌트 사용 가능하게 함 */}
+            <AntdApp>
+                {/* 인증 Context: 로그인 사용자 정보를 앱 전체에서 사용 가능 */}
+                <AuthProvider>
+                    {/* 라우터: URL에 따라 다른 페이지를 보여줌 */}
+                    <Router>
                             <Routes>
                                 {/* 공개 라우트: 로그인 안 한 사람만 접근 가능 */}
                                 <Route
@@ -127,7 +112,6 @@ const App: React.FC = () => {
                     </AuthProvider>
                 </AntdApp>
             </ConfigProvider>
-        </QueryClientProvider>
     )
 }
 

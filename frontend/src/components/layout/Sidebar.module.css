@@ -25,6 +25,11 @@
     margin: 0;
     padding: 0 var(--spacing-sm);
     font-size: var(--font-size-sm);
+    border: none;
+    background: none;
+    font: inherit; /* 부모의 폰트 상속 */
+    color: inherit; /* 부모의 글자색 상속 */
+    cursor: pointer;
 }
 
 /* Collapsed State (닫힌 상태) */
@@ -355,6 +360,7 @@
     left: 0;
     padding: var(--spacing-sm);
     margin-top: auto;
+    margin-bottom: var(--spacing-sm);
 }
 
 /* Bottom Menu - Expanded State */
@@ -374,7 +380,8 @@
 
 .menuItem {
     width: 100%;
-    height: var(--spacing-xl);
+    height: 3rem;
+    padding: var(--spacing-sm) 0;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -419,8 +426,6 @@
     }
 
     .sidebar.open {
-        width: 80vw;
-        max-width: 16rem;
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
     }
 }

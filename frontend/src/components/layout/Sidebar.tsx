@@ -6,6 +6,7 @@ import {
     VerticalRightOutlined,
     MoreOutlined,
     UserOutlined,
+    SafetyOutlined,
     SettingOutlined,
     LogoutOutlined
 } from '@ant-design/icons'
@@ -99,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
                   {
                       key: 'admin',
                       label: '관리자 페이지',
-                      icon: <SettingOutlined />,
+                      icon: <SafetyOutlined />,
                       onClick: handleAdminClick
                   }
               ]
@@ -159,7 +160,9 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
                             <VerticalRightOutlined />
                         </button>
                         <div>
-                            <h3 className={styles.title}>HWP 보고서 자동 생성 시스템</h3>
+                            <button className={styles.title} onClick={onNewTopic}>
+                                HWP 보고서 자동 생성 시스템
+                            </button>
                         </div>
                     </div>
                     <div className={styles.sidebarContent}>
