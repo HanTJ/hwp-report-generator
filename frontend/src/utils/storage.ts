@@ -1,3 +1,6 @@
+import {STORAGE_KEYS} from '../constants/'
+import type {User} from '../types/auth'
+
 /**
  * storage.ts
  *
@@ -17,9 +20,6 @@
  * storage.setToken('토큰값');
  * const token = storage.getToken();
  */
-
-import {STORAGE_KEYS} from '../constants/'
-import type {User} from '../types/auth'
 
 export const storage = {
     /**

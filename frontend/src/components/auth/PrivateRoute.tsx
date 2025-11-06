@@ -1,3 +1,8 @@
+import React from 'react'
+import {Navigate, useLocation} from 'react-router-dom'
+import {useAuth} from '../../hooks/useAuth'
+import {Spin} from 'antd'
+
 /**
  * PrivateRoute.tsx
  *
@@ -21,28 +26,20 @@
  * <PrivateRoute requireAdmin={true}>
  *   <AdminPage />
  * </PrivateRoute>
- */
-
-import React from 'react'
-import {Navigate, useLocation} from 'react-router-dom'
-import {useAuth} from '../../hooks/useAuth'
-import {Spin} from 'antd'
-
-interface PrivateRouteProps {
-    children: React.ReactNode // 보호할 페이지 컴포넌트
-    requireAdmin?: boolean // 관리자만 접근 가능한지 (기본값: false)
-}
-
-/**
- * PrivateRoute 컴포넌트
  *
  * 동작 순서:
  * 1. 로딩 중이면 → 스피너 표시
- * 2. 로그인 안 했으면 → /login으로 리다이렉트
- * 3. 비밀번호 변경 필요하면 → /change-password로 리다이렉트
- * 4. 관리자 권한 필요한데 없으면 → /로 리다이렉트
+ * 2. 로그인 안 했으면 → '/login'으로 리다이렉트
+ * 3. 비밀번호 변경 필요하면 → '/change-password'로 리다이렉트
+ * 4. 관리자 권한 필요한데 없으면 → '/'로 리다이렉트
  * 5. 모든 조건 통과 → 페이지 표시
  */
+
+interface PrivateRouteProps {
+    children: React.ReactNode // 보호할 페이지 컴포넌트
+    requireAdmin?: boolean // 관리자만 접근 가능한 지 (기본값: false)
+}
+
 const PrivateRoute: React.FC<PrivateRouteProps> = ({children, requireAdmin = false}) => {
     const {user, isAuthenticated, isLoading} = useAuth()
     const location = useLocation() // 현재 URL 정보
