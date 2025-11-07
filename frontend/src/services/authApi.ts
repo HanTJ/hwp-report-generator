@@ -1,15 +1,15 @@
+import api from './api'
+import {API_ENDPOINTS} from '../constants/'
+import type {LoginRequest, LoginResponse, RegisterRequest, ChangePasswordRequest} from '../types/auth'
+import type {UserData} from '../types/user'
+import type {ApiResponse} from '../types/api'
+
 /**
  * authApi.ts
  *
  * 인증 관련 API 함수 모음
  * - 로그인, 회원가입, 비밀번호 변경
  */
-
-import api from './api'
-import {API_ENDPOINTS} from '../constants/'
-import type {LoginRequest, LoginResponse, RegisterRequest, ChangePasswordRequest} from '../types/auth'
-import type {UserData} from '../types/user'
-import type {ApiResponse} from '../types/api'
 
 export const authApi = {
     /**

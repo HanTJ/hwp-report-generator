@@ -8,7 +8,8 @@ import {
     UserOutlined,
     SafetyOutlined,
     SettingOutlined,
-    LogoutOutlined
+    LogoutOutlined,
+    FileOutlined
 } from '@ant-design/icons'
 import {message, Dropdown} from 'antd'
 import type {MenuProps} from 'antd'
@@ -76,6 +77,10 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
         navigate('/admin')
     }
 
+    const handleTemplatesClick = () => {
+        navigate('/templates')
+    }
+
     const handleLogout = async () => {
         try {
             await logout()
@@ -105,6 +110,12 @@ const Sidebar: React.FC<SidebarProps> = ({isOpen, onToggle, onTopicSelect, onNew
                   }
               ]
             : []),
+        {
+            key: 'templates',
+            label: '템플릿 관리',
+            icon: <FileOutlined />,
+            onClick: handleTemplatesClick
+        },
         {
             key: 'settings',
             label: '설정',

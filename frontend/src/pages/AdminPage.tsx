@@ -5,6 +5,7 @@ import type {ColumnsType} from 'antd/es/table'
 import MainLayout from '../components/layout/MainLayout'
 import AdminSidebar from '../components/layout/AdminSidebar'
 import PromptManagement from '../components/admin/PromptManagement'
+import AdminTemplateManagement from '../components/admin/AdminTemplateManagement'
 import {useUsers} from '../hooks/useUsers'
 import type {UserData} from '../types/user'
 import {formatDate} from '../utils/formatters'
@@ -154,6 +155,8 @@ const AdminPage: React.FC = () => {
                     )}
 
                     {activeMenu === 'prompts' && <PromptManagement />}
+
+                    {activeMenu === 'templates' && <AdminTemplateManagement />}
 
                     {activeMenu === 'reports' && (
                         <Card title="보고서 관리" bordered={false}>

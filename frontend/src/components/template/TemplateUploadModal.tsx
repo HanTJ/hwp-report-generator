@@ -1,0 +1,184 @@
+/**
+ * TemplateUploadModal.tsx
+ *
+ * ⭐ 템플릿 업로드 모달
+ *
+ * 역할:
+ * 1. 템플릿 파일 선택 (.hwpx)
+ * 2. 템플릿 제목 입력
+ * 3. 파일 업로드 및 검증
+ *
+ * 검증:
+ * - 확장자: .hwpx만 허용
+ * - 파일 크기: 10MB 이하
+ * - 필수 입력: 파일, 제목
+ */
+
+import React, {useState} from 'react'
+import {Modal, Form, Input, Upload, Button, message} from 'antd'
+import {UploadOutlined, FileOutlined, CloseOutlined} from '@ant-design/icons'
+import type {UploadFile, RcFile} from 'antd/es/upload'
+import {templateApi} from '../../services/templateApi'
+import styles from './TemplateUploadModal.module.css'
+
+interface TemplateUploadModalProps {
+    open: boolean
+    onClose: () => void
+    onSuccess: () => void
+}
+
+const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose, onSuccess}) => {
+    const [form] = Form.useForm()
+    const [fileList, setFileList] = useState<UploadFile[]>([])
+    const [uploading, setUploading] = useState(false)
+
+    // 파일 선택 전 검증
+    const beforeUpload = (file: RcFile): boolean => {
+        // 확장자 검증
+        const isHwpx = file.name.toLowerCase().endsWith('.hwpx')
+        if (!isHwpx) {
+            message.error('HWPX 파일만 업로드 가능합니다.')
+            return false
+        }
+
+        // 파일 크기 검증 (10MB)
+        const isLt10M = file.size / 1024 / 1024 < 10
+        if (!isLt10M) {
+            message.error('파일 크기는 10MB 이하여야 합니다.')
+            return false
+        }
+
+        // UploadFile 형식으로 변환하여 originFileObj 포함
+        const uploadFile: UploadFile = {
+            uid: file.uid,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            originFileObj: file as RcFile
+        }
+
+        setFileList([uploadFile])
+        return false // 자동 업로드 방지
+    }
+
+    // 파일 제거
+    const handleRemove = () => {
+        setFileList([])
+    }
+
+    // 업로드 실행
+    const handleUpload = async () => {
+        try {
+            const values = await form.validateFields()
+
+            if (fileList.length === 0) {
+                message.error('파일을 선택해주세요.')
+                return
+            }
+
+            const uploadFile = fileList[0]
+            if (!uploadFile.originFileObj) {
+                message.error('파일 정보가 올바르지 않습니다.')
+                return
+            }
+
+            setUploading(true)
+
+            const file = uploadFile.originFileObj as File
+            await templateApi.uploadTemplate(file, values.title)
+
+            message.success('템플릿이 업로드되었습니다.')
+            handleClose()
+            onSuccess()
+        } catch (error: any) {
+            if (error.errorFields) {
+                // Form validation error
+                return
+            }
+            message.error(error.message || '템플릿 업로드에 실패했습니다.')
+        } finally {
+            setUploading(false)
+        }
+    }
+
+    // 모달 닫기
+    const handleClose = () => {
+        form.resetFields()
+        setFileList([])
+        onClose()
+    }
+
+    return (
+        <Modal
+            title="템플릿 업로드"
+            open={open}
+            onCancel={handleClose}
+            onOk={handleUpload}
+            confirmLoading={uploading}
+            okText="업로드"
+            cancelText="취소"
+            width={600}
+            centered>
+            <div className={styles.modalBody}>
+                <Form form={form} layout="vertical" className={styles.form}>
+                    {/* 제목 입력 */}
+                    <Form.Item
+                        name="title"
+                        label="템플릿 제목"
+                        rules={[
+                            {required: true, message: '템플릿 제목을 입력해주세요.'},
+                            {max: 100, message: '템플릿 제목은 100자 이하여야 합니다.'}
+                        ]}>
+                        <Input placeholder="예: 2024 분기별 실적 보고서" maxLength={100} showCount />
+                    </Form.Item>
+
+                    {/* 파일 업로드 */}
+                    <Form.Item label="템플릿 파일" required>
+                        <Upload.Dragger
+                            fileList={[]}
+                            beforeUpload={beforeUpload}
+                            onRemove={handleRemove}
+                            maxCount={1}
+                            accept=".hwpx"
+                            showUploadList={false}
+                            className={styles.uploader}>
+                            {fileList.length === 0 ? (
+                                <>
+                                    <p className="ant-upload-drag-icon">
+                                        <FileOutlined />
+                                    </p>
+                                    <p className="ant-upload-text">클릭하거나 파일을 드래그하여 업로드</p>
+                                    <p className="ant-upload-hint">HWPX 파일만 업로드 가능 (최대 10MB)</p>
+                                </>
+                            ) : (
+                                <div className={styles.fileInfo}>
+                                    <Button type="text" icon={<CloseOutlined />} onClick={handleRemove} className={styles.removeBtn} />
+                                    <FileOutlined className={styles.fileIcon} />
+                                    <div className={styles.fileName}>{fileList[0].name}</div>
+                                </div>
+                            )}
+                        </Upload.Dragger>
+                    </Form.Item>
+
+                    {/* 안내 메시지 */}
+                    <div className={styles.notice}>
+                        <p className={styles.noticeTitle}>템플릿 작성 가이드</p>
+                        <ul className={styles.noticeList}>
+                            <li>
+                                템플릿에는 다음 플레이스홀더를 사용할 수 있습니다:
+                                <br />
+                                <code>{'{{TITLE}}'}</code>, <code>{'{{DATE}}'}</code>, <code>{'{{SUMMARY}}'}</code>, <code>{'{{BACKGROUND}}'}</code>,{' '}
+                                <code>{'{{MAIN_CONTENT}}'}</code>, <code>{'{{CONCLUSION}}'}</code>
+                            </li>
+                            <li>템플릿의 플레이스홀더는 실제 내용으로 대체됩니다.</li>
+                            <li>플레이스홀더는 중복될 수 없습니다.</li>
+                            <li>HWPX 파일은 한글 2014 이상에서 지원됩니다.</li>
+                        </ul>
+                    </div>
+                </Form>
+            </div>
+        </Modal>
+    )
+}
+
+export default TemplateUploadModal

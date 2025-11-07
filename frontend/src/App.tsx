@@ -30,6 +30,7 @@ import MainBakPage from './pages/MainBakPage'
 import TopicListPage from './pages/TopicListPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import AdminPage from './pages/AdminPage'
+import TemplateManagementPage from './pages/TemplateManagementPage'
 
 const App: React.FC = () => {
     return (
@@ -91,6 +92,14 @@ const App: React.FC = () => {
                                     element={
                                         <PrivateRoute>
                                             <TopicListPage />
+                                        </PrivateRoute>
+                                    }
+                                />
+                                <Route
+                                    path="/templates"
+                                    element={
+                                        <PrivateRoute>
+                                            <TemplateManagementPage />
                                         </PrivateRoute>
                                     }
                                 />

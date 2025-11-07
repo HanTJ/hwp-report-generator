@@ -1,0 +1,108 @@
+/**
+ * TemplateDetailModal.module.css
+ *
+ * 템플릿 상세 모달 스타일
+ */
+
+/* ========== 로딩/Empty 상태 ========== */
+.loadingContainer,
+.emptyContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    text-align: center;
+}
+
+.loadingContainer p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.emptyContainer {
+    color: #999;
+}
+
+/* ========== 컨텐츠 ========== */
+.content {
+    padding: var(--spacing-md) 0;
+}
+
+/* ========== 섹션 ========== */
+.section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.section:last-child {
+    margin-bottom: 0;
+}
+
+.sectionTitle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin: 0 0 var(--spacing-md);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.sectionIcon {
+    font-size: var(--font-size-lg);
+    color: var(--primary-color);
+}
+
+/* ========== 테이블 ========== */
+.infoTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.infoTable tr {
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.infoTable tr:last-child {
+    border-bottom: none;
+}
+
+.infoLabel {
+    padding: 0.75rem;
+    width: 30%;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: #666;
+    background-color: #fafafa;
+}
+
+.infoValue {
+    padding: 0.75rem;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+}
+
+/* ========== 태그 컨테이너 ========== */
+.tagContainer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.emptyText {
+    margin: 0;
+    color: #999;
+}
+
+/* ========== 안내 메시지 ========== */
+.notice {
+    background-color: #f5f5f5;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: #666;
+}
+
+.noticeText {
+    margin: 0;
+}

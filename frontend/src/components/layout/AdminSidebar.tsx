@@ -1,5 +1,5 @@
 import React, {useState} from 'react'
-import {UserOutlined, FileTextOutlined, SettingOutlined, DashboardOutlined, LeftOutlined, RightOutlined, MessageOutlined} from '@ant-design/icons'
+import {UserOutlined, FileTextOutlined, SettingOutlined, DashboardOutlined, LeftOutlined, RightOutlined, MessageOutlined, FileAddOutlined} from '@ant-design/icons'
 import styles from './AdminSidebar.module.css'
 
 interface AdminSidebarProps {
@@ -35,6 +35,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({activeMenu = 'users', onMenu
             icon: <MessageOutlined />,
             label: '프롬프트 관리',
             description: '보고서 생성 프롬프트 설정'
+        },
+        {
+            key: 'templates',
+            icon: <FileAddOutlined />,
+            label: '템플릿 관리',
+            description: '전체 사용자 템플릿 조회'
         },
         {
             key: 'reports',
