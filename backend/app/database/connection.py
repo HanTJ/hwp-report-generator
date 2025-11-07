@@ -138,6 +138,35 @@ def init_db():
         )
     """)
 
+    # 템플릿 테이블
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            sha256 TEXT NOT NULL,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    """)
+
+    # 플레이스홀더 테이블
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS placeholders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            placeholder_key TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (template_id) REFERENCES templates (id) ON DELETE CASCADE
+        )
+    """)
+
     # 인덱스 생성
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id)")
@@ -148,6 +177,8 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_message_id ON artifacts(message_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_usage_topic_id ON ai_usage(topic_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_usage_message_id ON ai_usage(message_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_user_id ON templates(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_placeholders_template_id ON placeholders(template_id)")
 
     conn.commit()
     conn.close()

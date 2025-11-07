@@ -30,7 +30,6 @@ wheels/
 *.egg
 
 # Claude
-.claude/settings.local.json
 
 # Virtual environments
 venv/
@@ -66,3 +65,4 @@ frontend/dist/
 frontend/build/
 *.local
 
+.claude/settings.local.json

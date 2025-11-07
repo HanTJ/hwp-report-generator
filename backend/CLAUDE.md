@@ -83,6 +83,141 @@ Apply to: `app/routers/*.py`, `app/models/*.py`, `app/database/*.py`, `app/utils
 
 ---
 
+## File Management Guidelines
+
+### Artifact Storage
+
+**ALWAYS use `ArtifactManager` for artifact file operations.**
+
+#### ✅ DO - Use ArtifactManager
+
+```python
+from app.utils.artifact_manager import ArtifactManager
+from shared.types.enums import ArtifactKind
+
+# Generate standardized file path
+filepath = ArtifactManager.generate_artifact_path(
+    topic_id=topic.id,
+    message_id=message.id,
+    filename=f"report_v{version}.md"
+)
+
+# Store artifact
+file_size = ArtifactManager.store_artifact(
+    content=markdown_content,
+    filepath=filepath,
+    is_binary=False  # False for MD, True for HWPX
+)
+
+# Calculate hash for integrity
+sha256 = ArtifactManager.calculate_sha256(filepath)
+
+# Store metadata in database
+artifact = ArtifactDB.create_artifact(
+    topic_id=topic.id,
+    message_id=message.id,
+    kind=ArtifactKind.MD,
+    filename=os.path.basename(filepath),
+    file_path=filepath,
+    file_size=file_size,
+    sha256=sha256
+)
+```
+
+#### ❌ DON'T - Direct file operations
+
+```python
+# DON'T do this!
+with open(f"artifacts/topic_{topic_id}/file.md", "w") as f:
+    f.write(content)
+```
+
+**Why?** `ArtifactManager` provides:
+- Consistent file path structure
+- Automatic directory creation
+- UTF-8 encoding for text files
+- File size and hash calculation
+- Support for future storage backends (S3, Azure Blob)
+
+### Markdown File Operations
+
+**Use `MarkdownHandler` for Markdown file operations.**
+
+#### ✅ DO - Use MarkdownHandler
+
+```python
+from app.utils.md_handler import MarkdownHandler
+
+# Format report data as Markdown
+report_data = {
+    "title": "Digital Banking Report",
+    "summary": "Executive summary...",
+    "background": "Background information...",
+    "main_content": "Detailed analysis...",
+    "conclusion": "Conclusions and recommendations..."
+}
+
+md_content = MarkdownHandler.format_report_as_md(report_data)
+
+# Save Markdown file
+MarkdownHandler.save_md_file(md_content, filepath)
+
+# Read Markdown file
+content = MarkdownHandler.read_md_file(filepath)
+
+# Parse Markdown back to structured data
+parsed_data = MarkdownHandler.parse_md_report(content)
+```
+
+**Report Structure Standard:**
+- `# {Title}` - Main title (H1)
+- `## 요약` - Summary section (H2)
+- `## 배경 및 목적` - Background section (H2)
+- `## 주요 내용` - Main content section (H2)
+- `## 결론 및 제언` - Conclusion section (H2)
+
+### Transformation Tracking
+
+**ALWAYS record transformations when converting artifacts.**
+
+#### ✅ DO - Track transformations
+
+```python
+from app.database.transformation_db import TransformationDB
+from app.models.transformation import TransformationCreate
+from shared.types.enums import TransformOperation
+
+# After converting MD to HWPX
+transformation = TransformationDB.create_transformation(
+    TransformationCreate(
+        from_artifact_id=md_artifact.id,
+        to_artifact_id=hwpx_artifact.id,
+        operation=TransformOperation.CONVERT,
+        params_json='{"template": "report_template.hwpx"}'
+    )
+)
+```
+
+**Benefits:**
+- Lineage tracking (which HWPX came from which MD)
+- Audit trail for conversions
+- Support for conversion chains (MD → HWPX → PDF)
+- Debugging conversion issues
+
+#### Common Transformation Operations
+
+```python
+from shared.types.enums import TransformOperation
+
+# Format conversion
+TransformOperation.CONVERT  # MD → HWPX, HWPX → PDF, etc.
+
+# Language translation (future use)
+TransformOperation.TRANSLATE  # KO → EN, EN → KO, etc.
+```
+
+---
+
 ## Testing Guidelines
 
 > **📖 For detailed testing guide, see [BACKEND_TEST.md](./BACKEND_TEST.md)**
@@ -162,6 +297,97 @@ uv pip install -r requirements-dev.txt
 - [ ] Is there a Raises section if exceptions may occur?
 - [ ] Do complex functions include Examples?
 - [ ] Is it written in English and follows Google style?
+
+---
+
+## Unit Spec Workflow
+
+**Before implementing any feature or fix, Claude Code MUST create a Unit Spec document.**
+
+### Workflow Steps
+
+1. **User Request** → User describes a feature, bug fix, or change
+2. **Unit Spec Creation** → Claude creates a spec document following `backend/doc/Backend_UnitSpec.md` template
+3. **Review & Approval** → User reviews and approves the spec
+4. **Implementation** → Claude implements according to the approved spec
+5. **Testing** → Verify all test cases defined in the spec
+
+### Unit Spec Template Structure
+
+Each Unit Spec MUST include:
+
+#### 1. Requirements Summary
+- **Purpose:** One-line description of what the feature/fix does
+- **Type:** ☐ New ☐ Change ☐ Delete
+- **Core Requirements:**
+  - Input: Expected parameters (e.g., topic, userId)
+  - Output: Return values (e.g., markdown, json, status code)
+  - Constraints: Validation rules, timeouts, error conditions
+  - Processing Flow: One-line summary of operation
+
+#### 2. Implementation Target Files
+| Type | Path | Description |
+|------|------|-------------|
+| New | backend/app/api/... | New endpoint |
+| Change | backend/app/services/... | Modified logic |
+| Reference | backend/app/utils/... | Reference implementation |
+
+#### 3. Flow Diagram (Mermaid)
+```mermaid
+flowchart TD
+    A[Client] -->|Request| B(API)
+    B --> C[Service Layer]
+    C --> D{Logic}
+    D --> E[Response]
+```
+
+#### 4. Test Plan
+- **Principles:** TDD, Layer Coverage (Unit → Integration → API), Independence
+- **Test Cases:** Use table format with:
+  - TC ID
+  - Layer (API/Unit/Integration)
+  - Scenario
+  - Purpose
+  - Input/Precondition
+  - Expected Result
+
+### Example Workflow
+
+```
+User: "Add a feature to export reports to PDF"
+
+Claude: "I'll create a Unit Spec for this feature first."
+
+→ Creates: backend/doc/specs/export_pdf_feature.md
+→ Presents: Spec summary with requirements, files, flow, tests
+→ Asks: "Please review this spec. Should I proceed with implementation?"
+
+User: "Approved, but change the endpoint path"
+
+Claude: "Updated. Starting implementation..."
+→ Implements according to spec
+→ Writes tests from test plan
+→ Reports completion with test results
+```
+
+### Unit Spec File Naming
+
+- Location: `backend/doc/specs/`
+- Format: `YYYYMMDD_feature_name.md`
+- Example: `20251106_export_pdf_feature.md`
+
+### Benefits
+
+- **Clear Requirements:** Prevents misunderstandings
+- **Test-First:** Tests are defined before implementation
+- **Documentation:** Specs serve as implementation documentation
+- **Review Point:** User can correct course before coding begins
+- **Consistency:** All features follow same planning process
+
+### Reference
+
+- Template: `backend/doc/Backend_UnitSpec.md`
+- Test Guide: `backend/BACKEND_TEST.md`
 
 ---
 

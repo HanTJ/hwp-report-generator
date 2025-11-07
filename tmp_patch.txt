@@ -1,0 +1,80 @@
+*** Begin Patch
+*** Update File: DesktopApp/scripts/verify_environment.py
+@@
+-from __future__ import annotations
+-
+-import importlib
+-import sys
+-from pathlib import Path
+-from typing import Iterable
++from __future__ import annotations
++
++import importlib
++import sys
++from pathlib import Path
++from typing import Iterable
+@@
+-def ensure_modules() -> None:
+-    """필수 파이썬 모듈을 임포트하여 설치 여부를 확인한다."""
+-    modules = ("PyQt5", "pyhwpx", "win32com.client", "qt_material")
+-    for name in modules:
+-        try:
+-            importlib.import_module(name)
+-        except ImportError as exc:
+-            print(f"[X] 모듈 로드 실패: {name} ({exc})")
+-            sys.exit(1)
+-        else:
+-            print(f"[O] 모듈 확인: {name}")
++def ensure_modules() -> None:
++    """필수 파이썬 모듈을 임포트하여 설치 여부를 확인한다.
++
++    qt_material 경고를 피하기 위해 PyQt5를 먼저 임포트하고 QApplication을 생성한 뒤
++    qt_material을 임포트한다.
++    """
++    # 1) Qt 바인딩을 먼저 로드 (Widgets/Gui까지 명시)
++    try:
++        from PyQt5 import QtWidgets  # noqa: F401
++        from PyQt5 import QtGui  # noqa: F401
++    except Exception as exc:
++        print(f"[X] PyQt5 임포트 실패: {exc}")
++        sys.exit(1)
++    else:
++        print("[O] 모듈 확인: PyQt5")
++
++    # 2) QApplication 생성 (이미 있으면 재사용)
++    try:
++        from PyQt5.QtWidgets import QApplication
++
++        app = QApplication.instance() or QApplication([])
++    except Exception as exc:
++        print(f"[X] QApplication 생성 실패: {exc}")
++        sys.exit(1)
++
++    # 3) 나머지 모듈 점검 (pyhwpx, win32, qt_material)
++    for name in ("pyhwpx", "win32com.client"):
++        try:
++            importlib.import_module(name)
++        except ImportError as exc:
++            print(f"[X] 모듈 로드 실패: {name} ({exc})")
++            sys.exit(1)
++        else:
++            print(f"[O] 모듈 확인: {name}")
++
++    # qt_material은 PyQt5 이후에 임포트
++    try:
++        import qt_material  # noqa: F401
++    except ImportError as exc:
++        print(f"[X] 모듈 로드 실패: qt_material ({exc})")
++        sys.exit(1)
++    else:
++        print("[O] 모듈 확인: qt_material")
+@@
+-def main() -> None:
+-    ensure_modules()
+-    detect_hwp()
+-    print("[O] 로컬 개발 환경 점검 완료")
++def main() -> None:
++    ensure_modules()
++    detect_hwp()
++    print("[O] 로컬 개발 환경 점검 완료")
+*** End Patch

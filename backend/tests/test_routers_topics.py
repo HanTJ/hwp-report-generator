@@ -140,19 +140,25 @@ class TestTopicsRouter:
         temp_dir
     ):
         """보고서 생성 성공 테스트"""
-        # Mock Claude response
+        # Mock Claude response - Markdown 형식으로 반환
         mock_claude_instance = MagicMock()
-        mock_claude_instance.generate_report.return_value = {
-            "title": "디지털뱅킹 트렌드 분석 보고서",
-            "title_summary": "요약",
-            "summary": "2025년 디지털뱅킹 주요 트렌드입니다.",
-            "title_background": "배경 및 목적",
-            "background": "디지털 전환이 가속화되고 있습니다.",
-            "title_main_content": "주요 내용",
-            "main_content": "AI 기반 금융 서비스가 확대되고 있습니다.",
-            "title_conclusion": "결론 및 제언",
-            "conclusion": "디지털 전환에 적극 대응해야 합니다."
-        }
+        mock_claude_instance.generate_report.return_value = """# 디지털뱅킹 트렌드 분석 보고서
+
+## 요약
+
+2025년 디지털뱅킹 주요 트렌드입니다.
+
+## 배경 및 목적
+
+디지털 전환이 가속화되고 있습니다.
+
+## 주요 내용
+
+AI 기반 금융 서비스가 확대되고 있습니다.
+
+## 결론 및 제언
+
+디지털 전환에 적극 대응해야 합니다."""
         mock_claude_instance.model = "claude-sonnet-4-5-20250929"
         mock_claude_instance.last_input_tokens = 1000
         mock_claude_instance.last_output_tokens = 2000
@@ -663,4 +669,161 @@ class TestTopicsRouter:
         assert response.status_code == 404
         body = response.json()
         assert body["error"]["code"] == "TOPIC.NOT_FOUND"
+
+    @patch("app.routers.topics.ClaudeClient")
+    def test_ask_with_artifact_filters_messages_by_seq_no(
+        self,
+        mock_claude_class,
+        client,
+        auth_headers
+    ):
+        """artifact_id 지정 시 해당 메시지 이전 메시지만 컨텍스트에 포함"""
+        # Mock Claude
+        mock_claude = MagicMock()
+        mock_claude.chat_completion.return_value = (
+            "# 수정된 보고서\n\n## 요약\n업데이트된 내용입니다.",
+            1000,
+            500
+        )
+        mock_claude.model = "claude-sonnet-4-5"
+        mock_claude_class.return_value = mock_claude
+
+        # 1. Topic 생성
+        topic_response = client.post(
+            "/api/topics",
+            headers=auth_headers,
+            json={"input_prompt": "테스트 주제"}
+        )
+        assert topic_response.status_code == 200
+        topic_id = topic_response.json()["data"]["id"]
+
+        # 2. 여러 메시지 생성 (1~5번)
+        message_ids = []
+        for i in range(1, 6):
+            msg_response = client.post(
+                f"/api/topics/{topic_id}/ask",
+                headers=auth_headers,
+                json={"content": f"질문 {i}"}
+            )
+            assert msg_response.status_code == 200
+            message_ids.append(msg_response.json()["data"]["assistant_message"]["id"])
+
+        # 3. 3번째 메시지의 artifact 조회
+        third_msg_id = message_ids[2]  # 3번째 메시지
+        
+        # DB에서 artifact 조회
+        from app.database.artifact_db import ArtifactDB
+        from shared.types.enums import ArtifactKind
+        
+        third_artifact = ArtifactDB.get_artifacts_by_message(third_msg_id)[0]
+        
+        # 4. 해당 artifact_id로 새 질문 (5번째 메시지 이후)
+        mock_claude.chat_completion.reset_mock()
+        
+        response = client.post(
+            f"/api/topics/{topic_id}/ask",
+            headers=auth_headers,
+            json={
+                "content": "3번 보고서 기준으로 수정해주세요",
+                "artifact_id": third_artifact.id
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert "assistant_message" in data
+        
+        # 5. Claude 호출 검증 - 1~3번 메시지만 포함되어야 함
+        mock_claude.chat_completion.assert_called_once()
+        call_args = mock_claude.chat_completion.call_args
+        messages = call_args[0][0]
+
+        # Topic context와 artifact content 제외하고 실제 user 질문만 확인
+        user_messages = [
+            m for m in messages
+            if m["role"] == "user"
+            and not m["content"].startswith("**대화 주제**")
+            and not m["content"].startswith("현재 보고서(MD)")
+        ]
+
+        # 3개의 user message만 포함되어야 함 (질문 1, 2, 3)
+        # 질문 4, 5는 포함되면 안됨
+        assert len(user_messages) == 3  # 질문 1~3만
+
+        # 내용 검증
+        user_contents = [m["content"] for m in user_messages]
+        assert "질문 1" in user_contents[0]
+        assert "질문 2" in user_contents[1]
+        assert "질문 3" in user_contents[2]
+
+
+    @patch("app.routers.topics.ClaudeClient")
+    def test_ask_without_artifact_includes_all_messages(
+        self,
+        mock_claude_class,
+        client,
+        auth_headers
+    ):
+        """artifact_id 없이 요청 시 모든 user messages 포함 (기존 동작)"""
+        # Mock Claude
+        mock_claude = MagicMock()
+        mock_claude.chat_completion.return_value = (
+            "# 새 보고서\n\n## 요약\n새로운 내용입니다.",
+            1000,
+            500
+        )
+        mock_claude.model = "claude-sonnet-4-5"
+        mock_claude_class.return_value = mock_claude
+
+        # 1. Topic 생성
+        topic_response = client.post(
+            "/api/topics",
+            headers=auth_headers,
+            json={"input_prompt": "테스트 주제"}
+        )
+        assert topic_response.status_code == 200
+        topic_id = topic_response.json()["data"]["id"]
+
+        # 2. 여러 메시지 생성 (1~5번)
+        for i in range(1, 6):
+            msg_response = client.post(
+                f"/api/topics/{topic_id}/ask",
+                headers=auth_headers,
+                json={"content": f"질문 {i}"}
+            )
+            assert msg_response.status_code == 200
+
+        # 3. artifact_id 없이 새 질문
+        mock_claude.chat_completion.reset_mock()
+        
+        response = client.post(
+            f"/api/topics/{topic_id}/ask",
+            headers=auth_headers,
+            json={"content": "추가 질문"}
+        )
+
+        assert response.status_code == 200
+        
+        # 4. Claude 호출 검증 - 모든 메시지 포함되어야 함
+        mock_claude.chat_completion.assert_called_once()
+        call_args = mock_claude.chat_completion.call_args
+        messages = call_args[0][0]
+
+        # Topic context와 artifact content 제외하고 실제 user 질문만 확인
+        user_messages = [
+            m for m in messages
+            if m["role"] == "user"
+            and not m["content"].startswith("**대화 주제**")
+            and not m["content"].startswith("현재 보고서(MD)")
+        ]
+
+        # 모든 질문이 포함되어야 함 (질문 1~5 + 추가 질문)
+        # artifact_id 없이 요청하면 필터링하지 않음 (기존 동작)
+        assert len(user_messages) == 6
+
+        # 내용 검증
+        user_contents = [m["content"] for m in user_messages]
+        for i in range(1, 6):
+            assert f"질문 {i}" in "".join(user_contents)
+        assert "추가 질문" in user_contents[-1]
 

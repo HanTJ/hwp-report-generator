@@ -344,7 +344,7 @@ async def download_message_hwpx(
             message="아티팩트 파일을 찾을 수 없습니다.",
             details={"file_path": existing_hwpx.file_path}
         )
-
+    # 기존에 작성된 MD 파일 조회
     md_artifact = ArtifactDB.get_latest_artifact_by_message_and_kind(
         message_id,
         ArtifactKind.MD,
