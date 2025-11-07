@@ -608,8 +608,19 @@ async def ask(
 
     # User 메시지 필터링
     user_messages = [m for m in all_messages if m.role == MessageRole.USER]
+
+    # ✨ NEW: artifact_id가 **명시적으로** 지정된 경우에만, 해당 message 이전 것만 포함
+    if body.artifact_id is not None and reference_artifact:
+        ref_msg = MessageDB.get_message_by_id(reference_artifact.message_id)
+        if ref_msg:
+            # reference message의 seq_no까지만 포함
+            user_messages = [m for m in user_messages if m.seq_no <= ref_msg.seq_no]
+            logger.info(f"[ASK] Filtered user messages by artifact - up_to_seq_no={ref_msg.seq_no}, count={len(user_messages)}")
+
+    # 기존 max_messages 제한 (여전히 적용)
     if body.max_messages is not None:
         user_messages = user_messages[-body.max_messages:]
+
     logger.info(f"[ASK] User messages to include: {len(user_messages)}")
 
     # Assistant 메시지 필터링 (참조 문서 생성 메시지만)

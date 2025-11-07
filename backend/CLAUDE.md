@@ -300,6 +300,97 @@ uv pip install -r requirements-dev.txt
 
 ---
 
+## Unit Spec Workflow
+
+**Before implementing any feature or fix, Claude Code MUST create a Unit Spec document.**
+
+### Workflow Steps
+
+1. **User Request** → User describes a feature, bug fix, or change
+2. **Unit Spec Creation** → Claude creates a spec document following `backend/doc/Backend_UnitSpec.md` template
+3. **Review & Approval** → User reviews and approves the spec
+4. **Implementation** → Claude implements according to the approved spec
+5. **Testing** → Verify all test cases defined in the spec
+
+### Unit Spec Template Structure
+
+Each Unit Spec MUST include:
+
+#### 1. Requirements Summary
+- **Purpose:** One-line description of what the feature/fix does
+- **Type:** ☐ New ☐ Change ☐ Delete
+- **Core Requirements:**
+  - Input: Expected parameters (e.g., topic, userId)
+  - Output: Return values (e.g., markdown, json, status code)
+  - Constraints: Validation rules, timeouts, error conditions
+  - Processing Flow: One-line summary of operation
+
+#### 2. Implementation Target Files
+| Type | Path | Description |
+|------|------|-------------|
+| New | backend/app/api/... | New endpoint |
+| Change | backend/app/services/... | Modified logic |
+| Reference | backend/app/utils/... | Reference implementation |
+
+#### 3. Flow Diagram (Mermaid)
+```mermaid
+flowchart TD
+    A[Client] -->|Request| B(API)
+    B --> C[Service Layer]
+    C --> D{Logic}
+    D --> E[Response]
+```
+
+#### 4. Test Plan
+- **Principles:** TDD, Layer Coverage (Unit → Integration → API), Independence
+- **Test Cases:** Use table format with:
+  - TC ID
+  - Layer (API/Unit/Integration)
+  - Scenario
+  - Purpose
+  - Input/Precondition
+  - Expected Result
+
+### Example Workflow
+
+```
+User: "Add a feature to export reports to PDF"
+
+Claude: "I'll create a Unit Spec for this feature first."
+
+→ Creates: backend/doc/specs/export_pdf_feature.md
+→ Presents: Spec summary with requirements, files, flow, tests
+→ Asks: "Please review this spec. Should I proceed with implementation?"
+
+User: "Approved, but change the endpoint path"
+
+Claude: "Updated. Starting implementation..."
+→ Implements according to spec
+→ Writes tests from test plan
+→ Reports completion with test results
+```
+
+### Unit Spec File Naming
+
+- Location: `backend/doc/specs/`
+- Format: `YYYYMMDD_feature_name.md`
+- Example: `20251106_export_pdf_feature.md`
+
+### Benefits
+
+- **Clear Requirements:** Prevents misunderstandings
+- **Test-First:** Tests are defined before implementation
+- **Documentation:** Specs serve as implementation documentation
+- **Review Point:** User can correct course before coding begins
+- **Consistency:** All features follow same planning process
+
+### Reference
+
+- Template: `backend/doc/Backend_UnitSpec.md`
+- Test Guide: `backend/BACKEND_TEST.md`
+
+---
+
 ## References
 
 - [Google Python Style Guide - Docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)

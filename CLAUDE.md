@@ -420,15 +420,78 @@ hwp-report-generator/
 └── README.md
 ```
 
+## Unit Spec Workflow
+
+**⚠️ MANDATORY: Before implementing ANY feature or fix, Claude Code MUST create a Unit Spec document.**
+
+### Workflow
+
+1. **User Request** → Feature/bug description
+2. **Unit Spec Creation** → Claude creates spec following template
+3. **User Review** → User reviews and approves
+4. **Implementation** → Implement per spec
+5. **Testing** → Verify test cases in spec
+
+### Unit Spec Template
+
+Each spec includes:
+
+1. **Requirements Summary**
+   - Purpose (one-line)
+   - Type: ☐ New ☐ Change ☐ Delete
+   - Core requirements (input/output/constraints/flow)
+
+2. **Implementation Files** (New/Change/Reference table)
+
+3. **Flow Diagram** (Mermaid)
+
+4. **Test Plan**
+   - TDD principles
+   - Test cases table (TC ID, Layer, Scenario, Purpose, Input, Expected)
+
+### Spec File Management
+
+- **Location:** `backend/doc/specs/`
+- **Naming:** `YYYYMMDD_feature_name.md`
+- **Template:** `backend/doc/Backend_UnitSpec.md`
+
+### Example
+
+```
+User: "Add PDF export feature"
+
+Claude: "Creating Unit Spec first..."
+→ Creates: backend/doc/specs/20251106_pdf_export.md
+→ Shows: Summary of requirements, files, flow, tests
+→ Asks: "Please review. Proceed?"
+
+User: "Approved"
+
+Claude: "Implementing..."
+→ Code + Tests → Report results
+```
+
+### Benefits
+
+- Clear requirements before coding
+- Test-first development (TDD)
+- Built-in documentation
+- Early review point
+- Consistent process
+
+---
+
 ## 참고 문서
 
 - `BACKEND_ONBOARDING.md` - 백엔드 온보딩 상세 가이드
 - `backend/BACKEND_TEST.md` - 테스트 가이드
+- `backend/CLAUDE.md` - 백엔드 개발 가이드라인 (DocString, 파일 관리)
+- `backend/doc/Backend_UnitSpec.md` - **Unit Spec 템플릿**
 - `backend/doc/07.PromptIntegrate.md` - 프롬프트 통합 가이드
 - `backend/doc/04.messageChaining.md` - 메시지 체이닝 설계
 
 ---
 
-**마지막 업데이트:** 2025-11-04
-**버전:** 2.1
+**마지막 업데이트:** 2025-11-06
+**버전:** 2.2
 **Claude Code 최적화**
