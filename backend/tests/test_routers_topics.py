@@ -140,9 +140,10 @@ class TestTopicsRouter:
         temp_dir
     ):
         """보고서 생성 성공 테스트"""
-        # Mock Claude response - Markdown 형식으로 반환
+        # Mock Claude response - chat_completion 메서드가 (text, input_tokens, output_tokens) 반환
         mock_claude_instance = MagicMock()
-        mock_claude_instance.generate_report.return_value = """# 디지털뱅킹 트렌드 분석 보고서
+        mock_claude_instance.chat_completion.return_value = (
+            """# 디지털뱅킹 트렌드 분석 보고서
 
 ## 요약
 
@@ -158,10 +159,11 @@ AI 기반 금융 서비스가 확대되고 있습니다.
 
 ## 결론 및 제언
 
-디지털 전환에 적극 대응해야 합니다."""
+디지털 전환에 적극 대응해야 합니다.""",
+            1000,  # input_tokens
+            2000   # output_tokens
+        )
         mock_claude_instance.model = "claude-sonnet-4-5-20250929"
-        mock_claude_instance.last_input_tokens = 1000
-        mock_claude_instance.last_output_tokens = 2000
         mock_claude_class.return_value = mock_claude_instance
 
         # API 호출
@@ -183,8 +185,8 @@ AI 기반 금융 서비스가 확대되고 있습니다.
         assert body["data"]["topic_id"] > 0
         assert body["data"]["artifact_id"] > 0
 
-        # Claude가 호출되었는지 확인
-        mock_claude_instance.generate_report.assert_called_once_with("디지털뱅킹 트렌드 분석")
+        # Claude chat_completion이 호출되었는지 확인
+        mock_claude_instance.chat_completion.assert_called_once()
 
         # DB에 저장되었는지 확인
         topic = TopicDB.get_topic_by_id(body["data"]["topic_id"])
@@ -232,9 +234,9 @@ AI 기반 금융 서비스가 확대되고 있습니다.
         auth_headers
     ):
         """Claude API 오류 테스트"""
-        # Mock Claude to raise an exception
+        # Mock Claude to raise an exception on chat_completion
         mock_claude_instance = MagicMock()
-        mock_claude_instance.generate_report.side_effect = Exception("Claude API Error")
+        mock_claude_instance.chat_completion.side_effect = Exception("Claude API Error")
         mock_claude_class.return_value = mock_claude_instance
 
         response = client.post(
@@ -246,11 +248,12 @@ AI 기반 금융 서비스가 확대되고 있습니다.
             }
         )
 
-        assert response.status_code == 500
+        # chat_completion 에러는 503 Service Unavailable를 반환
+        assert response.status_code == 503
         body = response.json()
         assert body["success"] is False
-        assert body["error"]["code"] == "REPORT.GENERATION_FAILED"
-        assert body["error"]["httpStatus"] == 500
+        assert body["error"]["code"] == "SERVER.SERVICE_UNAVAILABLE"
+        assert body["error"]["httpStatus"] == 503
 
     @patch('app.routers.topics.ClaudeClient')
     def test_ask_success_no_artifact(

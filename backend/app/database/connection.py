@@ -167,6 +167,21 @@ def init_db():
         )
     """)
 
+    # Templates 테이블 마이그레이션: Dynamic Prompt 컬럼 추가 (v2.2)
+    try:
+        cursor.execute("""
+            ALTER TABLE templates ADD COLUMN prompt_user TEXT DEFAULT NULL
+        """)
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재하면 무시
+
+    try:
+        cursor.execute("""
+            ALTER TABLE templates ADD COLUMN prompt_system TEXT DEFAULT NULL
+        """)
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재하면 무시
+
     # 인덱스 생성
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id)")

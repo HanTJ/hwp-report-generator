@@ -88,6 +88,7 @@ class AskRequest(BaseModel):
         include_artifact_content: Include file content in context (default: true)
         max_messages: Max number of user messages to include (null = all)
         system_prompt: Custom system prompt (optional)
+        template_id: Template ID for dynamic system prompt generation (optional)
     """
 
     content: str = Field(
@@ -118,4 +119,9 @@ class AskRequest(BaseModel):
         default=None,
         max_length=10000,
         description="Custom system prompt"
+    )
+
+    template_id: Optional[int] = Field(
+        default=None,
+        description="Template ID for dynamic system prompt generation"
     )

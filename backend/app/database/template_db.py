@@ -81,15 +81,115 @@ class TemplateDB:
             raise e
 
     @staticmethod
+    def create_template_with_transaction(
+        user_id: int,
+        template_data: TemplateCreate,
+        placeholder_keys: List[str]
+    ) -> Template:
+        """Creates a new template and its placeholders in a single transaction.
+
+        이 메서드는 Template과 Placeholder를 원자적(Atomically)으로 저장합니다.
+        Template INSERT 또는 Placeholder INSERT 중 하나라도 실패하면 전체 롤백됩니다.
+
+        Args:
+            user_id: User ID who owns this template
+            template_data: Template creation data (prompt_user, prompt_system 포함)
+            placeholder_keys: List of placeholder keys (e.g., ["{{TITLE}}", "{{SUMMARY}}"])
+
+        Returns:
+            Created template entity
+
+        Raises:
+            Exception: Database transaction error (자동 롤백)
+
+        Examples:
+            >>> template_data = TemplateCreate(
+            ...     title="재무보고서 템플릿",
+            ...     filename="template.hwpx",
+            ...     file_path="backend/templates/user_1/template_1/template.hwpx",
+            ...     file_size=45678,
+            ...     sha256="abc123...",
+            ...     prompt_user="{{TITLE}}, {{SUMMARY}}",
+            ...     prompt_system="당신은 금융 기관의 전문 보고서..."
+            ... )
+            >>> placeholders = ["{{TITLE}}", "{{SUMMARY}}"]
+            >>> template = TemplateDB.create_template_with_transaction(1, template_data, placeholders)
+            >>> print(template.prompt_system[:50])
+            당신은 금융 기관의 전문 보고서...
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        now = datetime.now()
+        try:
+            # Step 1: 트랜잭션 시작
+            cursor.execute("BEGIN TRANSACTION")
+
+            # Step 2: Template INSERT
+            cursor.execute(
+                """
+                INSERT INTO templates (
+                    user_id, title, description, filename,
+                    file_path, file_size, sha256, is_active,
+                    prompt_user, prompt_system,
+                    created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    template_data.title,
+                    template_data.description,
+                    template_data.filename,
+                    template_data.file_path,
+                    template_data.file_size,
+                    template_data.sha256,
+                    True,  # is_active
+                    template_data.prompt_user,
+                    template_data.prompt_system,
+                    now,
+                    now
+                )
+            )
+            template_id = cursor.lastrowid
+
+            # Step 3: Placeholders 배치 INSERT
+            if placeholder_keys:
+                data = [(template_id, key, now) for key in placeholder_keys]
+                cursor.executemany(
+                    """
+                    INSERT INTO placeholders (template_id, placeholder_key, created_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    data
+                )
+
+            # Step 4: 커밋 (모든 INSERT 성공 시)
+            conn.commit()
+
+            # Step 5: 생성된 Template 조회 및 반환
+            cursor.execute("SELECT * FROM templates WHERE id = ?", (template_id,))
+            row = cursor.fetchone()
+            conn.close()
+
+            return TemplateDB._row_to_template(row)
+
+        except Exception as e:
+            # 에러 발생 시 자동 롤백
+            conn.rollback()
+            conn.close()
+            raise e
+
+    @staticmethod
     def get_template_by_id(template_id: int, user_id: Optional[int] = None) -> Optional[Template]:
-        """Retrieves a template by ID.
+        """Retrieves an active template by ID.
 
         Args:
             template_id: Template ID to retrieve
             user_id: User ID for permission check (optional)
 
         Returns:
-            Template entity or None if not found
+            Template entity or None if not found or inactive
 
         Examples:
             >>> template = TemplateDB.get_template_by_id(1)
@@ -101,11 +201,11 @@ class TemplateDB:
 
         if user_id is not None:
             cursor.execute(
-                "SELECT * FROM templates WHERE id = ? AND user_id = ?",
+                "SELECT * FROM templates WHERE id = ? AND user_id = ? AND is_active = 1",
                 (template_id, user_id)
             )
         else:
-            cursor.execute("SELECT * FROM templates WHERE id = ?", (template_id,))
+            cursor.execute("SELECT * FROM templates WHERE id = ? AND is_active = 1", (template_id,))
 
         row = cursor.fetchone()
         conn.close()
@@ -224,7 +324,9 @@ class TemplateDB:
             sha256=row[7],
             is_active=row[8],
             created_at=datetime.fromisoformat(row[9]),
-            updated_at=datetime.fromisoformat(row[10])
+            updated_at=datetime.fromisoformat(row[10]),
+            prompt_user=row[11] if len(row) > 11 else None,
+            prompt_system=row[12] if len(row) > 12 else None
         )
 
 
@@ -232,11 +334,16 @@ class PlaceholderDB:
     """Placeholder database class for CRUD operations."""
 
     @staticmethod
-    def create_placeholder(placeholder_data: PlaceholderCreate) -> Placeholder:
+    def create_placeholder(placeholder_data_or_template_id, placeholder_key=None) -> Placeholder:
         """Creates a new placeholder.
 
+        Supports two calling conventions:
+        1. create_placeholder(placeholder_data: PlaceholderCreate)
+        2. create_placeholder(template_id: int, placeholder_key: str)
+
         Args:
-            placeholder_data: Placeholder creation data
+            placeholder_data_or_template_id: Either PlaceholderCreate object or template_id (int)
+            placeholder_key: Placeholder key string (optional, required if first arg is int)
 
         Returns:
             Created placeholder entity
@@ -245,14 +352,30 @@ class PlaceholderDB:
             Exception: Database insertion error
 
         Examples:
+            >>> # Method 1: PlaceholderCreate object
             >>> placeholder_data = PlaceholderCreate(
             ...     template_id=1,
             ...     placeholder_key="{{TITLE}}"
             ... )
             >>> placeholder = PlaceholderDB.create_placeholder(placeholder_data)
-            >>> print(placeholder.placeholder_key)
-            {{TITLE}}
+            
+            >>> # Method 2: Direct arguments
+            >>> placeholder = PlaceholderDB.create_placeholder(1, "{{TITLE}}")
         """
+        # Handle both calling conventions
+        if isinstance(placeholder_data_or_template_id, int):
+            # Method 2: create_placeholder(template_id, placeholder_key)
+            template_id = placeholder_data_or_template_id
+            if placeholder_key is None:
+                raise ValueError("placeholder_key is required when passing template_id")
+            placeholder_data = PlaceholderCreate(
+                template_id=template_id,
+                placeholder_key=placeholder_key
+            )
+        else:
+            # Method 1: create_placeholder(placeholder_data)
+            placeholder_data = placeholder_data_or_template_id
+
         conn = get_db_connection()
         cursor = conn.cursor()
 

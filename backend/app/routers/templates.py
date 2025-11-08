@@ -4,6 +4,7 @@ Handles template upload, retrieval, and deletion operations.
 """
 
 import uuid
+from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from typing import List
@@ -22,6 +23,7 @@ from app.models.template import TemplateCreate
 from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
 from app.utils.templates_manager import TemplatesManager
+from app.utils.prompts import create_dynamic_system_prompt
 
 router = APIRouter(prefix="/api/templates", tags=["Templates"])
 
@@ -216,36 +218,53 @@ async def upload_template(
                 # 8. SHA256 계산
                 sha256 = manager.calculate_sha256(str(temp_file_path))
 
-                # 9. DB 트랜잭션 시작
-                # 템플릿 생성 (Template 테이블 INSERT)
+                # [신규] 9단계: 동적 System Prompt 생성
+                # Placeholder 객체로부터 Placeholder 리스트 생성
+                from app.models.template import Placeholder as PlaceholderModel
+                placeholder_objects = [
+                    PlaceholderModel(
+                        id=i,
+                        template_id=0,  # 임시값 (아직 template_id 없음)
+                        placeholder_key=key,
+                        created_at=datetime.now()
+                    )
+                    for i, key in enumerate(placeholder_list, start=1)
+                ]
+                prompt_system = create_dynamic_system_prompt(placeholder_objects)
+
+                # prompt_user: placeholder 목록을 쉼표로 구분된 문자열로 저장
+                prompt_user = ", ".join(placeholder_list)
+
+                # [신규] 10단계: DB 트랜잭션으로 Template + Placeholders 원자적 저장
                 template_data = TemplateCreate(
                     title=title,
                     description=None,
                     filename=file.filename,
                     file_path="",  # 임시값, 아래에서 업데이트
                     file_size=len(file_content),
-                    sha256=sha256
+                    sha256=sha256,
+                    prompt_user=prompt_user,         # 신규: Placeholder 목록
+                    prompt_system=prompt_system      # 신규: 생성된 System Prompt
                 )
-                # 템플릿 생성 (파일명 중복 허용)
-                template = TemplateDB.create_template(current_user.id, template_data)
 
-                # 10. 최종 파일 저장 경로로 이동
+                # create_template_with_transaction: Template + Placeholder 원자적 저장
+                template = TemplateDB.create_template_with_transaction(
+                    current_user.id,
+                    template_data,
+                    placeholder_list
+                )
+
+                # [기존] 11단계: 최종 파일 저장 경로로 이동
                 final_file_path = manager.save_template_file(
                     str(temp_file_path),
                     current_user.id,
                     template.id
                 )
 
-                # 11. 플레이스홀더 저장 (Placeholders 테이블 INSERT)
-                created_placeholders = PlaceholderDB.create_placeholders_batch(
-                    template.id,
-                    placeholder_list
-                )
-
-                # 12. 응답 생성
+                # [기존] 12단계: 응답 생성
                 placeholder_responses = [
-                    PlaceholderResponse(key=p.placeholder_key)
-                    for p in created_placeholders
+                    PlaceholderResponse(key=key)
+                    for key in placeholder_list
                 ]
 
                 response_data = UploadTemplateResponse(
@@ -254,6 +273,8 @@ async def upload_template(
                     filename=template.filename,
                     file_size=template.file_size,
                     placeholders=placeholder_responses,
+                    prompt_user=template.prompt_user,         # 신규
+                    prompt_system=template.prompt_system,     # 신규
                     created_at=template.created_at
                 )
 

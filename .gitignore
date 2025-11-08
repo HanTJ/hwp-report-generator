@@ -30,6 +30,7 @@ wheels/
 *.egg
 
 # Claude
+.serena/
 
 # Virtual environments
 venv/

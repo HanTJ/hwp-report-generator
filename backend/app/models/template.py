@@ -51,6 +51,8 @@ class TemplateCreate(TemplateBase):
     file_path: str = Field(..., description="저장 경로")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     sha256: str = Field(..., description="파일 무결성 체크용 해시")
+    prompt_user: Optional[str] = Field(None, description="플레이스홀더 목록 (쉼표로 구분)")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
 
 
 class Template(TemplateCreate):
@@ -80,6 +82,8 @@ class UploadTemplateResponse(BaseModel):
     filename: str = Field(..., description="파일명")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     placeholders: List[PlaceholderResponse] = Field(..., description="플레이스홀더 목록")
+    prompt_user: Optional[str] = Field(None, description="플레이스홀더 목록 (쉼표로 구분)")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
     created_at: datetime = Field(..., description="생성 일시")
 
 
@@ -101,6 +105,7 @@ class TemplateDetailResponse(BaseModel):
     filename: str = Field(..., description="파일명")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     placeholders: List[PlaceholderResponse] = Field(..., description="플레이스홀더 목록")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
     created_at: datetime = Field(..., description="생성 일시")
 
 
@@ -112,4 +117,5 @@ class AdminTemplateResponse(BaseModel):
     username: str = Field(..., description="사용자명")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     placeholder_count: int = Field(..., description="플레이스홀더 개수")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
     created_at: datetime = Field(..., description="생성 일시")

@@ -36,6 +36,95 @@ FINANCIAL_REPORT_SYSTEM_PROMPT = """당신은 금융 기관의 전문 보고서 
 반드시 위의 4개 섹션(요약, 배경, 주요내용, 결론) 순서를 따라야 합니다."""
 
 
+
+def create_dynamic_system_prompt(placeholders: list) -> str:
+    """Template의 placeholder를 기반으로 동적 system prompt를 생성합니다.
+
+    이 함수는 사용자가 업로드한 커스텀 Template의 placeholder 구조에 맞춰
+    dynamic하게 system prompt를 생성합니다. Placeholder가 없는 경우 기본 prompt를 반환합니다.
+
+    Args:
+        placeholders: Template에 정의된 Placeholder 객체 리스트
+                     각 Placeholder는 placeholder_key 속성 (예: "{{TITLE}}")을 가짐
+
+    Returns:
+        동적으로 생성된 system prompt (Markdown 형식 지시사항 포함)
+
+    Examples:
+        >>> class MockPlaceholder:
+        ...     def __init__(self, key):
+        ...         self.placeholder_key = key
+        >>> placeholders = [
+        ...     MockPlaceholder("{{TITLE}}"),
+        ...     MockPlaceholder("{{SUMMARY}}")
+        ... ]
+        >>> prompt = create_dynamic_system_prompt(placeholders)
+        >>> "TITLE" in prompt and "SUMMARY" in prompt
+        True
+    """
+    if not placeholders:
+        return FINANCIAL_REPORT_SYSTEM_PROMPT
+
+    # Placeholder 키에서 {{ }} 제거하여 항목명 추출
+    placeholder_names = []
+    for ph in placeholders:
+        # placeholder_key에서 {{ }} 제거
+        key = ph.placeholder_key.replace("{{", "").replace("}}", "")
+        placeholder_names.append(key)
+
+    # 중복 제거 (순서 유지)
+    seen = set()
+    unique_placeholders = []
+    for name in placeholder_names:
+        if name not in seen:
+            seen.add(name)
+            unique_placeholders.append(name)
+
+    # 동적 섹션 구조 생성
+    section_structure = ""
+    for placeholder in unique_placeholders:
+        section_structure += f"\n## {placeholder}\n[{placeholder} 내용을 작성하세요]\n"
+
+    # 기본 지시사항과 동적 구조 결합 - FINANCIAL_REPORT_SYSTEM_PROMPT 포함
+    dynamic_prompt = f"""당신은 금융 기관의 전문 보고서 작성자입니다.
+사용자가 제공하는 주제에 대해 금융 업무보고서를 작성해주세요.
+
+아래 형식에 맞춰 각 섹션을 작성해주세요:
+
+1. **제목** - 간결하고 명확하게
+2. **요약 섹션** - 2-3문단으로 핵심 내용 요약
+   - 섹션 제목 예: "요약", "핵심 요약", "Executive Summary" 등
+3. **배경 섹션** - 왜 이 보고서가 필요한지 설명
+   - 섹션 제목 예: "배경 및 목적", "추진 배경", "사업 배경" 등
+4. **주요 내용 섹션** - 구체적이고 상세한 분석 및 설명 (3-5개 소제목 포함)
+   - 섹션 제목 예: "주요 내용", "분석 결과", "세부 내역" 등
+5. **결론 섹션** - 요약과 향후 조치사항
+   - 섹션 제목 예: "결론 및 제언", "향후 계획", "시사점" 등
+
+전문적이고 격식있는 문체로 작성하되, 명확하고 이해하기 쉽게 작성해주세요.
+금융 용어와 데이터를 적절히 활용하여 신뢰성을 높여주세요.
+
+**커스텀 템플릿 구조 (다음 placeholder들을 포함하여 작성):**{section_structure}
+
+**출력은 반드시 다음 Markdown 형식을 사용하세요:**
+- # {{제목}} (H1)"""
+    
+    # 모든 placeholder에 대해 예시 추가
+    for placeholder in unique_placeholders:
+        dynamic_prompt += f"\n- ## {{{{{placeholder}}}}} (H2)"
+
+    dynamic_prompt += """
+
+**작성 가이드:**
+- 각 섹션은 H2(##)로 시작하세요
+- 각 섹션은 명확하고 구조화된 내용을 포함하세요
+- 전문적이고 객관적인 톤을 유지하세요
+- 불필요한 장식적 표현은 피하세요
+- 마크다운 형식을 엄격히 준수하세요
+- 모든 섹션이 의미 있는 내용을 포함해야 합니다"""
+
+    return dynamic_prompt
+
 def create_topic_context_message(topic_input_prompt: str) -> dict:
     """대화 주제를 포함하는 context message를 생성합니다.
 

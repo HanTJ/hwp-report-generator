@@ -27,6 +27,8 @@ import time
 import logging
 from shared.constants import ProjectPath
 
+from app.database.template_db import TemplateDB, PlaceholderDB
+from app.utils.prompts import FINANCIAL_REPORT_SYSTEM_PROMPT, create_topic_context_message, create_dynamic_system_prompt
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/topics", tags=["Topics"])
@@ -103,55 +105,147 @@ async def generate_topic_report(
     Request Body:
         - input_prompt: 사용자가 입력한 주제(필수)
         - language: 기본 'ko'
+        - template_id: 동적 system prompt 생성에 사용할 템플릿 ID (선택)
 
     Returns:
-        { "topic_id": int, "md_path": str }
+        { "topic_id": int, "artifact_id": int }
+        
+    에러 코드:
+        - VALIDATION.REQUIRED_FIELD: 입력 주제가 비어있음
+        - TEMPLATE.NOT_FOUND: 지정된 템플릿을 찾을 수 없음
+        - SERVER.SERVICE_UNAVAILABLE: Claude API 호출 실패
+        - REPORT_GENERATION_FAILED: 보고서 생성 처리 중 오류
     """
     try:
+        # === 1단계: 입력 검증 ===
+        logger.info(f"[GENERATE] Start - user_id={current_user.id}")
+        
         if not topic_data.input_prompt or not topic_data.input_prompt.strip():
+            logger.warning(f"[GENERATE] Empty input - user_id={current_user.id}")
             return error_response(
-                code=ErrorCode.VALIDATION_ERROR if hasattr(ErrorCode, 'VALIDATION_ERROR') else ErrorCode.TOPIC_CREATION_FAILED,
+                code=ErrorCode.VALIDATION_REQUIRED_FIELD,
                 http_status=400,
                 message="입력 주제가 비어있습니다.",
                 hint="3자 이상 내용을 입력해주세요."
             )
 
-        # 1) Claude 호출
+        # === 2단계: Template 기반 동적 prompt 생성 ===
+        system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
+        
+        if topic_data.template_id:
+            logger.info(f"[GENERATE] Loading template - template_id={topic_data.template_id}")
+            
+            template = TemplateDB.get_template_by_id(topic_data.template_id, current_user.id)
+            if not template:
+                logger.warning(f"[GENERATE] Template not found - template_id={topic_data.template_id}, user_id={current_user.id}")
+                return error_response(
+                    code=ErrorCode.TEMPLATE_NOT_FOUND,
+                    http_status=404,
+                    message="템플릿을 찾을 수 없습니다.",
+                    hint="템플릿 ID를 확인하거나 template_id 없이 요청해주세요."
+                )
+            
+            logger.info(f"[GENERATE] Template found - template_id={template.id}, filename={template.filename}")
+            
+            # Placeholder 조회
+            placeholders = PlaceholderDB.get_placeholders_by_template(template.id)
+            logger.info(f"[GENERATE] Placeholders retrieved - count={len(placeholders) if placeholders else 0}")
+            
+            # 동적 prompt 생성
+            if placeholders:
+                system_prompt = create_dynamic_system_prompt(placeholders)
+                logger.info(f"[GENERATE] Dynamic prompt created - template_id={template.id}, placeholders={len(placeholders)}")
+            else:
+                logger.info(f"[GENERATE] No placeholders found, using default prompt - template_id={template.id}")
+
+        # === 3단계: Claude API 호출 ===
+        logger.info(f"[GENERATE] Calling Claude API - prompt_length={len(system_prompt)}")
+        
         start_ms = time.time()
-        claude = ClaudeClient()
-        md_content = claude.generate_report(topic_data.input_prompt.strip())
+        
+        try:
+            # Topic을 사용자 메시지로 전달
+            user_message = create_topic_context_message(topic_data.input_prompt.strip())
+            claude = ClaudeClient()
+            response_text, input_tokens, output_tokens = claude.chat_completion(
+                [user_message],
+                system_prompt
+            )
+            
+            latency_ms = int((time.time() - start_ms) * 1000)
+            
+            logger.info(f"[GENERATE] Claude response received - input_tokens={input_tokens}, output_tokens={output_tokens}, latency_ms={latency_ms}")
+            
+        except Exception as e:
+            logger.error(f"[GENERATE] Claude API call failed - error={str(e)}")
+            return error_response(
+                code=ErrorCode.SERVER_SERVICE_UNAVAILABLE,
+                http_status=503,
+                message="AI 응답 생성 중 오류가 발생했습니다.",
+                details={"error": str(e)},
+                hint="잠시 후 다시 시도해주세요."
+            )
 
-        # Markdown을 파싱하여 content dict로 변환
-        result = parse_markdown_to_content(md_content)
-
-        latency_ms = int((time.time() - start_ms) * 1000)
-
+        # === 4단계: Markdown 파싱 및 제목 추출 ===
+        logger.info(f"[GENERATE] Parsing markdown content")
+        
+        result = parse_markdown_to_content(response_text)
         generated_title = result.get("title") or "보고서"
+        
+        logger.info(f"[GENERATE] Parsed - title={generated_title}")
 
-        # 2) 토픽 생성 및 제목 반영
+        # === 5단계: Topic 생성 ===
+        logger.info(f"[GENERATE] Creating topic")
+        
         topic = TopicDB.create_topic(current_user.id, topic_data)
         TopicDB.update_topic(topic.id, TopicUpdate(generated_title=generated_title))
+        
+        logger.info(f"[GENERATE] Topic created - topic_id={topic.id}")
 
-        # 3) 사용자 메시지 저장
+        # === 6단계: 메시지 저장 (User) ===
+        logger.info(f"[GENERATE] Saving user message - topic_id={topic.id}")
+        
         user_msg = MessageDB.create_message(
             topic.id,
             MessageCreate(role=MessageRole.USER, content=topic_data.input_prompt.strip())
         )
+        
+        logger.info(f"[GENERATE] User message saved - message_id={user_msg.id}")
 
-        # 4) Markdown 파일 생성 및 저장 + 어시스턴트 메시지 저장
-        md_text = build_report_md(result)
-        version = next_artifact_version(topic.id, ArtifactKind.MD, topic_data.language)
-        _, md_path = build_artifact_paths(topic.id, version, "report.md")
-        bytes_written = write_text(md_path, md_text)
-        file_hash = sha256_of(md_path)
-
-        # 어시스턴트 메시지 (생성 결과 텍스트 저장)
+        # === 7단계: 메시지 저장 (Assistant) ===
+        logger.info(f"[GENERATE] Saving assistant message - topic_id={topic.id}")
+        
         assistant_msg = MessageDB.create_message(
             topic.id,
-            MessageCreate(role=MessageRole.ASSISTANT, content=md_text)
+            MessageCreate(role=MessageRole.ASSISTANT, content=response_text)
         )
+        
+        logger.info(f"[GENERATE] Assistant message saved - message_id={assistant_msg.id}")
 
-        # 5) 아티팩트 레코드 저장
+        # === 8단계: Markdown 파일 저장 ===
+        logger.info(f"[GENERATE] Saving MD artifact - topic_id={topic.id}")
+        
+        try:
+            md_text = build_report_md(result)
+            version = next_artifact_version(topic.id, ArtifactKind.MD, topic_data.language)
+            _, md_path = build_artifact_paths(topic.id, version, "report.md")
+            bytes_written = write_text(md_path, md_text)
+            file_hash = sha256_of(md_path)
+            
+            logger.info(f"[GENERATE] File written - size={bytes_written}, hash={file_hash[:16]}...")
+            
+        except Exception as e:
+            logger.error(f"[GENERATE] Failed to save artifact - error={str(e)}")
+            return error_response(
+                code=ErrorCode.ARTIFACT_CREATION_FAILED,
+                http_status=500,
+                message="응답 파일 저장 중 오류가 발생했습니다.",
+                details={"error": str(e)}
+            )
+
+        # === 9단계: 아티팩트 레코드 저장 ===
+        logger.info(f"[GENERATE] Creating artifact record")
+        
         artifact = ArtifactDB.create_artifact(
             topic.id,
             assistant_msg.id,
@@ -165,28 +259,40 @@ async def generate_topic_report(
                 sha256=file_hash,
             )
         )
+        
+        logger.info(f"[GENERATE] Artifact created - artifact_id={artifact.id}, version={artifact.version}")
 
-        # 6) AI 사용량 저장(가능하면)
-        in_tok = getattr(claude, 'last_input_tokens', 0)
-        out_tok = getattr(claude, 'last_output_tokens', 0)
-        if (in_tok + out_tok) > 0:
+        # === 10단계: AI 사용량 저장 ===
+        logger.info(f"[GENERATE] Saving AI usage - message_id={assistant_msg.id}")
+        
+        try:
             AiUsageDB.create_ai_usage(
                 topic.id,
                 assistant_msg.id,
                 AiUsageCreate(
                     model=claude.model,
-                    input_tokens=in_tok,
-                    output_tokens=out_tok,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                     latency_ms=latency_ms,
                 )
             )
+            
+            logger.info(f"[GENERATE] AI usage saved")
+            
+        except Exception as e:
+            logger.error(f"[GENERATE] Failed to save AI usage - error={str(e)}")
+            # 사용량 저장 실패는 치명적이지 않으므로 계속 진행
 
+        # === 11단계: 성공 응답 반환 ===
+        logger.info(f"[GENERATE] Success - topic_id={topic.id}, artifact_id={artifact.id}")
+        
         return success_response({
             "topic_id": topic.id,
             "artifact_id": artifact.id
         })
 
     except Exception as e:
+        logger.error(f"[GENERATE] Unexpected error - error={str(e)}")
         # Claude 호출/파일/DB 어느 단계에서도 예외 처리
         return error_response(
             code=ErrorCode.REPORT_GENERATION_FAILED,
@@ -490,7 +596,7 @@ async def ask(
     body: AskRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """대화(Conversation) 맥락에서 질문을 수행합니다.
+    """대화(Conversation) 맵핑에서 질문을 수행합니다.
 
     매개변수(Args):
         - topic_id: 질문이 속한 주제의 ID
@@ -509,9 +615,9 @@ async def ask(
         - ARTIFACT.INVALID_KIND: 해당 아티팩트는 MD 형식이 아님
         - ARTIFACT.UNAUTHORIZED: 다른 사용자의 아티팩트에 접근 시도
         - MESSAGE.CONTEXT_TOO_LARGE: 대화 컨텍스트 크기가 허용 한도를 초과함
+        - TEMPLATE.NOT_FOUND: 지정된 템플릿을 찾을 수 없음
         - SERVER.SERVICE_UNAVAILABLE: Claude API 호출 실패
     """
-
 
     # === 1단계: 권한 및 검증 ===
     logger.info(f"[ASK] Start - topic_id={topic_id}, user_id={current_user.id}")
@@ -707,10 +813,37 @@ async def ask(
             hint="max_messages를 줄이거나 include_artifact_content를 false로 설정해주세요."
         )
 
-    # 시스템 프롬프트 구성 (순수 지침만)
+    # 시스템 프롬프트 구성 (순서: custom > template_id > default)
     if body.system_prompt:
         system_prompt = body.system_prompt
         logger.info(f"[ASK] Using custom system prompt - length={len(system_prompt)}")
+    elif body.template_id:
+        # === Template 기반 동적 prompt 생성 ===
+        logger.info(f"[ASK] Loading template for dynamic prompt - template_id={body.template_id}")
+        
+        template = TemplateDB.get_template_by_id(body.template_id, current_user.id)
+        if not template:
+            logger.warning(f"[ASK] Template not found - template_id={body.template_id}, user_id={current_user.id}")
+            return error_response(
+                code=ErrorCode.TEMPLATE_NOT_FOUND,
+                http_status=404,
+                message="템플릿을 찾을 수 없습니다.",
+                hint="템플릿 ID를 확인하거나 template_id 없이 요청해주세요."
+            )
+        
+        logger.info(f"[ASK] Template found - template_id={template.id}, filename={template.filename}")
+        
+        # Placeholder 조회
+        placeholders = PlaceholderDB.get_placeholders_by_template(template.id)
+        logger.info(f"[ASK] Placeholders retrieved - count={len(placeholders) if placeholders else 0}")
+        
+        # 동적 prompt 생성
+        if placeholders:
+            system_prompt = create_dynamic_system_prompt(placeholders)
+            logger.info(f"[ASK] Dynamic prompt created from template - template_id={template.id}, placeholders={len(placeholders)}, prompt_length={len(system_prompt)}")
+        else:
+            system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
+            logger.info(f"[ASK] Using default prompt (template has no placeholders) - template_id={template.id}")
     else:
         system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
         logger.info(f"[ASK] Using default system prompt")
