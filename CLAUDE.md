@@ -20,6 +20,7 @@
 ### 핵심 컴포넌트
 
 **Backend** (`backend/app/`):
+
 1. **main.py**: FastAPI 앱 진입점, 라우터 등록
 2. **routers/**: API 라우트 핸들러 (auth, topics, messages, artifacts, admin, reports-deprecated)
 3. **models/**: Pydantic 모델 (request/response 검증)
@@ -33,6 +34,7 @@
    - `auth.py`: JWT 인증 및 비밀번호 해싱
 
 **Frontend** (`frontend/src/`):
+
 1. **components/**: 재사용 가능한 React 컴포넌트
 2. **pages/**: 페이지 컴포넌트
 3. **services/**: API 클라이언트 서비스
@@ -51,11 +53,13 @@
 ### 프롬프트 아키텍처 (v2.1)
 
 **설계 원칙:**
+
 - 시스템 프롬프트: 순수 지시사항만 (데이터 제외)
 - 주제/컨텍스트: 메시지 배열로 전달
 - 중앙 관리: `utils/prompts.py`
 
 **주요 상수:**
+
 ```python
 # utils/prompts.py
 FINANCIAL_REPORT_SYSTEM_PROMPT = """당신은 금융 기관의 전문 보고서 작성자입니다.
@@ -74,6 +78,7 @@ FINANCIAL_REPORT_SYSTEM_PROMPT = """당신은 금융 기관의 전문 보고서 
 ```
 
 **주제 컨텍스트 전달:**
+
 ```python
 # 주제는 시스템 프롬프트가 아닌 메시지로 전달
 messages = [
@@ -84,6 +89,7 @@ messages = [
 ### Markdown 파싱 (v2.1)
 
 **동적 섹션 추출:**
+
 ```python
 # markdown_parser.py
 def parse_markdown_to_content(md_text: str) -> Dict[str, str]:
@@ -100,12 +106,14 @@ def parse_markdown_to_content(md_text: str) -> Dict[str, str]:
 ```
 
 **우선순위 조정 (v2.1):**
+
 - "향후 추진 계획"처럼 "추진"(배경)과 "향후"(결론) 키워드가 겹치는 경우
 - 결론 키워드 체크를 배경보다 먼저 수행하여 올바르게 분류
 
 ## 환경 설정
 
 `backend/.env` 파일:
+
 ```env
 CLAUDE_API_KEY=your_api_key_here
 CLAUDE_MODEL=claude-sonnet-4-5-20250929
@@ -184,10 +192,13 @@ npm run build
 ### 표준 응답 구조
 
 **성공:**
+
 ```json
 {
   "success": true,
-  "data": { /* 실제 데이터 */ },
+  "data": {
+    /* 실제 데이터 */
+  },
   "error": null,
   "meta": { "requestId": "uuid" },
   "feedback": []
@@ -195,6 +206,7 @@ npm run build
 ```
 
 **실패:**
+
 ```json
 {
   "success": false,
@@ -234,14 +246,14 @@ return error_response(
 
 ### 현재 구현 상태
 
-| Router | 준수율 | 상태 |
-|--------|--------|------|
-| Topics | 100% ✅ | 참조 구현 |
-| Messages | 100% ✅ | 완전 준수 |
-| Artifacts | 100% ✅ | 완전 준수 |
-| Auth | 100% ✅ | 완전 준수 |
-| Admin | 100% ✅ | 완전 준수 |
-| Reports | 100% ✅ | 완전 준수 (Deprecated) |
+| Router    | 준수율  | 상태                   |
+| --------- | ------- | ---------------------- |
+| Topics    | 100% ✅ | 참조 구현              |
+| Messages  | 100% ✅ | 완전 준수              |
+| Artifacts | 100% ✅ | 완전 준수              |
+| Auth      | 100% ✅ | 완전 준수              |
+| Admin     | 100% ✅ | 완전 준수              |
+| Reports   | 100% ✅ | 완전 준수 (Deprecated) |
 
 **전체 준수율**: 100% (28/28 활성 엔드포인트) ✨
 
@@ -263,6 +275,7 @@ return error_response(
 ### HWPX 템플릿 플레이스홀더
 
 **컨텐츠:**
+
 - `{{TITLE}}` - 보고서 제목
 - `{{DATE}}` - 생성 날짜
 - `{{SUMMARY}}` - 요약 내용
@@ -271,6 +284,7 @@ return error_response(
 - `{{CONCLUSION}}` - 결론 내용
 
 **섹션 제목 (동적 추출 - v2.1):**
+
 - `{{TITLE_SUMMARY}}` - 요약 섹션 제목
 - `{{TITLE_BACKGROUND}}` - 배경 섹션 제목
 - `{{TITLE_MAIN_CONTENT}}` - 주요 내용 섹션 제목
@@ -279,12 +293,14 @@ return error_response(
 ## 주요 API 엔드포인트
 
 ### 인증 (`/api/auth`)
+
 - `POST /api/auth/register` - 회원가입
 - `POST /api/auth/login` - 로그인 (JWT 발급)
 - `GET /api/auth/me` - 내 정보
 - `POST /api/auth/logout` - 로그아웃
 
 ### 주제 (`/api/topics`) - v2.0
+
 - `POST /api/topics` - 토픽 생성
 - `POST /api/topics/generate` - 한 번에 MD 생성 (토픽+메시지+아티팩트)
 - `GET /api/topics` - 내 토픽 목록
@@ -292,10 +308,12 @@ return error_response(
 - `POST /api/topics/{topic_id}/ask` - **메시지 체이닝** (컨텍스트 기반 대화)
 
 ### 메시지 (`/api/topics/{topic_id}/messages`)
+
 - `POST /api/topics/{topic_id}/messages` - 메시지 생성
 - `GET /api/topics/{topic_id}/messages` - 메시지 목록
 
 ### 아티팩트 (`/api/artifacts`)
+
 - `GET /api/artifacts/{artifact_id}` - 메타 조회
 - `GET /api/artifacts/{artifact_id}/content` - 내용 조회 (MD만)
 - `GET /api/artifacts/{artifact_id}/download` - 파일 다운로드
@@ -303,22 +321,52 @@ return error_response(
 - `GET /api/artifacts/messages/{message_id}/hwpx/download` - 메시지 기반 HWPX 다운로드 (자동 변환)
 
 ### 관리자 (`/api/admin`)
+
 - `GET /api/admin/users` - 사용자 목록
 - `POST /api/admin/users/{user_id}/approve` - 승인
 - `GET /api/admin/token-usage` - 토큰 사용량
 
 ### 레거시 (`/api/reports`) - Deprecated
+
 - ⚠️ v1.0 호환성 유지, 향후 제거 예정
 - 신규 개발은 `/api/topics` 사용
 
 ## 주요 변경사항
 
+### v2.2 (2025-11-10) - /ask 아티팩트 마크다운 파싱 수정 + 동적 프롬프트 템플릿 통합
+
+**버그 수정:**
+
+- **문제**: `/api/topics/{topic_id}/ask` 엔드포인트에서 Claude 응답 전체가 artifact로 저장
+- **원인**: 마크다운 파싱 및 빌드 로직 누락
+- **해결**: `parse_markdown_to_content()` + `build_report_md()` 추가로 파싱된 마크다운만 저장
+- **결과**: `/ask`와 `generate_topic_report` 처리 방식 일관성 확보 ✅
+
+**동적 프롬프트 템플릿 통합:**
+
+- **Template 기반 동적 System Prompt**: Placeholder 기반으로 맞춤형 프롬프트 자동 생성
+- **우선순위**: custom prompt > template_id > default prompt
+- **권한 관리**: Template 소유자만 접근 가능
+- **에러 처리**: TEMPLATE_NOT_FOUND, TEMPLATE_NOT_FOUND 에러 코드 추가
+
+**테스트 개선:**
+
+- `/ask` 관련 마크다운 파싱 3개 신규 테스트 추가
+- 전체 topics 테스트: 28/28 통과 (100%)
+- 커버리지: 52% (topics.py 78% 달성)
+
+**참고:**
+- `backend/doc/specs/20251110_fix_ask_artifact_markdown_parsing.md` - Unit Spec
+- `backend/doc/07.PromptIntegrate.md` - 프롬프트 통합 가이드
+
 ### v2.1 (2025-11-04) - 프롬프트 통합
 
 **새로운 파일:**
+
 - `app/utils/prompts.py` - 시스템 프롬프트 중앙 관리
 
 **아키텍처 변경:**
+
 1. **ClaudeClient 반환 타입**: `Dict[str, str]` → `str` (Markdown)
 2. **파싱 로직 분리**: ClaudeClient에서 제거, 호출자가 `parse_markdown_to_content()` 사용
 3. **프롬프트 순수성**: 시스템 프롬프트에서 주제 제거, 메시지로 전달
@@ -326,6 +374,7 @@ return error_response(
 5. **관심사 분리**: ClaudeClient(AI 호출) / markdown_parser(파싱) / 호출자(비즈니스 로직)
 
 **테스트:**
+
 - 19개 실패 테스트 수정
 - 9개 deprecated 테스트 스킵
 - 커버리지 유지: 70%+
@@ -335,10 +384,12 @@ return error_response(
 ### v2.0 (2025-10-31) - 대화형 시스템
 
 **시스템 전환:**
+
 - 단일 요청 → 대화형 시스템 (Topics + Messages)
 - 직접 HWPX 생성 → Markdown 생성 후 변환
 
 **새 기능:**
+
 - Topics (대화 주제/스레드)
 - Messages (사용자/AI 메시지)
 - Artifacts (MD, HWPX 버전 관리)
@@ -346,9 +397,11 @@ return error_response(
 - Transformations (변환 이력)
 
 **API 표준:**
+
 - 모든 엔드포인트 표준 응답 형식 (100% compliance)
 
 **테스트:**
+
 - 커버리지 48% → 70%+ (+22%)
 - claude_client: 14% → 100%
 - hwp_handler: 15% → 83%
@@ -358,28 +411,34 @@ return error_response(
 에러 코드는 `DOMAIN.DETAIL` 형식:
 
 **인증 (`AUTH.*`):**
+
 - `AUTH.INVALID_TOKEN` - 유효하지 않은 토큰
 - `AUTH.INVALID_CREDENTIALS` - 잘못된 이메일/비밀번호
 - `AUTH.UNAUTHORIZED` - 권한 부족
 
 **주제 (`TOPIC.*`):**
+
 - `TOPIC.NOT_FOUND` - 주제를 찾을 수 없음
 - `TOPIC.UNAUTHORIZED` - 접근 권한 없음
 - `TOPIC.CREATION_FAILED` - 생성 실패
 
 **메시지 (`MESSAGE.*`):**
+
 - `MESSAGE.NOT_FOUND` - 메시지를 찾을 수 없음
 - `MESSAGE.CREATION_FAILED` - 생성 실패
 
 **아티팩트 (`ARTIFACT.*`):**
+
 - `ARTIFACT.NOT_FOUND` - 아티팩트를 찾을 수 없음
 - `ARTIFACT.DOWNLOAD_FAILED` - 다운로드 실패
 
 **검증 (`VALIDATION.*`):**
+
 - `VALIDATION.REQUIRED_FIELD` - 필수 필드 누락
 - `VALIDATION.INVALID_FORMAT` - 잘못된 형식
 
 **서버 (`SERVER.*`):**
+
 - `SERVER.INTERNAL_ERROR` - 내부 서버 오류
 - `SERVER.DATABASE_ERROR` - 데이터베이스 오류
 
@@ -427,16 +486,17 @@ hwp-report-generator/
 ### Workflow
 
 1. **User Request** → Feature/bug description
-2. **Unit Spec Creation** → Claude creates spec following template
+2. **Unit Spec Creation** → Claude creates `spec following template
 3. **User Review** → User reviews and approves
 4. **Implementation** → Implement per spec
-5. **Testing** → Verify test cases in spec
+5. **Testing** → Verify test cases\ in spec
 
 ### Unit Spec Template
 
 Each spec includes:
 
 1. **Requirements Summary**
+
    - Purpose (one-line)
    - Type: ☐ New ☐ Change ☐ Delete
    - Core requirements (input/output/constraints/flow)
@@ -492,6 +552,13 @@ Claude: "Implementing..."
 
 ---
 
-**마지막 업데이트:** 2025-11-06
-**버전:** 2.2
+**마지막 업데이트:** 2025-11-10
+**버전:** 2.3
 **Claude Code 최적화**
+
+**최신 개선사항 (2025-11-10):**
+- ✅ `/ask` 엔드포인트 아티팩트 마크다운 파싱 버그 수정
+- ✅ 마크다운 파싱 검증 테스트 3개 추가 (TC-ASK-001, 003, 004)
+- ✅ topics.py 커버리지 39% → 78% 향상
+- ✅ 모든 28개 토픽 테스트 통과 (100%)
+- ✅ Unit Spec 작성: `backend/doc/specs/20251110_fix_ask_artifact_markdown_parsing.md`

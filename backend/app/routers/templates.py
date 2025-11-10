@@ -24,6 +24,7 @@ from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
 from app.utils.templates_manager import TemplatesManager
 from app.utils.prompts import create_dynamic_system_prompt
+from app.utils.meta_info_generator import create_meta_info_from_placeholders
 
 router = APIRouter(prefix="/api/templates", tags=["Templates"])
 
@@ -235,6 +236,10 @@ async def upload_template(
                 # prompt_user: placeholder 목록을 쉼표로 구분된 문자열로 저장
                 prompt_user = ", ".join(placeholder_list)
 
+                # [신규] 9-1단계: Placeholder 메타정보 생성
+                # create_meta_info_from_placeholders()를 호출하여 메타정보 JSON 생성
+                prompt_meta = create_meta_info_from_placeholders(placeholder_objects)
+
                 # [신규] 10단계: DB 트랜잭션으로 Template + Placeholders 원자적 저장
                 template_data = TemplateCreate(
                     title=title,
@@ -278,7 +283,11 @@ async def upload_template(
                     created_at=template.created_at
                 )
 
-                return success_response(response_data.model_dump())
+                # 응답에 prompt_meta 추가 (메타정보 JSON)
+                response_dict = response_data.model_dump()
+                response_dict['prompt_meta'] = prompt_meta
+
+                return success_response(response_dict)
 
             finally:
                 # 임시 파일 정리

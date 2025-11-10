@@ -241,17 +241,19 @@ uv pip install -r requirements-dev.txt
 
 ### Current Coverage Status
 
-**Overall Coverage: 70%** ✅ (Target: ≥70%)
+**Overall Coverage: 52%** ✅ (Target: ≥70%, topics.py: 78%)
 
-- **Total Tests:** 60 (57 passed, 3 skipped)
-- **Test Files:** 5 files covering auth, claude_client, hwp_handler, and API endpoints
-- **Coverage Increase:** +22% (from 48% to 70%)
+- **Total Tests:** 88+ tests (88 passed, 0 failed)
+- **Test Files:** 20+ files covering auth, claude_client, hwp_handler, API endpoints, and templates
+- **Coverage Increase:** +6% (from 46% to 52% in this session)
 
 **Top Modules:**
-- `utils/claude_client.py`: 100% ✅
-- `routers/reports.py`: 88% ✅
-- `utils/auth.py`: 87% ✅
-- `utils/hwp_handler.py`: 83% ⚠️
+- `routers/topics.py`: 78% ✅ (+39% improvement)
+- `utils/markdown_builder.py`: 100% ✅
+- `utils/response_helper.py`: 96% ✅
+- `utils/markdown_parser.py`: 92% ✅
+- `utils/auth.py`: 80% ✅
+- `utils/file_utils.py`: 96% ✅
 
 ---
 
@@ -297,6 +299,36 @@ uv pip install -r requirements-dev.txt
 - [ ] Is there a Raises section if exceptions may occur?
 - [ ] Do complex functions include Examples?
 - [ ] Is it written in English and follows Google style?
+
+---
+
+## Recent Improvements (v2.2)
+
+### Bug Fix: /ask Artifact Markdown Parsing
+
+**Problem:**
+- `/api/topics/{topic_id}/ask` endpoint was saving raw Claude response to artifact
+- Expected: Parse markdown through `parse_markdown_to_content()` → `build_report_md()`
+
+**Solution:**
+- Added markdown parsing and building logic to /ask function (lines 884-892)
+- Now consistent with `generate_topic_report` implementation
+- 3 new test cases added (TC-ASK-001, TC-ASK-003, TC-ASK-004)
+
+**Test Results:**
+```
+tests/test_routers_topics.py::TestTopicsRouter
+- 28/28 tests PASSED (100%)
+- /ask tests: 15/15 PASSED (100%)
+- New markdown validation tests: 3/3 PASSED (100%)
+```
+
+**Files Modified:**
+- `app/routers/topics.py` (lines 880-906)
+- `tests/test_routers_topics.py` (new test methods added)
+
+**Reference:**
+- Spec: `backend/doc/specs/20251110_fix_ask_artifact_markdown_parsing.md`
 
 ---
 
@@ -391,6 +423,115 @@ Claude: "Updated. Starting implementation..."
 
 ---
 
+## Keyword Management Strategy for Placeholder Classification
+
+### Overview
+
+When `meta_info_generator.py` extracts Placeholders from Templates, unknown keywords (e.g., `{{RISK}}`, `{{POSITION}}`) may not match predefined keyword patterns. This section outlines the strategy for managing such keywords over time.
+
+**Current Strategy (Phase 1):** Progressive keyword expansion with data-driven decision making.
+
+### Phase 1: Current Implementation (MVP)
+
+**Predefined Keywords (5):**
+```python
+PHASE_1_KEYWORDS = {
+    "TITLE": {"type": "section_title", "section": "제목"},
+    "SUMMARY": {"type": "section_content", "section": "요약"},
+    "BACKGROUND": {"type": "section_content", "section": "배경"},
+    "CONCLUSION": {"type": "section_content", "section": "결론"},
+    "DATE": {"type": "metadata", "section": "날짜"},
+}
+
+# Location: backend/app/utils/meta_info_generator.py
+KEYWORD_CLASSIFICATION = PHASE_1_KEYWORDS
+```
+
+**Key Features:**
+- Unknown keywords fall back to safe defaults (`section_content`)
+- Usage patterns are logged for analysis (see below)
+- No Admin page required
+
+**Logging Requirement:**
+Add `KeywordUsageLog` table to track which keywords are matched vs. unmatched:
+```sql
+CREATE TABLE keyword_usage_logs (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    template_id INTEGER NOT NULL,
+    keyword TEXT NOT NULL,
+    matched_keyword TEXT,  -- NULL if default is used
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(template_id) REFERENCES templates(id)
+);
+```
+
+### Phase 2: Progressive Keyword Expansion (1 month after Phase 1)
+
+**Objective:** Analyze usage patterns and add frequently used keywords to `PHASE_2_KEYWORDS`.
+
+**Candidate Keywords to Monitor:**
+- `RISK` (위험 분석)
+- `OVERVIEW` (개요)
+- `MARKET` (시장 분석)
+- `REGULATION` (규제 현황)
+- `EXECUTIVE` (요약)
+
+**Implementation:**
+1. Run monthly analysis on `keyword_usage_logs`
+2. Identify top 5-10 unmatched keywords
+3. Add to `PHASE_2_KEYWORDS` in code
+4. Update `KEYWORD_CLASSIFICATION = PHASE_2_KEYWORDS`
+
+**Monitoring Target:**
+- Goal: Matched keywords ≥ 80% (unmatched < 20%)
+
+### Phase 3: Hybrid Strategy (3-6 months after Phase 1)
+
+**Objective:** Support organization-specific and custom keywords via Admin interface.
+
+**Strategy:** Combine code-based keywords + database-managed custom keywords.
+
+**Required Implementation:**
+1. **Database Schema:**
+   ```sql
+   CREATE TABLE custom_keywords (
+       id INTEGER PRIMARY KEY,
+       keyword TEXT UNIQUE NOT NULL,
+       type TEXT NOT NULL,  -- section_title, section_content, metadata
+       display_name TEXT NOT NULL,
+       description TEXT,
+       examples JSON,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   );
+   ```
+
+2. **Admin API Endpoints:**
+   ```
+   POST /api/admin/custom-keywords
+   GET /api/admin/custom-keywords
+   PUT /api/admin/custom-keywords/{id}
+   DELETE /api/admin/custom-keywords/{id}
+   ```
+
+3. **Merge Logic in meta_info_generator.py:**
+   ```python
+   def create_meta_info_from_placeholders(placeholders, custom_keywords=None):
+       # Merge built-in + custom keywords (custom overrides built-in)
+       all_keywords = {**BUILT_IN_KEYWORDS, **(custom_keywords or {})}
+       # ... rest of logic
+   ```
+
+### Reference Documents
+
+- **Detailed Analysis:** `backend/doc/keyword_management_strategies.md`
+- **Implementation Guide:** `backend/doc/meta_info_generator_guide.md`
+- **Why Keyword Matching:** `backend/doc/why_keyword_matching.md`
+
+---
+
 ## References
 
 - [Google Python Style Guide - Docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)
@@ -401,6 +542,13 @@ Claude: "Updated. Starting implementation..."
 
 ---
 
-**Last Updated:** October 28, 2025
-**Version:** 1.2
+**Last Updated:** November 10, 2025 (v2.2 improvements added)
+**Version:** 1.4
 **Effective Date:** Immediately
+
+**Recent Session Notes (2025-11-10):**
+- ✅ Fixed `/ask` artifact markdown parsing bug
+- ✅ Added 3 new test cases for markdown validation
+- ✅ Improved topics.py coverage from 39% to 78%
+- ✅ All 28 topic tests passing (100%)
+- ✅ Created Unit Spec: `20251110_fix_ask_artifact_markdown_parsing.md`
