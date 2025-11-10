@@ -532,6 +532,573 @@ CREATE TABLE keyword_usage_logs (
 
 ---
 
+---
+
+## Backend Architecture Overview
+
+### Directory Structure
+
+```
+backend/app/
+├── main.py                          # FastAPI entry point (router registration, initialization)
+│
+├── routers/                         # API endpoints (6 modules)
+│   ├── auth.py                      # Authentication (signup, login, JWT)
+│   ├── topics.py                    # Topic/report generation (message chaining)
+│   ├── messages.py                  # Message retrieval
+│   ├── artifacts.py                 # Artifact (MD, HWPX) download/convert
+│   ├── templates.py                 # ✨ Template upload/management
+│   └── admin.py                     # Admin API
+│
+├── models/                          # Pydantic data models (9 modules)
+│   ├── user.py                      # User, UserCreate, UserUpdate
+│   ├── topic.py                     # Topic, TopicCreate (+ template_id)
+│   ├── message.py                   # Message, AskRequest (+ template_id)
+│   ├── template.py                  # ✨ Template, Placeholder, TemplateCreate
+│   ├── artifact.py                  # Artifact, ArtifactCreate, ArtifactKind
+│   ├── ai_usage.py                  # AiUsage, AiUsageCreate
+│   ├── transformation.py            # Transformation, TransformOperation
+│   ├── token_usage.py               # TokenUsage (legacy)
+│   └── report.py                    # Report (legacy, Deprecated)
+│
+├── database/                        # SQLite CRUD layer (11 modules)
+│   ├── connection.py                # DB initialization, table creation, migration
+│   ├── user_db.py                   # User CRUD
+│   ├── topic_db.py                  # Topic CRUD
+│   ├── message_db.py                # Message CRUD (seq_no management)
+│   ├── artifact_db.py               # Artifact CRUD (version management)
+│   ├── template_db.py               # ✨ Template CRUD + transaction
+│   ├── ai_usage_db.py               # AI usage tracking
+│   ├── transformation_db.py         # Transformation history (MD→HWPX)
+│   ├── token_usage_db.py            # Legacy token tracking
+│   ├── report_db.py                 # Legacy reports
+│   └── __init__.py                  # DB initialization export
+│
+└── utils/                           # Business logic & helpers (13 modules)
+    ├── prompts.py                   # ✨ System Prompt central management
+    ├── templates_manager.py         # ✨ HWPX file/Placeholder handling
+    ├── claude_client.py             # Claude API call (Markdown response)
+    ├── markdown_parser.py           # Markdown → structured data (dynamic sections)
+    ├── markdown_builder.py          # Structured data → Markdown
+    ├── hwp_handler.py               # HWPX modify/create (XML manipulation)
+    ├── artifact_manager.py          # Artifact file management (store, hash)
+    ├── file_utils.py                # File I/O utilities (write, read, hash)
+    ├── md_handler.py                # Markdown file I/O
+    ├── response_helper.py           # API standard response (success, error)
+    ├── auth.py                      # JWT, password hashing
+    └── meta_info_generator.py       # Placeholder metadata generation (future)
+```
+
+### Key Database Tables
+
+```sql
+-- Users table
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    username TEXT NOT NULL,
+    hashed_password TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT 1,
+    is_admin BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Topics table (conversation threads)
+CREATE TABLE topics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    input_prompt TEXT NOT NULL,
+    generated_title TEXT,
+    language TEXT NOT NULL DEFAULT 'ko',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Messages table
+CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic_id INTEGER NOT NULL,
+    role TEXT NOT NULL,                 -- user, assistant, system
+    content TEXT NOT NULL,
+    seq_no INTEGER NOT NULL,            -- sequence number (conversation order)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE,
+    UNIQUE(topic_id, seq_no)
+);
+
+-- Artifacts table
+CREATE TABLE artifacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic_id INTEGER NOT NULL,
+    message_id INTEGER,
+    kind TEXT NOT NULL,                 -- MD, HWPX, PDF
+    locale TEXT NOT NULL,               -- language (ko, en)
+    version INTEGER NOT NULL,           -- version number
+    filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE,
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE SET NULL
+);
+
+-- ✨ Templates table (new)
+CREATE TABLE templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    filename TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size INTEGER NOT NULL DEFAULT 0,
+    sha256 TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT 1,
+    prompt_user TEXT DEFAULT NULL,      -- ✨ Placeholder list
+    prompt_system TEXT DEFAULT NULL,    -- ✨ Dynamic System Prompt
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Placeholders table
+CREATE TABLE placeholders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER NOT NULL,
+    placeholder_key TEXT NOT NULL,      -- {{TITLE}}, {{SUMMARY}}, etc.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
+);
+
+-- AI usage table
+CREATE TABLE ai_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic_id INTEGER NOT NULL,
+    message_id INTEGER,
+    model TEXT NOT NULL,                -- claude-sonnet-4-5-20250929
+    input_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    latency_ms INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE,
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE SET NULL
+);
+```
+
+### Core API Endpoints
+
+#### Topics Router (`/api/topics`)
+
+```python
+POST   /api/topics                         # Create topic
+POST   /api/topics/generate                # Generate report (select template)
+GET    /api/topics                         # List my topics
+GET    /api/topics/{id}                    # Get topic details
+PUT    /api/topics/{id}                    # Update topic
+DELETE /api/topics/{id}                    # Delete topic
+POST   /api/topics/{id}/ask                # Message chaining (conversation)
+```
+
+#### Templates Router (`/api/templates`)
+
+```python
+POST   /api/templates              # Upload template (HWPX)
+GET    /api/templates              # List my templates
+GET    /api/templates/{id}         # Get template details
+DELETE /api/templates/{id}         # Delete template
+GET    /api/admin/templates        # Admin: List all templates
+```
+
+#### Artifacts Router (`/api/artifacts`)
+
+```python
+GET    /api/artifacts/{id}                 # Get metadata
+GET    /api/artifacts/{id}/content         # Get content (MD only)
+GET    /api/artifacts/{id}/download        # Download file
+POST   /api/artifacts/{id}/convert         # MD → HWPX conversion
+GET    /api/artifacts/messages/{msg_id}/hwpx/download  # Auto-convert & download
+```
+
+---
+
+## Core Functions & Step-by-Step Flows
+
+### generate_topic_report() - 9-Step Flow
+
+```python
+@router.post("/generate", summary="Topic input → MD report generation")
+async def generate_topic_report(
+    topic_data: TopicCreate,
+    current_user: User = Depends(get_current_active_user)
+) -> ApiResponse:
+    """
+    [Step 1] Input validation
+        - input_prompt required, minimum 3 characters
+
+    [Step 2] Select System Prompt (based on template)
+        IF topic_data.template_id:
+            - Load Template
+            - Fetch Placeholders
+            - create_dynamic_system_prompt() call
+        ELSE:
+            - Use FINANCIAL_REPORT_SYSTEM_PROMPT
+
+    [Step 3] Call Claude API
+        - user_message = create_topic_context_message(input_prompt)
+        - system_prompt = (Step 2 result)
+        - response = claude.chat_completion([user_message], system_prompt)
+
+    [Step 4] Parse Markdown
+        - content = parse_markdown_to_content(response)
+        - Dynamic section extraction (title, summary, background, ...)
+
+    [Step 5] Create Topic
+        - topic = TopicDB.create_topic(...)
+        - Update generated_title
+
+    [Step 6] Save messages
+        - user_msg = MessageDB.create_message(USER)
+        - assistant_msg = MessageDB.create_message(ASSISTANT)
+
+    [Step 7] Save Artifact (MD)
+        - md_text = build_report_md(content)
+        - artifact = ArtifactDB.create_artifact(kind=MD)
+
+    [Step 8] Record AI Usage
+        - AiUsageDB.create_ai_usage(input_tokens, output_tokens, latency_ms)
+
+    [Step 9] Return response
+        - { topic_id, artifact_id, message_ids, usage }
+    """
+```
+
+### ask() - 12-Step Flow (Message Chaining)
+
+```python
+@router.post("/{topic_id}/ask", summary="Message chaining (conversation)")
+async def ask(
+    topic_id: int,
+    body: AskRequest,
+    current_user: User = Depends(get_current_active_user)
+) -> ApiResponse:
+    """
+    [Step 1] Authorization & validation
+        - Topic exists check
+        - Ownership check (topic.user_id == current_user.id)
+        - content required, minimum 1 character
+        - content length validation (≤ 50,000 chars)
+
+    [Step 2] Save user message
+        - user_msg = MessageDB.create_message(topic_id, MessageCreate(role=USER))
+
+    [Step 3] Select reference document
+        IF body.artifact_id:
+            - artifact = ArtifactDB.get_artifact_by_id(body.artifact_id)
+            - Check authorization (artifact.topic_id == topic_id)
+            - Verify type (kind == MD)
+        ELSE:
+            - artifact = ArtifactDB.get_latest_artifact_by_kind(topic_id, MD)
+
+    [Step 4] Build context
+        - all_messages = MessageDB.get_messages_by_topic(topic_id)
+        - user_messages = [m for m in all_messages if m.role == USER]
+        - If artifact_id specified → include up to that message only
+        - Apply max_messages → recent N messages only
+
+    [Step 5] Inject document content
+        IF body.include_artifact_content AND artifact exists:
+            - md_content = read(artifact.file_path)
+            - artifact_message = "Current report(MD):\n\n{md_content}"
+            - Add to context_messages
+
+    [Step 6] Validate context size
+        - total_chars = sum(len(m.content) for m in context_messages)
+        - MAX_CONTEXT_CHARS = 50,000
+        - Return error if exceeded
+
+    [Step 7] Select System Prompt (priority order)
+        IF body.system_prompt:
+            - system_prompt = body.system_prompt
+        ELIF body.template_id:
+            - template = TemplateDB.get_template_by_id(body.template_id)
+            - placeholders = PlaceholderDB.get_placeholders_by_template()
+            - system_prompt = create_dynamic_system_prompt(placeholders)
+        ELSE:
+            - system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
+
+    [Step 8] Call Claude API
+        - claude_messages = [topic_context] + [context_messages] + [user_msg]
+        - response = claude.chat_completion(claude_messages, system_prompt)
+
+    [Step 9] Save assistant message
+        - assistant_msg = MessageDB.create_message(topic_id, MessageCreate(role=ASSISTANT))
+
+    [Step 10] Save Artifact (MD)
+        - result = parse_markdown_to_content(response)
+        - md_text = build_report_md(result)
+        - artifact = ArtifactDB.create_artifact(kind=MD, version++)
+
+    [Step 11] Record AI Usage
+        - AiUsageDB.create_ai_usage(...)
+
+    [Step 12] Return response
+        - {
+            topic_id,
+            user_message,
+            assistant_message,
+            artifact,
+            usage { model, input_tokens, output_tokens, latency_ms }
+          }
+    """
+```
+
+### upload_template() - 9-Step Flow
+
+```python
+@router.post("", summary="HWPX template upload")
+async def upload_template(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    current_user: User = Depends(get_current_active_user)
+) -> ApiResponse:
+    """
+    [Step 1] File validation
+        - Check filename (.hwpx only)
+        - Check file size (max 50MB)
+
+    [Step 2] Validate HWPX file
+        - TemplatesManager.validate_hwpx()
+        - Check ZIP magic bytes (PK\\x03\\x04)
+
+    [Step 3] Save file
+        - Path: templates/user_{user_id}/template_{timestamp}.hwpx
+        - Calculate SHA256 hash
+
+    [Step 4] Extract Placeholders
+        - TemplatesManager.extract_hwpx() → unpack to temp directory
+        - TemplatesManager.extract_placeholders() → extract {{KEY}}
+        - Result: ["{{TITLE}}", "{{SUMMARY}}", ...]
+
+    [Step 5] Duplicate check
+        - TemplatesManager.has_duplicate_placeholders()
+        - Warn if duplicates found (don't reject)
+
+    [Step 6] Generate metadata
+        - prompt_user = ", ".join(unique_placeholders)
+          → "TITLE, SUMMARY, BACKGROUND, ..."
+        - placeholder_objs = [Placeholder(placeholder_key=ph) ...]
+        - system_prompt = create_dynamic_system_prompt(placeholder_objs)
+          → "You are a financial... {{TITLE}}... {{SUMMARY}}..."
+
+    [Step 7] Save to DB (transaction)
+        - TemplateDB.create_template_with_transaction(
+            user_id,
+            TemplateCreate(
+              ..., prompt_user, prompt_system
+            ),
+            placeholder_keys
+          )
+        - Auto-rollback on failure
+
+    [Step 8] Cleanup temp files
+        - Delete temp unpack directory
+
+    [Step 9] Return response
+        - {
+            id, title, filename, prompt_user, prompt_system,
+            placeholders: [{ key, ... }, ...]
+          }
+    """
+```
+
+---
+
+## E2E Workflows
+
+### Scenario 1: Template Upload → Topic Creation → Report Generation
+
+```
+[1] User: Upload template file
+POST /api/templates
+- file: report_template.hwpx (binary)
+- title: "Financial Report Template"
+    ↓
+[2] Backend: Save Template
+- Validate HWPX file
+- Extract Placeholders: {{TITLE}}, {{SUMMARY}}, ...
+- Generate dynamic System Prompt
+- Save to DB (Template + Placeholder + metadata)
+✅ Response: { template_id: 1, placeholders: [...] }
+    ↓
+[3] User: Generate report (select template)
+POST /api/topics/generate
+{
+  "input_prompt": "Digital Banking Trends 2025",
+  "template_id": 1  ← Selected Template
+}
+    ↓
+[4] Backend: Generate dynamic System Prompt & call Claude
+a) Load Template #1
+b) Fetch Placeholders: [{{TITLE}}, {{SUMMARY}}, ...]
+c) create_dynamic_system_prompt(placeholders)
+   → "You are a financial... {{TITLE}} to include..."
+d) Call Claude API:
+   system_prompt = (dynamic System Prompt)
+   user_message = "Write report on Digital Banking Trends..."
+e) Response: Markdown text
+    ↓
+[5] Backend: Parse Markdown & save report
+a) parse_markdown_to_content(response)
+   → {title, summary, background, main_content, ...}
+b) build_report_md(content) → Markdown format
+c) Create Topic, Message, Artifact (MD)
+d) Record AI Usage
+✅ Response: { topic_id: 42, artifact_id: 100 }
+    ↓
+[6] User: Convert MD → HWPX & download
+POST /api/artifacts/100/convert
+→ Generate HWPX file
+GET /api/artifacts/{hwpx_artifact_id}/download
+→ Download report (report.hwpx)
+```
+
+### Scenario 2: Conversational Message Chaining (Ask)
+
+```
+[1] User: Ask question (select template, specify reference document)
+POST /api/topics/42/ask
+{
+  "content": "Explain this section in more detail",
+  "template_id": 1,              ← Template selection
+  "artifact_id": 100,            ← Reference MD document
+  "include_artifact_content": true,  ← Include document content
+  "max_messages": 10             ← Context limit
+}
+    ↓
+[2] Backend: Build context
+a) Check authorization: User owns Topic
+b) Save user message
+c) Collect context messages:
+   - If artifact_id specified → include only up to that message
+   - Apply max_messages → recent N messages only
+d) Inject reference document content:
+   "Current report(MD):\n\n[artifact content]"
+    ↓
+[3] Backend: Select System Prompt (priority order)
+Priority 1: body.system_prompt (explicit)
+Priority 2: body.template_id (template-based)
+  → Load Template
+  → Fetch Placeholders
+  → create_dynamic_system_prompt()
+Priority 3: FINANCIAL_REPORT_SYSTEM_PROMPT (default)
+    ↓
+[4] Backend: Call Claude API
+a) claude_messages = [topic_context] + [previous_msgs]
+b) claude.chat_completion(claude_messages, system_prompt)
+c) Response: Markdown text
+    ↓
+[5] Backend: Save response & create artifact
+a) Save Assistant message
+b) Parse Markdown & build report
+c) Create Artifact (MD v2)
+d) Record AI Usage
+✅ Response: {
+     topic_id, user_message, assistant_message,
+     artifact, usage (tokens, latency)
+   }
+    ↓
+[6] User: Continue conversation or download
+- Continue: POST /api/topics/42/ask (new message)
+- Download latest MD: GET /api/artifacts/{artifact_id}/...
+- Convert to HWPX: POST /api/artifacts/{artifact_id}/convert
+```
+
+---
+
+## Development Checklist
+
+### ✅ Step 0: Unit Spec (Mandatory, First)
+
+**Cannot proceed without completing this step.**
+
+```
+User Request
+    ↓
+Claude: Create Unit Spec
+    ↓
+[Location] backend/doc/specs/YYYYMMDD_feature_name.md
+[Template] backend/doc/Backend_UnitSpec.md
+    ↓
+User: Review & Approve Spec
+    ↓
+Approved ✅ → Proceed to Step 1
+OR
+Revision → Update spec & resubmit
+```
+
+**Required items in Unit Spec:**
+- [ ] Requirements summary (Purpose, Type, Core Requirements)
+- [ ] Implementation target files (New/Change/Reference)
+- [ ] Flow diagram (Mermaid)
+- [ ] Test plan (minimum 3 test cases)
+- [ ] Error handling scenarios
+
+---
+
+### ✅ Step 1: Implementation (After Unit Spec Approval)
+
+**Only proceed after Step 0 approval.**
+
+#### 1-1. Define Data Models
+- [ ] Define Pydantic models (`models/*.py`)
+- [ ] Type hints complete & accurate
+- [ ] Optional/required fields clear
+
+#### 1-2. Database Logic
+- [ ] Implement DB CRUD methods (`database/*.py`)
+- [ ] Handle transactions (when needed)
+- [ ] Parameterize SQL queries (prevent SQL injection)
+- [ ] Consider indexes
+
+#### 1-3. Router/API Implementation
+- [ ] Implement router functions (`routers/*.py`)
+- [ ] Use **only** `success_response()` / `error_response()`
+- [ ] Use **only** `ErrorCode` constants
+- [ ] Correct HTTP status codes
+
+#### 1-4. Logging & Documentation
+- [ ] Add logging (`logger.info()`, `logger.warning()`, `logger.error()`)
+- [ ] Write DocStrings (Google style, all functions)
+- [ ] Document parameters, return values, exceptions
+
+#### 1-5. Write Tests
+- [ ] Implement tests (`tests/test_*.py`)
+- [ ] Cover all test cases from Unit Spec
+- [ ] Test both success & error scenarios
+- [ ] **All tests MUST pass**
+
+---
+
+### ✅ Step 2: Validation & Final Checks (After Implementation)
+
+#### 2-1. Check Impact on Existing Code
+- [ ] Run existing tests (no new failures)
+- [ ] Verify compatibility (no breaking changes)
+- [ ] Check dependency conflicts
+
+#### 2-2. Update Documentation
+- [ ] Update CLAUDE.md (new endpoints, models, DB)
+- [ ] Update README.md if needed
+
+#### 2-3. Git Commit
+- [ ] Include Unit Spec document (`backend/doc/specs/YYYYMMDD_*.md`)
+- [ ] Clear commit message: feat/fix/refactor
+- [ ] Reference Unit Spec filename in commit
+
+---
+
 ## References
 
 - [Google Python Style Guide - Docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)
@@ -542,13 +1109,13 @@ CREATE TABLE keyword_usage_logs (
 
 ---
 
-**Last Updated:** November 10, 2025 (v2.2 improvements added)
-**Version:** 1.4
+**Last Updated:** November 10, 2025
+**Version:** 2.0
 **Effective Date:** Immediately
 
 **Recent Session Notes (2025-11-10):**
-- ✅ Fixed `/ask` artifact markdown parsing bug
-- ✅ Added 3 new test cases for markdown validation
-- ✅ Improved topics.py coverage from 39% to 78%
-- ✅ All 28 topic tests passing (100%)
-- ✅ Created Unit Spec: `20251110_fix_ask_artifact_markdown_parsing.md`
+- ✅ Comprehensive backend architecture documentation
+- ✅ Added core functions with 9, 12, and 9-step flows
+- ✅ Documented all E2E workflows (2 scenarios)
+- ✅ Added development checklist (Step 0, 1, 2)
+- ✅ All content migrated from root CLAUDE.md to English
