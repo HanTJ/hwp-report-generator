@@ -5,8 +5,14 @@ Claude API System Prompts
 구조:
 1. BASE_REPORT_SYSTEM_PROMPT: 모든 보고서에 적용되는 기본 지침 (섹션 정의 없음)
 2. FINANCIAL_REPORT_SYSTEM_PROMPT: BASE + 5개 섹션 정의 (Placeholder 없을 때만 사용)
-3. create_dynamic_system_prompt(): Placeholder 기반 동적 규칙 생성 (meta_info_generator와 동기화)
+3. get_system_prompt(): 우선순위 기반 System Prompt 선택 (custom > template > default)
+4. create_dynamic_system_prompt(): Placeholder 기반 동적 규칙 생성 (meta_info_generator와 동기화)
 """
+
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # Step 1: BASE_REPORT_SYSTEM_PROMPT - 공통 기본 지침
@@ -140,6 +146,115 @@ def create_dynamic_system_prompt(placeholders: list) -> str:
 - 마크다운 형식을 엄격히 준수하세요"""
 
     return dynamic_prompt
+
+# ============================================================
+# get_system_prompt() - 우선순위 기반 System Prompt 선택
+# ============================================================
+# 역할: /generate, /ask 등 모든 엔드포인트에서 system prompt를 선택할 때 사용
+# 우선순위: custom > template > default
+
+def get_system_prompt(
+    custom_prompt: Optional[str] = None,
+    template_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+) -> str:
+    """
+    System Prompt 우선순위에 따라 최종 prompt를 반환합니다.
+
+    우선순위:
+    1. custom_prompt (사용자가 직접 입력한 custom system prompt)
+    2. template_id 기반 저장된 prompt_system (Template DB 조회)
+    3. FINANCIAL_REPORT_SYSTEM_PROMPT (기본값)
+
+    이 함수는 /generate, /ask, /ask_with_follow_up 등
+    모든 엔드포인트에서 system prompt를 선택할 때 사용됩니다.
+
+    Args:
+        custom_prompt (Optional[str]): 사용자가 직접 입력한 custom system prompt
+                                       None이면 무시되고 다음 우선순위로 넘어감
+        template_id (Optional[int]): Template ID (DB에서 prompt_system 조회용)
+                                      None이면 무시되고 다음 우선순위로 넘어감
+        user_id (Optional[int]): 권한 검증용 (template_id가 현재 사용자 소유인지 확인)
+                                 template_id가 지정된 경우 필수
+
+    Returns:
+        str: 최종 사용할 system prompt 문자열
+
+    Raises:
+        ValueError: template_id는 지정되었으나 user_id 누락
+        InvalidTemplateError: template_id가 주어졌으나 존재하지 않거나 접근 권한 없음
+
+    Examples:
+        >>> # 1. Custom prompt 사용 (최우선)
+        >>> prompt = get_system_prompt(
+        ...     custom_prompt="당신은 마케팅 전문가입니다."
+        ... )
+        >>> "마케팅" in prompt
+        True
+
+        >>> # 2. Template 기반 prompt 사용
+        >>> prompt = get_system_prompt(template_id=1, user_id=42)
+        >>> "금융" in prompt  # Template에서 저장된 prompt 사용
+        True
+
+        >>> # 3. 기본 prompt 사용 (아무것도 지정 안 함)
+        >>> prompt = get_system_prompt()
+        >>> "금융 기관" in prompt  # FINANCIAL_REPORT_SYSTEM_PROMPT
+        True
+    """
+    from app.database.template_db import TemplateDB
+    from app.utils.response_helper import ErrorCode
+
+    # === 1순위: Custom Prompt ===
+    if custom_prompt:
+        logger.info(f"Using custom system prompt - length={len(custom_prompt)}")
+        return custom_prompt
+
+    # === 2순위: Template 기반 Prompt ===
+    if template_id:
+        if not user_id:
+            raise ValueError(
+                "user_id is required when template_id is specified"
+            )
+
+        logger.info(f"Fetching template - template_id={template_id}, user_id={user_id}")
+
+        try:
+            template = TemplateDB.get_template_by_id(template_id, user_id)
+
+            if not template:
+                logger.warning(
+                    f"Template not found - template_id={template_id}, user_id={user_id}"
+                )
+                from app.utils.exceptions import InvalidTemplateError
+                raise InvalidTemplateError(
+                    code=ErrorCode.TEMPLATE_NOT_FOUND,
+                    http_status=404,
+                    message=f"Template #{template_id}을(를) 찾을 수 없습니다.",
+                    hint="존재하는 template_id를 확인하거나 template_id 없이 요청해주세요."
+                )
+
+            # Template의 prompt_system이 설정되어 있으면 사용
+            if template.prompt_system:
+                logger.info(
+                    f"Using pre-generated prompt from template - "
+                    f"template_id={template_id}, prompt_length={len(template.prompt_system)}"
+                )
+                return template.prompt_system
+            else:
+                logger.warning(
+                    f"Template has no prompt_system, falling back to default - "
+                    f"template_id={template_id}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error fetching template - template_id={template_id}, error={str(e)}")
+            raise
+
+    # === 3순위: 기본 Prompt ===
+    logger.info("Using default financial report system prompt")
+    return FINANCIAL_REPORT_SYSTEM_PROMPT
+
 
 def create_topic_context_message(topic_input_prompt: str) -> dict:
     """대화 주제를 포함하는 context message를 생성합니다.

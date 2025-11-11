@@ -21,14 +21,19 @@ from shared.types.enums import TopicStatus, MessageRole, ArtifactKind
 from app.utils.markdown_builder import build_report_md
 from app.utils.file_utils import next_artifact_version, build_artifact_paths, write_text, sha256_of
 from app.utils.claude_client import ClaudeClient
-from app.utils.prompts import FINANCIAL_REPORT_SYSTEM_PROMPT, create_topic_context_message
+from app.utils.prompts import (
+    FINANCIAL_REPORT_SYSTEM_PROMPT,
+    create_topic_context_message,
+    get_system_prompt,
+)
 from app.utils.markdown_parser import parse_markdown_to_content
+from app.utils.exceptions import InvalidTemplateError
 import time
 import logging
 from shared.constants import ProjectPath
 
 from app.database.template_db import TemplateDB
-from app.utils.prompts import FINANCIAL_REPORT_SYSTEM_PROMPT, create_topic_context_message
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/topics", tags=["Topics"])
@@ -129,31 +134,31 @@ async def generate_topic_report(
                 hint="3자 이상 내용을 입력해주세요."
             )
 
-        # === 2단계: Template 기반 System Prompt 로드 (Pre-generated) ===
-        system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
+        # === 2단계: System Prompt 선택 (우선순위: custom > template > default) ===
+        logger.info(f"[GENERATE] Selecting system prompt - template_id={topic_data.template_id}")
 
-        if topic_data.template_id:
-            logger.info(f"[GENERATE] Loading template - template_id={topic_data.template_id}")
-
-            template = TemplateDB.get_template_by_id(topic_data.template_id, current_user.id)
-            if not template:
-                logger.warning(f"[GENERATE] Template not found - template_id={topic_data.template_id}, user_id={current_user.id}")
-                return error_response(
-                    code=ErrorCode.TEMPLATE_NOT_FOUND,
-                    http_status=404,
-                    message="템플릿을 찾을 수 없습니다.",
-                    hint="템플릿 ID를 확인하거나 template_id 없이 요청해주세요."
-                )
-
-            logger.info(f"[GENERATE] Template found - template_id={template.id}, filename={template.filename}")
-
-            # [변경] Template 등록 시 미리 생성된 prompt_system 사용 (재생성하지 않음)
-            if template.prompt_system:
-                system_prompt = template.prompt_system
-                logger.info(f"[GENERATE] Using pre-generated prompt - template_id={template.id}, prompt_length={len(system_prompt)}")
-            else:
-                logger.warning(f"[GENERATE] Template has no prompt_system, using default prompt - template_id={template.id}")
-                system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
+        try:
+            system_prompt = get_system_prompt(
+                custom_prompt=None,  # /generate에서는 custom prompt 미지원
+                template_id=topic_data.template_id,
+                user_id=current_user.id
+            )
+        except InvalidTemplateError as e:
+            logger.warning(f"[GENERATE] Template error - code={e.code}, message={e.message}")
+            return error_response(
+                code=e.code,
+                http_status=e.http_status,
+                message=e.message,
+                hint=e.hint
+            )
+        except ValueError as e:
+            logger.error(f"[GENERATE] Invalid arguments - error={str(e)}")
+            return error_response(
+                code=ErrorCode.SERVER_INTERNAL_ERROR,
+                http_status=500,
+                message="시스템 오류가 발생했습니다.",
+                details={"error": str(e)}
+            )
 
         # === 3단계: Claude API 호출 ===
         logger.info(f"[GENERATE] Calling Claude API - prompt_length={len(system_prompt)}")
@@ -810,36 +815,31 @@ async def ask(
             hint="max_messages를 줄이거나 include_artifact_content를 false로 설정해주세요."
         )
 
-    # 시스템 프롬프트 구성 (순서: custom > template_id > default)
-    if body.system_prompt:
-        system_prompt = body.system_prompt
-        logger.info(f"[ASK] Using custom system prompt - length={len(system_prompt)}")
-    elif body.template_id:
-        # === Template 기반 System Prompt 로드 (Pre-generated) ===
-        logger.info(f"[ASK] Loading template for system prompt - template_id={body.template_id}")
+    # === 4단계: System Prompt 선택 (우선순위: custom > template > default) ===
+    logger.info(f"[ASK] Selecting system prompt - custom={body.system_prompt is not None}, template_id={body.template_id}")
 
-        template = TemplateDB.get_template_by_id(body.template_id, current_user.id)
-        if not template:
-            logger.warning(f"[ASK] Template not found - template_id={body.template_id}, user_id={current_user.id}")
-            return error_response(
-                code=ErrorCode.TEMPLATE_NOT_FOUND,
-                http_status=404,
-                message="템플릿을 찾을 수 없습니다.",
-                hint="템플릿 ID를 확인하거나 template_id 없이 요청해주세요."
-            )
-
-        logger.info(f"[ASK] Template found - template_id={template.id}, filename={template.filename}")
-
-        # [변경] Template 등록 시 미리 생성된 prompt_system 사용 (재생성하지 않음)
-        if template.prompt_system:
-            system_prompt = template.prompt_system
-            logger.info(f"[ASK] Using pre-generated prompt - template_id={template.id}, prompt_length={len(system_prompt)}")
-        else:
-            logger.warning(f"[ASK] Template has no prompt_system, using default prompt - template_id={template.id}")
-            system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
-    else:
-        system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
-        logger.info(f"[ASK] Using default system prompt")
+    try:
+        system_prompt = get_system_prompt(
+            custom_prompt=body.system_prompt,
+            template_id=body.template_id,
+            user_id=current_user.id
+        )
+    except InvalidTemplateError as e:
+        logger.warning(f"[ASK] Template error - code={e.code}, message={e.message}")
+        return error_response(
+            code=e.code,
+            http_status=e.http_status,
+            message=e.message,
+            hint=e.hint
+        )
+    except ValueError as e:
+        logger.error(f"[ASK] Invalid arguments - error={str(e)}")
+        return error_response(
+            code=ErrorCode.SERVER_INTERNAL_ERROR,
+            http_status=500,
+            message="시스템 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
 
     # === 5단계: Claude 호출 ===
     logger.info(f"[ASK] Calling Claude API - messages={len(claude_messages)}")
