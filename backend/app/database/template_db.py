@@ -301,6 +301,102 @@ class TemplateDB:
             raise e
 
     @staticmethod
+    def update_prompt_system(template_id: int, new_prompt_system: str) -> Optional[Template]:
+        """Updates the prompt_system field of a template.
+
+        Args:
+            template_id: Template ID to update
+            new_prompt_system: New system prompt text
+
+        Returns:
+            Updated template entity or None if not found
+
+        Raises:
+            Exception: Database update error
+
+        Examples:
+            >>> template = TemplateDB.update_prompt_system(1, "새로운 시스템 프롬프트")
+            >>> if template:
+            ...     print(template.prompt_system)
+            새로운 시스템 프롬프트
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                """
+                UPDATE templates
+                SET prompt_system = ?, updated_at = ?
+                WHERE id = ? AND is_active = 1
+                """,
+                (new_prompt_system, datetime.now(), template_id)
+            )
+            conn.commit()
+
+            # Retrieve updated template
+            if cursor.rowcount > 0:
+                cursor.execute("SELECT * FROM templates WHERE id = ?", (template_id,))
+                row = cursor.fetchone()
+                conn.close()
+                return TemplateDB._row_to_template(row)
+            else:
+                conn.close()
+                return None
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            raise e
+
+    @staticmethod
+    def update_prompt_user(template_id: int, new_prompt_user: str) -> Optional[Template]:
+        """Updates the prompt_user field of a template.
+
+        Args:
+            template_id: Template ID to update
+            new_prompt_user: New user prompt text
+
+        Returns:
+            Updated template entity or None if not found
+
+        Raises:
+            Exception: Database update error
+
+        Examples:
+            >>> template = TemplateDB.update_prompt_user(1, "새로운 사용자 프롬프트")
+            >>> if template:
+            ...     print(template.prompt_user)
+            새로운 사용자 프롬프트
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute(
+                """
+                UPDATE templates
+                SET prompt_user = ?, updated_at = ?
+                WHERE id = ? AND is_active = 1
+                """,
+                (new_prompt_user, datetime.now(), template_id)
+            )
+            conn.commit()
+
+            # Retrieve updated template
+            if cursor.rowcount > 0:
+                cursor.execute("SELECT * FROM templates WHERE id = ?", (template_id,))
+                row = cursor.fetchone()
+                conn.close()
+                return TemplateDB._row_to_template(row)
+            else:
+                conn.close()
+                return None
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            raise e
+
+    @staticmethod
     def _row_to_template(row) -> Optional[Template]:
         """Converts database row to Template entity.
 

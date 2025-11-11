@@ -252,3 +252,282 @@ class TestTemplateDelete:
         )
 
         assert response.status_code == 404
+
+
+class TestTemplatePromptUpdate:
+    """Test cases for template prompt update endpoints."""
+
+    def test_update_prompt_system_success(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-4.1: Successfully update prompt_system."""
+        # Upload template first
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "프롬프트 수정 테스트 템플릿"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+
+        # Update prompt_system
+        new_prompt = "새로운 시스템 프롬프트입니다."
+        response = client.put(
+            f"/api/templates/{template_id}/prompt-system",
+            json={"prompt_system": new_prompt},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["id"] == template_id
+        assert data["data"]["prompt_system"] == new_prompt
+
+    def test_update_prompt_system_empty_value(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-3.1: Empty prompt_system should return 400."""
+        # Upload template first
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "빈값 테스트 템플릿"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+
+        # Try to update with empty prompt_system
+        response = client.put(
+            f"/api/templates/{template_id}/prompt-system",
+            json={"prompt_system": ""},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "TEMPLATE.INVALID_PROMPT"
+
+    def test_update_prompt_system_whitespace_only(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-3.2: Whitespace-only prompt_system should return 400."""
+        # Upload template first
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "공백만 테스트 템플릿"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+
+        # Try to update with whitespace-only prompt_system
+        response = client.put(
+            f"/api/templates/{template_id}/prompt-system",
+            json={"prompt_system": "   "},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "TEMPLATE.INVALID_PROMPT"
+
+    def test_update_prompt_system_nonexistent_template(self, auth_headers):
+        """TC-2.1: Updating non-existent template returns 404."""
+        response = client.put(
+            "/api/templates/99999/prompt-system",
+            json={"prompt_system": "새로운 프롬프트"},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "TEMPLATE.NOT_FOUND"
+
+    def test_update_prompt_system_permission_denied(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-2.2: Regular user cannot modify other user's template."""
+        # User 1 uploads template
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "권한 테스트 템플릿"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+
+        # Create another user
+        unique_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
+        user_create = UserCreate(
+            email=unique_email,
+            username=f"testuser_{uuid.uuid4().hex[:4]}",
+            password="password123"
+        )
+        other_user = UserDB.create_user(user_create, hash_password("password123"))
+        UserDB.update_user(other_user.id, {"is_active": True})
+
+        # Login as other user
+        login_response = client.post(
+            "/api/auth/login",
+            json={"email": unique_email, "password": "password123"}
+        )
+        other_headers = {"Authorization": f"Bearer {login_response.json()['data']['access_token']}"}
+
+        # Try to update first user's template as other user
+        response = client.put(
+            f"/api/templates/{template_id}/prompt-system",
+            json={"prompt_system": "새로운 프롬프트"},
+            headers=other_headers
+        )
+
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "TEMPLATE.FORBIDDEN"
+
+    def test_update_prompt_user_success(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-4.x: Successfully update prompt_user."""
+        # Upload template first
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "사용자 프롬프트 수정 테스트"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+
+        # Update prompt_user
+        new_prompt = "새로운 사용자 프롬프트입니다."
+        response = client.put(
+            f"/api/templates/{template_id}/prompt-user",
+            json={"prompt_user": new_prompt},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["id"] == template_id
+        assert data["data"]["prompt_user"] == new_prompt
+
+    def test_update_prompt_user_nonexistent_template(self, auth_headers):
+        """TC-2.1: Updating non-existent template returns 404."""
+        response = client.put(
+            "/api/templates/99999/prompt-user",
+            json={"prompt_user": "새로운 프롬프트"},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "TEMPLATE.NOT_FOUND"
+
+    def test_update_prompt_user_permission_denied(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-2.2: Regular user cannot modify other user's template."""
+        # User 1 uploads template
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "사용자 프롬프트 권한 테스트"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+
+        # Create another user
+        unique_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
+        user_create = UserCreate(
+            email=unique_email,
+            username=f"testuser_{uuid.uuid4().hex[:4]}",
+            password="password123"
+        )
+        other_user = UserDB.create_user(user_create, hash_password("password123"))
+        UserDB.update_user(other_user.id, {"is_active": True})
+
+        # Login as other user
+        login_response = client.post(
+            "/api/auth/login",
+            json={"email": unique_email, "password": "password123"}
+        )
+        other_headers = {"Authorization": f"Bearer {login_response.json()['data']['access_token']}"}
+
+        # Try to update first user's template as other user
+        response = client.put(
+            f"/api/templates/{template_id}/prompt-user",
+            json={"prompt_user": "새로운 프롬프트"},
+            headers=other_headers
+        )
+
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "TEMPLATE.FORBIDDEN"
+
+
+class TestTemplatePromptRegenerate:
+    """Test cases for template prompt regeneration."""
+
+    def test_regenerate_prompt_system_success(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-4.1: Successfully regenerate prompt_system."""
+        # Upload template first
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "재생성 테스트 템플릿"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+        original_prompt = upload_response.json()["data"]["prompt_system"]
+
+        # Regenerate prompt_system
+        response = client.post(
+            f"/api/templates/{template_id}/regenerate-prompt-system",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["id"] == template_id
+        assert "prompt_system" in data["data"]
+        # Regenerated prompt should be different from original (usually)
+        assert data["data"]["prompt_system"] is not None
+
+    def test_regenerate_prompt_system_nonexistent_template(self, auth_headers):
+        """TC-2.1: Regenerating non-existent template returns 404."""
+        response = client.post(
+            "/api/templates/99999/regenerate-prompt-system",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "TEMPLATE.NOT_FOUND"
+
+    def test_regenerate_prompt_system_permission_denied(self, auth_headers, auth_user, valid_hwpx_file):
+        """TC-4.3: Regular user cannot regenerate other user's template."""
+        # User 1 uploads template
+        filename, content, content_type = valid_hwpx_file
+        upload_response = client.post(
+            "/api/templates",
+            files={"file": (filename, content, content_type)},
+            data={"title": "재생성 권한 테스트 템플릿"},
+            headers=auth_headers
+        )
+        template_id = upload_response.json()["data"]["id"]
+
+        # Create another user
+        unique_email = f"test_{uuid.uuid4().hex[:8]}@example.com"
+        user_create = UserCreate(
+            email=unique_email,
+            username=f"testuser_{uuid.uuid4().hex[:4]}",
+            password="password123"
+        )
+        other_user = UserDB.create_user(user_create, hash_password("password123"))
+        UserDB.update_user(other_user.id, {"is_active": True})
+
+        # Login as other user
+        login_response = client.post(
+            "/api/auth/login",
+            json={"email": unique_email, "password": "password123"}
+        )
+        other_headers = {"Authorization": f"Bearer {login_response.json()['data']['access_token']}"}
+
+        # Try to regenerate first user's template as other user
+        response = client.post(
+            f"/api/templates/{template_id}/regenerate-prompt-system",
+            headers=other_headers
+        )
+
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "TEMPLATE.FORBIDDEN"
