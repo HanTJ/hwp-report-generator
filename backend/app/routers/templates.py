@@ -4,10 +4,13 @@ Handles template upload, retrieval, and deletion operations.
 """
 
 import uuid
+import logging
 from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 from app.models.user import User
 from app.models.template import (
@@ -23,8 +26,8 @@ from app.models.template import TemplateCreate
 from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
 from app.utils.templates_manager import TemplatesManager
-from app.utils.prompts import create_dynamic_system_prompt
-from app.utils.meta_info_generator import create_meta_info_from_placeholders
+from app.utils.prompts import create_system_prompt_with_metadata
+from app.utils.claude_metadata_generator import generate_placeholder_metadata
 
 router = APIRouter(prefix="/api/templates", tags=["Templates"])
 
@@ -219,28 +222,21 @@ async def upload_template(
                 # 8. SHA256 계산
                 sha256 = manager.calculate_sha256(str(temp_file_path))
 
-                # [신규] 9단계: 동적 System Prompt 생성
-                # Placeholder 객체로부터 Placeholder 리스트 생성
-                from app.models.template import Placeholder as PlaceholderModel
-                placeholder_objects = [
-                    PlaceholderModel(
-                        id=i,
-                        template_id=0,  # 임시값 (아직 template_id 없음)
-                        placeholder_key=key,
-                        created_at=datetime.now()
-                    )
-                    for i, key in enumerate(placeholder_list, start=1)
-                ]
-                prompt_system = create_dynamic_system_prompt(placeholder_objects)
+                # [신규] 9단계: Claude API로 Placeholder 메타정보 생성
+                logger.info(f"[UPLOAD_TEMPLATE] Generating placeholder metadata - count={len(placeholder_list)}")
+                metadata = generate_placeholder_metadata(placeholder_list)
+                if metadata:
+                    logger.info(f"[UPLOAD_TEMPLATE] Metadata generated successfully - count={len(metadata)}")
+                else:
+                    logger.warning("[UPLOAD_TEMPLATE] Metadata generation failed, using fallback")
 
-                # prompt_user: placeholder 목록을 쉼표로 구분된 문자열로 저장
-                prompt_user = ", ".join(placeholder_list)
+                # [변경] 10단계: 메타정보를 포함한 System Prompt 생성
+                # prompt_user는 None으로 유지 (사용자가 나중에 커스텀 프롬프트를 등록하기 위해 예약)
+                prompt_user = None
+                prompt_system = create_system_prompt_with_metadata(placeholder_list, metadata)
+                logger.info(f"[UPLOAD_TEMPLATE] System prompt created - length={len(prompt_system)}")
 
-                # [신규] 9-1단계: Placeholder 메타정보 생성
-                # create_meta_info_from_placeholders()를 호출하여 메타정보 JSON 생성
-                prompt_meta = create_meta_info_from_placeholders(placeholder_objects)
-
-                # [신규] 10단계: DB 트랜잭션으로 Template + Placeholders 원자적 저장
+                # [신규] 11단계: DB 트랜잭션으로 Template + Placeholders 원자적 저장
                 template_data = TemplateCreate(
                     title=title,
                     description=None,
@@ -259,14 +255,14 @@ async def upload_template(
                     placeholder_list
                 )
 
-                # [기존] 11단계: 최종 파일 저장 경로로 이동
+                # [기존] 12단계: 최종 파일 저장 경로로 이동
                 final_file_path = manager.save_template_file(
                     str(temp_file_path),
                     current_user.id,
                     template.id
                 )
 
-                # [기존] 12단계: 응답 생성
+                # [기존] 13단계: 응답 생성
                 placeholder_responses = [
                     PlaceholderResponse(key=key)
                     for key in placeholder_list
@@ -283,9 +279,12 @@ async def upload_template(
                     created_at=template.created_at
                 )
 
-                # 응답에 prompt_meta 추가 (메타정보 JSON)
+                # 응답에 metadata 추가 (메타정보 JSON)
                 response_dict = response_data.model_dump()
-                response_dict['prompt_meta'] = prompt_meta
+                if metadata:
+                    response_dict['metadata'] = metadata
+                else:
+                    response_dict['metadata'] = None
 
                 return success_response(response_dict)
 

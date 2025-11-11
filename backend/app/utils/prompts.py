@@ -10,7 +10,7 @@ Claude API System Prompts
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Any, List as ListType, Dict as DictType
 
 logger = logging.getLogger(__name__)
 
@@ -70,31 +70,34 @@ FINANCIAL_REPORT_SYSTEM_PROMPT = BASE_REPORT_SYSTEM_PROMPT + """
 #   - Placeholder 있으면: 해당 Placeholder만 강제 (동적 규칙 생성)
 
 def create_dynamic_system_prompt(placeholders: list) -> str:
-    """Template의 placeholder를 기반으로 동적 system prompt를 생성합니다.
+    """Placeholder DB 객체 리스트로부터 동적 System Prompt를 생성합니다.
 
-    중요: meta_info_generator의 분류 결과를 따라 "유연한" 규칙을 생성합니다.
-    - Placeholder가 없으면: 기본 5개 섹션 강제 (FINANCIAL_REPORT_SYSTEM_PROMPT)
-    - Placeholder가 있으면: 해당 Placeholder만 강제 (동적 규칙, meta_info_generator와 동기화)
+    Topics에서 template_id로 조회한 Placeholder 객체 리스트를 받아 System Prompt를 생성합니다.
 
-    이렇게 하면 meta_info_generator의 "유연한 분류"와 일치합니다.
+    우선순위:
+    - Placeholder가 없으면: FINANCIAL_REPORT_SYSTEM_PROMPT 반환 (기본 5개 섹션)
+    - Placeholder가 있으면: 각 Placeholder 기반 동적 규칙 생성
 
     Args:
-        placeholders: Template에 정의된 Placeholder 객체 리스트
-                     각 Placeholder는 placeholder_key 속성 (예: "{{TITLE}}")을 가짐
+        placeholders: Placeholder DB 객체 리스트 (Placeholder.placeholder_key 속성 포함)
+                     또는 각각 placeholder_key 속성을 가진 객체
+                     예: [Placeholder(id=1, template_id=1, placeholder_key="{{TITLE}}", ...)]
 
     Returns:
-        동적으로 생성된 system prompt (Markdown 형식 지시사항 포함)
+        동적으로 생성된 system prompt 문자열 (Markdown 형식 지시사항 포함)
 
     Examples:
-        >>> class MockPlaceholder:
-        ...     def __init__(self, key):
-        ...         self.placeholder_key = key
-        >>> placeholders = [
-        ...     MockPlaceholder("{{TITLE}}"),
-        ...     MockPlaceholder("{{SUMMARY}}")
-        ... ]
+        >>> from app.database.placeholder_db import PlaceholderDB
+        >>> # Topics에서 Placeholder DB 조회
+        >>> placeholders = PlaceholderDB.get_placeholders_by_template(template_id=1)
         >>> prompt = create_dynamic_system_prompt(placeholders)
-        >>> "TITLE" in prompt and "SUMMARY" in prompt
+        >>> "TITLE" in prompt  # 플레이스홀더가 포함됨
+        True
+
+        >>> # 플레이스홀더가 없는 경우
+        >>> empty_placeholders = []
+        >>> prompt = create_dynamic_system_prompt(empty_placeholders)
+        >>> prompt == FINANCIAL_REPORT_SYSTEM_PROMPT
         True
     """
     if not placeholders:
@@ -220,6 +223,8 @@ def get_system_prompt(
         logger.info(f"Fetching template - template_id={template_id}, user_id={user_id}")
 
         try:
+            from app.database.placeholder_db import PlaceholderDB
+
             template = TemplateDB.get_template_by_id(template_id, user_id)
 
             if not template:
@@ -234,16 +239,26 @@ def get_system_prompt(
                     hint="존재하는 template_id를 확인하거나 template_id 없이 요청해주세요."
                 )
 
-            # Template의 prompt_system이 설정되어 있으면 사용
-            if template.prompt_system:
+            # ✅ [변경] Placeholder DB에서 직접 조회하여 동적 System Prompt 생성
+            # (prompt_user는 이제 사용자 커스텀 프롬프트 등록용)
+            placeholders = PlaceholderDB.get_placeholders_by_template(template_id)
+
+            if placeholders:
                 logger.info(
-                    f"Using pre-generated prompt from template - "
-                    f"template_id={template_id}, prompt_length={len(template.prompt_system)}"
+                    f"Generating dynamic prompt from placeholders - "
+                    f"template_id={template_id}, placeholder_count={len(placeholders)}"
                 )
-                return template.prompt_system
+                # Placeholder 객체 리스트로부터 동적 System Prompt 생성
+                dynamic_prompt = create_dynamic_system_prompt(placeholders)
+                logger.info(
+                    f"Using dynamically generated prompt from template - "
+                    f"template_id={template_id}, prompt_length={len(dynamic_prompt)}"
+                )
+                return dynamic_prompt
             else:
-                logger.warning(
-                    f"Template has no prompt_system, falling back to default - "
+                # Placeholder가 없으면 기본값 사용
+                logger.info(
+                    f"No placeholders found, using default prompt - "
                     f"template_id={template_id}"
                 )
 
@@ -254,6 +269,170 @@ def get_system_prompt(
     # === 3순위: 기본 Prompt ===
     logger.info("Using default financial report system prompt")
     return FINANCIAL_REPORT_SYSTEM_PROMPT
+
+
+# ============================================================
+# Step 4: create_system_prompt_with_metadata() - 메타정보 통합 Prompt 생성
+# ============================================================
+# 역할: Placeholder + Claude 생성 메타정보를 통합한 System Prompt 생성
+# 사용 시점: Template 업로드 시 (claude_metadata_generator로 생성된 메타정보 포함)
+
+def create_system_prompt_with_metadata(
+    placeholders: ListType[str],
+    metadata: Optional[ListType[DictType[str, Any]]] = None,
+) -> str:
+    """
+    메타정보를 포함한 System Prompt 생성.
+
+    이 함수는 Template 업로드 시 Claude API로 생성된 메타정보를
+    System Prompt에 통합합니다.
+
+    Args:
+        placeholders: Placeholder 키 목록 (예: ["{{TITLE}}", "{{SUMMARY}}"])
+        metadata: Claude API로 생성한 메타정보 (선택사항)
+                 각 항목: {key, type, display_name, description, examples, required, order_hint}
+                 None이면 기본값 사용
+
+    Returns:
+        메타정보가 통합된 System Prompt 문자열
+
+    Examples:
+        >>> placeholders = ["{{TITLE}}", "{{SUMMARY}}"]
+        >>> prompt = create_system_prompt_with_metadata(placeholders)
+        >>> "TITLE" in prompt and "SUMMARY" in prompt
+        True
+
+        >>> # 메타정보 포함
+        >>> metadata = [
+        ...     {
+        ...         "key": "{{TITLE}}",
+        ...         "type": "section_title",
+        ...         "display_name": "제목",
+        ...         "description": "보고서의 제목입니다.",
+        ...         "examples": ["2024년 금융시장 동향"],
+        ...         "required": True,
+        ...         "order_hint": 1
+        ...     }
+        ... ]
+        >>> prompt = create_system_prompt_with_metadata(placeholders, metadata)
+        >>> "제목" in prompt
+        True
+    """
+    if not placeholders:
+        logger.info("[PROMPT] No placeholders provided, returning default")
+        return FINANCIAL_REPORT_SYSTEM_PROMPT
+
+    # 1. Placeholder 목록 포매팅
+    placeholder_list_str = "\n".join([f"- {p}" for p in placeholders])
+
+    # 2. Markdown 규칙 포매팅
+    markdown_rules = ["**출력은 반드시 다음 Markdown 형식을 사용하세요:**"]
+    for i, p in enumerate(placeholders):
+        if i == 0:
+            markdown_rules.append(f"- # {p} (H1)")
+        else:
+            markdown_rules.append(f"- ## {p} (H2)")
+    markdown_section = "\n".join(markdown_rules)
+
+    # 3. 메타정보 섹션 포매팅
+    metadata_section = _format_metadata_sections(placeholders, metadata)
+
+    # 4. 최종 Prompt 조합
+    prompt = f"""{BASE_REPORT_SYSTEM_PROMPT}
+
+---
+
+## 커스텀 템플릿 구조 (다음 placeholder들을 포함하여 작성):
+
+{placeholder_list_str}
+
+---
+
+## 출력 마크다운 형식:
+
+{markdown_section}
+
+---
+
+## 섹션별 상세 지침:
+
+{metadata_section}
+
+---
+
+## 작성 가이드:
+
+- 각 섹션은 Markdown heading으로 시작하세요
+- 위에 명시된 placeholder와 heading 구조를 정확히 따르세요
+- 새로운 placeholder를 임의로 추가하지 마세요
+- 각 섹션별 지침을 참고하여 정확하게 작성하세요
+- 전문적이고 객관적인 톤을 유지하세요
+- 마크다운 형식을 엄격히 준수하세요"""
+
+    logger.info(
+        f"[PROMPT] System prompt created with metadata - "
+        f"placeholders={len(placeholders)}, "
+        f"metadata={'yes' if metadata else 'no'}, "
+        f"prompt_length={len(prompt)}"
+    )
+    return prompt
+
+
+def _format_metadata_sections(
+    placeholders: ListType[str],
+    metadata: Optional[ListType[DictType[str, Any]]] = None,
+) -> str:
+    """
+    메타정보 섹션 포매팅.
+
+    각 Placeholder에 대한 메타정보를 읽기 좋은 형식으로 정렬합니다.
+    """
+    if not metadata:
+        return "(메타정보 미생성 - 기본 지침을 참고하세요)"
+
+    # 메타정보를 key로 인덱싱하여 빠르게 조회
+    metadata_map = {item.get("key"): item for item in metadata}
+
+    sections = []
+    for placeholder in placeholders:
+        item = metadata_map.get(placeholder)
+
+        if not item:
+            # 메타정보 없는 Placeholder는 건너뛰기
+            logger.warning(
+                f"[PROMPT] Metadata not found for placeholder: {placeholder}"
+            )
+            sections.append(f"### {placeholder}\n(메타정보 미생성)")
+            continue
+
+        display_name = item.get("display_name", "N/A")
+        description = item.get("description", "N/A")
+        examples = item.get("examples", [])
+        required = item.get("required", False)
+
+        # 예시 포매팅
+        examples_str = _format_examples(examples)
+
+        # 섹션 구성
+        section = f"""### {placeholder} ({display_name})
+
+**설명:** {description}
+
+**예시:**
+{examples_str}
+
+**필수 여부:** {'필수' if required else '선택'}"""
+
+        sections.append(section)
+
+    return "\n\n".join(sections)
+
+
+def _format_examples(examples: Optional[ListType[str]]) -> str:
+    """예시 포매팅."""
+    if not examples or len(examples) == 0:
+        return "- (예시 미제공)"
+    return "\n".join([f"- {ex}" for ex in examples])
 
 
 def create_topic_context_message(topic_input_prompt: str) -> dict:
