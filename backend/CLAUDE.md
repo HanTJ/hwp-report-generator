@@ -222,6 +222,35 @@ TransformOperation.TRANSLATE  # KO → EN, EN → KO, etc.
 
 > **📖 For detailed testing guide, see [BACKEND_TEST.md](./BACKEND_TEST.md)**
 
+### Test Environment Setup
+
+**⚠️ IMPORTANT: Python Interpreter Configuration**
+
+The project uses **uv** as the package manager and requires the following Python interpreter:
+
+```
+Project Root: /Users/jaeyoonmo/workspace/hwp-report-generator
+Backend Venv: backend/.venv/bin/python
+```
+
+**Claude Code Configuration:**
+- Set IDE Python interpreter to: `backend/.venv/bin/python`
+- Package manager: `uv`
+- When running tests, Claude Code will automatically use this interpreter
+
+**Verification:**
+
+```bash
+# Check the Python interpreter path
+which python
+# Expected: /Users/jaeyoonmo/workspace/hwp-report-generator/backend/.venv/bin/python
+
+# Verify uv is configured
+cd backend && uv --version
+```
+
+---
+
 ### Quick Start
 
 **Run all tests with coverage:**
@@ -288,6 +317,52 @@ uv pip install -r requirements-dev.txt
 - CI/CD integration
 
 **→ See [BACKEND_TEST.md](./BACKEND_TEST.md)**
+
+---
+
+### Claude Code Testing Checklist
+
+**Before running tests, Claude Code MUST verify:**
+
+- [ ] **Python Interpreter**: Verify using `/Users/jaeyoonmo/workspace/hwp-report-generator/backend/.venv/bin/python`
+  ```bash
+  which python
+  # Should output: .../backend/.venv/bin/python
+  ```
+
+- [ ] **Package Manager**: Confirm `uv` is configured
+  ```bash
+  cd backend && uv --version
+  ```
+
+- [ ] **Working Directory**: Always run tests from `backend/` directory
+  ```bash
+  cd backend && uv run pytest tests/ -v --cov=app --cov-report=term-missing
+  ```
+
+- [ ] **Virtual Environment**: Ensure `.venv` is activated or `uv run` is used
+  ```bash
+  # Option 1: Use uv run (recommended)
+  uv run pytest tests/ -v
+
+  # Option 2: Activate venv manually
+  source .venv/bin/activate
+  pytest tests/ -v
+  ```
+
+- [ ] **Dependencies**: Confirm test dependencies installed
+  ```bash
+  uv pip install -r requirements-dev.txt
+  ```
+
+**Common Issues & Solutions:**
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `ModuleNotFoundError: No module named 'app'` | Wrong working directory | Run from `backend/` directory with `uv run` |
+| `pytest: command not found` | pytest not installed | Run `uv pip install -r requirements-dev.txt` |
+| `Python interpreter not found` | Wrong venv path | Verify path: `backend/.venv/bin/python` |
+| Import errors in tests | Package manager mismatch | Use `uv run pytest` instead of raw `pytest` |
 
 ---
 
@@ -1109,11 +1184,18 @@ Revision → Update spec & resubmit
 
 ---
 
-**Last Updated:** November 10, 2025
-**Version:** 2.0
+**Last Updated:** November 11, 2025
+**Version:** 2.0.1
 **Effective Date:** Immediately
 
-**Recent Session Notes (2025-11-10):**
+**Recent Session Notes (2025-11-11):**
+- ✅ Test Environment Setup documentation added
+- ✅ Python interpreter configuration details (backend/.venv/bin/python)
+- ✅ Claude Code Testing Checklist with verification steps
+- ✅ Common issues & solutions troubleshooting table
+- ✅ Package manager (uv) configuration guidelines
+
+**Previous Session Notes (2025-11-10):**
 - ✅ Comprehensive backend architecture documentation
 - ✅ Added core functions with 9, 12, and 9-step flows
 - ✅ Documented all E2E workflows (2 scenarios)
