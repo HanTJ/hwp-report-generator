@@ -74,7 +74,9 @@ class TestCreateDynamicSystemPrompt:
         assert "EXECUTIVE_SUMMARY" in prompt
         assert "RISK_ANALYSIS" in prompt
         assert "RECOMMENDATION" in prompt
-        assert len(prompt) > len(FINANCIAL_REPORT_SYSTEM_PROMPT)  # 동적으로 확장됨
+        # 동적 prompt는 BASE + 커스텀 placeholder 구조로, FINANCIAL_REPORT_SYSTEM_PROMPT보다 짧을 수 있음
+        # (기본 5개 섹션 정의가 없기 때문)
+        assert "커스텀 템플릿 구조" in prompt  # 동적 prompt에만 있는 섹션
 
     def test_tc_unit_003_empty_placeholder_list(self):
         """TC-UNIT-003: 빈 placeholder 리스트 처리
@@ -383,6 +385,99 @@ class TestDynamicPromptIntegration:
             artifact = data["data"]["artifact"]
             assert artifact["kind"] == "md"
             assert artifact["version"] == 1
+
+    def test_tc_prompt_009_placeholder_classification_consistency(self):
+        """TC-PROMPT-009: Placeholder 분류 일관성 (meta_info_generator 동기화)
+
+        Given: 표준 placeholder (TITLE, SUMMARY, BACKGROUND, CONCLUSION)
+        When: create_dynamic_system_prompt() 호출
+        Then: TITLE→H1, 나머지→H2 일관성 유지, 규칙 충돌 없음
+        """
+        # Given
+        placeholders = [
+            MagicMock(placeholder_key="{{TITLE}}"),
+            MagicMock(placeholder_key="{{SUMMARY}}"),
+            MagicMock(placeholder_key="{{BACKGROUND}}"),
+            MagicMock(placeholder_key="{{CONCLUSION}}")
+        ]
+
+        # When
+        prompt = create_dynamic_system_prompt(placeholders)
+
+        # Then
+        # 1. meta_info 분류와 일치하는 마크다운 규칙 확인
+        assert "# {{TITLE}}" in prompt  # H1 (section_title)
+        assert "## {{SUMMARY}}" in prompt  # H2 (section_content)
+        assert "## {{BACKGROUND}}" in prompt  # H2 (section_content)
+        assert "## {{CONCLUSION}}" in prompt  # H2 (section_content)
+
+        # 2. 규칙 충돌 없음 확인
+        assert "동기화 오류" not in prompt
+        assert prompt.count("# {{TITLE}}") == 1  # TITLE이 한 번만 나타남
+
+    def test_tc_prompt_010_custom_placeholder_safety(self):
+        """TC-PROMPT-010: Custom Placeholder 안전성
+
+        Given: 표준 키워드 없는 Custom Placeholder (MARKET_RISK, COMPETITOR_ANALYSIS)
+        When: create_dynamic_system_prompt() 호출
+        Then: 기본값으로 안전하게 처리, "정의되지 않은 필드" 경고, 시스템 충돌 없음
+        """
+        # Given
+        placeholders = [
+            MagicMock(placeholder_key="{{TITLE}}"),
+            MagicMock(placeholder_key="{{MARKET_RISK}}"),  # 정의 안 된 키워드
+            MagicMock(placeholder_key="{{COMPETITOR_ANALYSIS}}")
+        ]
+
+        # When
+        prompt = create_dynamic_system_prompt(placeholders)
+
+        # Then
+        # 1. 모든 placeholder가 처리됨
+        assert "# {{TITLE}}" in prompt  # H1
+        assert "## {{MARKET_RISK}}" in prompt  # H2 (안전)
+        assert "## {{COMPETITOR_ANALYSIS}}" in prompt  # H2 (안전)
+
+        # 2. 규칙 충돌 없음 확인
+        assert "동기화 오류" not in prompt
+
+        # 3. 시스템 안정성 - prompt가 유효한 문자열임
+        assert isinstance(prompt, str)
+        assert len(prompt) > 0
+
+    def test_tc_prompt_011_partial_structure_handling(self):
+        """TC-PROMPT-011: 부분 구조 처리 (5개 섹션 중 일부만 있음)
+
+        Given: 표준 5개 중 3개만 지정 (TITLE, SUMMARY, CONCLUSION, BACKGROUND/MAIN_CONTENT 없음)
+        When: create_dynamic_system_prompt() 호출
+        Then: 3개만 강제, 지정되지 않은 것은 규칙에서 제외, 시스템 안정성 유지
+        """
+        # Given
+        placeholders = [
+            MagicMock(placeholder_key="{{TITLE}}"),
+            MagicMock(placeholder_key="{{SUMMARY}}"),
+            MagicMock(placeholder_key="{{CONCLUSION}}")
+            # BACKGROUND, MAIN_CONTENT 없음
+        ]
+
+        # When
+        prompt = create_dynamic_system_prompt(placeholders)
+
+        # Then
+        # 1. 지정된 3개만 강제
+        assert "# {{TITLE}}" in prompt
+        assert "## {{SUMMARY}}" in prompt
+        assert "## {{CONCLUSION}}" in prompt
+
+        # 2. 지정되지 않은 것은 규칙에서 제외 (강제 안 함)
+        # 마크다운 규칙 섹션에서 BACKGROUND, MAIN_CONTENT가 없어야 함
+        assert "{{BACKGROUND}}" not in prompt or "## {{BACKGROUND}}" not in prompt
+        assert "{{MAIN_CONTENT}}" not in prompt or "## {{MAIN_CONTENT}}" not in prompt
+
+        # 3. 경고 메시지는 로그에만 (선택사항)
+        # 시스템 안정성 확인
+        assert isinstance(prompt, str)
+        assert len(prompt) > 0
 
     def test_tc_intg_010_template_to_hwpx_conversion_simulation(self, client, auth_headers, create_test_user, test_db):
         """TC-INTG-010: Template → HWPX 변환 시뮬레이션
