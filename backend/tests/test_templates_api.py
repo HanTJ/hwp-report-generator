@@ -303,7 +303,8 @@ class TestTemplatePromptUpdate:
         )
 
         assert response.status_code == 400
-        assert response.json()["error"]["code"] == "TEMPLATE.INVALID_PROMPT"
+        data = response.json()
+        assert data["error"]["code"] == "TEMPLATE.INVALID_PROMPT"
 
     def test_update_prompt_system_whitespace_only(self, auth_headers, auth_user, valid_hwpx_file):
         """TC-3.2: Whitespace-only prompt_system should return 400."""

@@ -124,7 +124,7 @@ class AdminTemplateResponse(BaseModel):
 class UpdatePromptSystemRequest(BaseModel):
     """시스템 프롬프트 수정 요청 모델."""
 
-    prompt_system: str = Field(..., description="새로운 시스템 프롬프트", min_length=1)
+    prompt_system: str = Field(..., description="새로운 시스템 프롬프트")
 
     class Config:
         json_schema_extra = {

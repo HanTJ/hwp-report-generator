@@ -828,27 +828,25 @@ async def regenerate_template_prompt_system(
                 f"count={len(placeholder_keys)}"
             )
         except Exception as e:
-            logger.error(f"[REGENERATE_PROMPT] Failed to fetch placeholders - {str(e)}")
+            logger.error(f"[REGENERATE_PROMPT] Failed to fetch placeholders - {str(e)}", exc_info=True)
             return error_response(
                 code=ErrorCode.TEMPLATE_GENERATION_FAILED,
                 http_status=500,
                 message="Failed to load placeholders for regeneration"
             )
 
-        # 4. Claude API로 메타정보 생성
-        try:
-            metadata = generate_placeholder_metadata(placeholder_keys)
-            logger.info(
-                f"[REGENERATE_PROMPT] Metadata generated - template_id={template_id}, "
-                f"metadata_count={len(metadata) if metadata else 0}"
-            )
-        except Exception as e:
-            logger.error(f"[REGENERATE_PROMPT] Failed to generate metadata - {str(e)}")
-            return error_response(
-                code=ErrorCode.TEMPLATE_GENERATION_FAILED,
-                http_status=500,
-                message="Failed to generate metadata for system prompt"
-            )
+        # 4. Claude API로 메타정보 생성 (선택사항)
+        metadata = None
+        if placeholder_keys:
+            try:
+                metadata = generate_placeholder_metadata(placeholder_keys)
+                logger.info(
+                    f"[REGENERATE_PROMPT] Metadata generated - template_id={template_id}, "
+                    f"metadata_count={len(metadata) if metadata else 0}"
+                )
+            except Exception as e:
+                logger.warning(f"[REGENERATE_PROMPT] Metadata generation failed (non-blocking) - {str(e)}")
+                # 메타정보 생성 실패는 비치명적 (metadata=None으로 계속 진행)
 
         # 5. 메타정보를 포함한 System Prompt 생성
         try:
@@ -858,7 +856,7 @@ async def regenerate_template_prompt_system(
                 f"prompt_length={len(new_prompt_system)}"
             )
         except Exception as e:
-            logger.error(f"[REGENERATE_PROMPT] Failed to generate prompt - {str(e)}")
+            logger.error(f"[REGENERATE_PROMPT] Failed to generate prompt - {str(e)}", exc_info=True)
             return error_response(
                 code=ErrorCode.TEMPLATE_GENERATION_FAILED,
                 http_status=500,
