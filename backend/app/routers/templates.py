@@ -626,7 +626,7 @@ async def update_template_prompt_system(
             prompt_user=updated_template.prompt_user,
             updated_at=updated_template.updated_at
         )
-        return success_response(response_data, message="System prompt updated successfully")
+        return success_response(response_data)
 
     except Exception as e:
         logger.error(f"[UPDATE_PROMPT_SYSTEM] Error - {str(e)}")
@@ -734,7 +734,7 @@ async def update_template_prompt_user(
             prompt_user=updated_template.prompt_user,
             updated_at=updated_template.updated_at
         )
-        return success_response(response_data, message="User prompt updated successfully")
+        return success_response(response_data)
 
     except Exception as e:
         logger.error(f"[UPDATE_PROMPT_USER] Error - {str(e)}")
@@ -888,7 +888,7 @@ async def regenerate_template_prompt_system(
             prompt_system=updated_template.prompt_system,
             regenerated_at=updated_template.updated_at
         )
-        return success_response(response_data, message="System prompt regenerated successfully")
+        return success_response(response_data)
 
     except Exception as e:
         logger.error(f"[REGENERATE_PROMPT] Unexpected error - {str(e)}")

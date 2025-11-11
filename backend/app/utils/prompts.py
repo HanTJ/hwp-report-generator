@@ -87,7 +87,7 @@ def create_dynamic_system_prompt(placeholders: list) -> str:
         동적으로 생성된 system prompt 문자열 (Markdown 형식 지시사항 포함)
 
     Examples:
-        >>> from app.database.placeholder_db import PlaceholderDB
+        >>> from app.database.template_db import PlaceholderDB
         >>> # Topics에서 Placeholder DB 조회
         >>> placeholders = PlaceholderDB.get_placeholders_by_template(template_id=1)
         >>> prompt = create_dynamic_system_prompt(placeholders)
@@ -223,8 +223,6 @@ def get_system_prompt(
         logger.info(f"Fetching template - template_id={template_id}, user_id={user_id}")
 
         try:
-            from app.database.placeholder_db import PlaceholderDB
-
             template = TemplateDB.get_template_by_id(template_id, user_id)
 
             if not template:
