@@ -28,6 +28,7 @@ from app.utils.prompts import (
 )
 from app.utils.markdown_parser import parse_markdown_to_content
 from app.utils.exceptions import InvalidTemplateError
+from app.utils.response_detector import is_report_content
 import time
 import logging
 from shared.constants import ProjectPath
@@ -867,7 +868,12 @@ async def ask(
             hint="잠시 후 다시 시도해주세요."
         )
 
-    # === 6단계: Assistant 메시지 저장 ===
+    # === 6단계: 응답 형태 판별 ===
+    logger.info(f"[ASK] Detecting response type")
+    is_report = is_report_content(response_text)
+    logger.info(f"[ASK] Response type detected - is_report={is_report}")
+
+    # === 6-1단계: Assistant 메시지 저장 (항상 저장) ===
     logger.info(f"[ASK] Saving assistant message - topic_id={topic_id}, length={len(response_text)}")
 
     asst_msg = MessageDB.create_message(
@@ -877,59 +883,64 @@ async def ask(
 
     logger.info(f"[ASK] Assistant message saved - message_id={asst_msg.id}, seq_no={asst_msg.seq_no}")
 
-    # === 7단계: MD 파일 저장 (필수) ===
-    logger.info(f"[ASK] Saving MD artifact - topic_id={topic_id}")
+    # === 7단계: 조건부 MD 파일 저장 ===
+    artifact = None
 
-    try:
-        # Markdown 파싱 및 제목 추출
-        logger.info(f"[ASK] Parsing markdown content")
-        result = parse_markdown_to_content(response_text)
-        generated_title = result.get("title") or "보고서"
-        logger.info(f"[ASK] Parsed successfully - title={generated_title}")
+    if is_report:
+        logger.info(f"[ASK] Saving MD artifact (report content)")
 
-        # 마크다운 빌드
-        md_text = build_report_md(result)
-        logger.info(f"[ASK] Built markdown - length={len(md_text)}")
+        try:
+            # Markdown 파싱 및 제목 추출
+            logger.info(f"[ASK] Parsing markdown content")
+            result = parse_markdown_to_content(response_text)
+            generated_title = result.get("title") or "보고서"
+            logger.info(f"[ASK] Parsed successfully - title={generated_title}")
 
-        # 버전 계산
-        version = next_artifact_version(topic_id, ArtifactKind.MD, topic.language)
-        logger.info(f"[ASK] Artifact version - version={version}")
+            # 마크다운 빌드
+            md_text = build_report_md(result)
+            logger.info(f"[ASK] Built markdown - length={len(md_text)}")
 
-        # 파일 경로 생성
-        base_dir, md_path = build_artifact_paths(topic_id, version, "report.md")
-        logger.info(f"[ASK] Artifact path - path={md_path}")
+            # 버전 계산
+            version = next_artifact_version(topic_id, ArtifactKind.MD, topic.language)
+            logger.info(f"[ASK] Artifact version - version={version}")
 
-        # 파일 저장 (파싱된 마크다운만)
-        bytes_written = write_text(md_path, md_text)
-        file_hash = sha256_of(md_path)
+            # 파일 경로 생성
+            base_dir, md_path = build_artifact_paths(topic_id, version, "report.md")
+            logger.info(f"[ASK] Artifact path - path={md_path}")
 
-        logger.info(f"[ASK] File written - size={bytes_written}, hash={file_hash[:16]}...")
+            # 파일 저장 (파싱된 마크다운만)
+            bytes_written = write_text(md_path, md_text)
+            file_hash = sha256_of(md_path)
 
-        # Artifact DB 레코드 생성
-        artifact = ArtifactDB.create_artifact(
-            topic_id,
-            asst_msg.id,
-            ArtifactCreate(
-                kind=ArtifactKind.MD,
-                locale=topic.language,
-                version=version,
-                filename=md_path.name,
-                file_path=str(md_path),
-                file_size=bytes_written,
-                sha256=file_hash
+            logger.info(f"[ASK] File written - size={bytes_written}, hash={file_hash[:16]}...")
+
+            # Artifact DB 레코드 생성
+            artifact = ArtifactDB.create_artifact(
+                topic_id,
+                asst_msg.id,
+                ArtifactCreate(
+                    kind=ArtifactKind.MD,
+                    locale=topic.language,
+                    version=version,
+                    filename=md_path.name,
+                    file_path=str(md_path),
+                    file_size=bytes_written,
+                    sha256=file_hash
+                )
             )
-        )
 
-        logger.info(f"[ASK] Artifact created - artifact_id={artifact.id}, version={artifact.version}")
+            logger.info(f"[ASK] Artifact created - artifact_id={artifact.id}, version={artifact.version}")
 
-    except Exception as e:
-        logger.error(f"[ASK] Failed to save artifact - error={str(e)}")
-        return error_response(
-            code=ErrorCode.ARTIFACT_CREATION_FAILED,
-            http_status=500,
-            message="응답 파일 저장 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )
+        except Exception as e:
+            logger.error(f"[ASK] Failed to save artifact - error={str(e)}")
+            return error_response(
+                code=ErrorCode.ARTIFACT_CREATION_FAILED,
+                http_status=500,
+                message="응답 파일 저장 중 오류가 발생했습니다.",
+                details={"error": str(e)}
+            )
+    else:
+        logger.info(f"[ASK] No artifact created (question/conversation response)")
 
     # === 8단계: AI 사용량 저장 ===
     logger.info(f"[ASK] Saving AI usage - message_id={asst_msg.id}")
@@ -953,13 +964,13 @@ async def ask(
         # 사용량 저장 실패는 치명적이지 않으므로 계속 진행
 
     # === 9단계: 성공 응답 반환 ===
-    logger.info(f"[ASK] Success - topic_id={topic_id}, artifact_id={artifact.id}")
+    logger.info(f"[ASK] Success - topic_id={topic_id}, has_artifact={artifact is not None}")
 
     return success_response({
         "topic_id": topic_id,
         "user_message": MessageResponse.model_validate(user_msg).model_dump(),
         "assistant_message": MessageResponse.model_validate(asst_msg).model_dump(),
-        "artifact": ArtifactResponse.model_validate(artifact).model_dump(),
+        "artifact": ArtifactResponse.model_validate(artifact).model_dump() if artifact else None,
         "usage": {
             "model": claude_client.model,
             "input_tokens": input_tokens,
