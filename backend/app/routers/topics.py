@@ -28,7 +28,7 @@ from app.utils.prompts import (
 )
 from app.utils.markdown_parser import parse_markdown_to_content
 from app.utils.exceptions import InvalidTemplateError
-from app.utils.response_detector import is_report_content
+from app.utils.response_detector import is_report_content, extract_question_content
 import time
 import logging
 from shared.constants import ProjectPath
@@ -873,12 +873,24 @@ async def ask(
     is_report = is_report_content(response_text)
     logger.info(f"[ASK] Response type detected - is_report={is_report}")
 
-    # === 6-1단계: Assistant 메시지 저장 (항상 저장) ===
-    logger.info(f"[ASK] Saving assistant message - topic_id={topic_id}, length={len(response_text)}")
+    # === 6-1단계: 질문 응답일 경우 콘텐츠 추출 ===
+    message_content = response_text
+    if not is_report:
+        logger.info(f"[ASK] Question response detected - extracting pure content")
+        extracted_content = extract_question_content(response_text)
+
+        if extracted_content:
+            message_content = extracted_content
+            logger.info(f"[ASK] Content extracted - original={len(response_text)} chars, extracted={len(extracted_content)} chars")
+        else:
+            logger.warning(f"[ASK] Question response but extraction returned empty, using original")
+
+    # === 6-2단계: Assistant 메시지 저장 (항상 저장) ===
+    logger.info(f"[ASK] Saving assistant message - topic_id={topic_id}, length={len(message_content)}")
 
     asst_msg = MessageDB.create_message(
         topic_id,
-        MessageCreate(role=MessageRole.ASSISTANT, content=response_text)
+        MessageCreate(role=MessageRole.ASSISTANT, content=message_content)
     )
 
     logger.info(f"[ASK] Assistant message saved - message_id={asst_msg.id}, seq_no={asst_msg.seq_no}")

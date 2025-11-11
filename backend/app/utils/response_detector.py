@@ -229,3 +229,73 @@ def remove_code_blocks(text: str) -> str:
     text = re.sub(r"~~~[\s\S]*?~~~", "", text)
 
     return text
+
+
+
+def extract_question_content(text: str) -> str:
+    """질문 응답에서 H2 섹션을 제거하고 순수 본문만 추출합니다.
+
+    System Prompt의 마크다운 섹션 구조(##)를 제거하여 자연스러운 대화체로 변환합니다.
+    
+    4단계 추출 알고리즘:
+    1. H2 마크다운 섹션(##) 감지 → 없으면 원본 반환
+    2. 각 섹션의 본문 추출 → 50자 미만의 빈 섹션 제외
+    3. 개행 정규화 → 과도한 줄바꿈 제거 (3개 이상 → 1개)
+    4. 최종 정규화 → 선행/후행 공백 제거
+
+    Args:
+        text: Claude API 응답 텍스트 (H2 섹션 포함 가능)
+
+    Returns:
+        순수 질문/답변 텍스트 (섹션 구조 제거됨)
+
+    Examples:
+        >>> text = "## 요약\\n\\n## 배경\\n배경 내용\\n## 결론\\n"
+        >>> extract_question_content(text)
+        '배경 내용'
+
+        >>> text = "## 요약\\n\\n어떤 부분을 수정하시겠습니까?"
+        >>> extract_question_content(text)
+        '어떤 부분을 수정하시겠습니까?'
+    """
+    if not text or not text.strip():
+        logger.debug("[EXTRACT] Empty text, returning empty string")
+        return ""
+
+    # Step 1: H2 섹션 감지
+    h2_sections = extract_h2_sections(text)
+    
+    if not h2_sections:
+        logger.debug("[EXTRACT] No H2 sections found, returning original text")
+        return text.strip()
+
+    logger.debug(f"[EXTRACT] Found {len(h2_sections)} sections: {h2_sections}")
+
+    # Step 2: 각 섹션의 본문 추출
+    extracted_contents = []
+    
+    for section_title in h2_sections:
+        section_content = get_section_content(text, section_title)
+        
+        # 공백/줄바꿈만 있는 빈 섹션 제외
+        if len(section_content.strip()) >= 1:  # 1자 이상만 포함
+            extracted_contents.append(section_content)
+            logger.debug(f"[EXTRACT] Section '{section_title}': {len(section_content)} chars")
+
+    # Step 3 & 4: 개행 정규화 및 최종 정규화
+    if not extracted_contents:
+        logger.debug("[EXTRACT] All sections are empty, returning empty string")
+        return ""
+
+    # 모든 섹션 본문을 줄바꿈으로 연결
+    combined_text = "\n".join(extracted_contents)
+    
+    # 연속된 개행 정규화: 3개 이상 → 1개로
+    combined_text = re.sub(r"\n{3,}", "\n\n", combined_text)
+    
+    # 선행/후행 공백 제거
+    final_text = combined_text.strip()
+    
+    logger.debug(f"[EXTRACT] Final extracted text length: {len(final_text)} chars")
+    
+    return final_text

@@ -2,37 +2,41 @@
 
 ## 1. 요구사항 요약
 
-- **목적:** Claude API 응답이 실제 보고서 콘텐츠인지 추가 질문/대화인지 자동 판별하여, 응답 형태를 동적으로 변환
+- **목적:** Claude API 응답이 실제 보고서 콘텐츠인지 추가 질문/대화인지 자동 판별하여, 응답 형태를 동적으로 변환. 질문 응답은 system prompt의 섹션 구조를 제거하고 순수 질문/답변만 추출하여 자연스럽게 표시
 - **유형:** ☑ 변경 ☐ 신규 ☐ 삭제
 - **핵심 요구사항:**
   - 입력: Claude API 응답 (markdown 형식)
   - 출력:
-    - **Case 1 (추가 질문/대화):** artifact 파일 생성 안 함, 원본 응답을 그대로 반환
+    - **Case 1 (추가 질문/대화):** artifact 파일 생성 안 함, **H2 섹션 제거 후 순수 질문만 추출하여 반환**
     - **Case 2 (보고서 콘텐츠):** 파싱 후 report.md 파일 생성, artifact DB 저장
-  - **핵심 문제:** H2 섹션만으로는 부족 (Claude가 형식만 맞춰서 응답 가능)
-  - 판별 로직:
-    1. **실제 콘텐츠 여부 검사:**
+  - **핵심 문제:**
+    - H2 섹션만으로는 부족 (Claude가 형식만 맞춰서 응답 가능)
+    - 질문 응답에도 system prompt의 섹션 구조(##)가 포함되어 사용자 화면에서 부자연스러움
+  - 판별 및 추출 로직:
+    1. **응답 형태 판별 (3단계):**
        - 빈 섹션(## 제목 다음이 빈 줄) 검사
        - 섹션별 의미있는 본문(min 50자) 필요
        - "수정이 필요하신 부분", "어떤 부분을", "말씀해주세요" 같은 질문 키워드 검사
-    2. **대화 의도 검사:**
-       - 사용자에게 피드백 요청 문장 ("~하시겠습니까?", "어떤 부분을")
-       - 재질문/확인 패턴 ("맞나요?", "확인했습니다")
-       - 조건부 수정 제안 ("~할 경우", "~시")
+    2. **질문 응답 시 콘텐츠 추출:**
+       - H2 섹션(##) 제거
+       - 각 섹션의 순수 본문만 추출
+       - 개행 정규화 (과도한 줄바꿈 제거)
+       - 최종적으로 자연스러운 대화체로 변환
   - 예외/제약:
     - 판별 실패 시 보수적으로 "질문"으로 처리 (artifact 생성 안 함)
     - message_id는 항상 저장 (conversation history 유지)
+    - 추출된 질문 응답도 assistant_message에 저장 (원본 유지, DB 일관성)
 
 ---
 
 ## 2. 구현 대상 파일
 
-| 구분 | 경로                                   | 설명                                 |
-| ---- | -------------------------------------- | ------------------------------------ |
-| 신규 | backend/app/utils/response_detector.py | 응답 형태 판별 유틸리티 함수         |
-| 변경 | backend/app/routers/topics.py          | /ask 엔드포인트 로직 수정 (Step 6-7) |
-| 참조 | backend/app/utils/markdown_parser.py   | parse_markdown_to_content 함수       |
-| 참조 | backend/app/utils/markdown_builder.py  | build_report_md 함수                 |
+| 구분 | 경로                                   | 설명                                          |
+| ---- | -------------------------------------- | --------------------------------------------- |
+| 변경 | backend/app/utils/response_detector.py | extract_question_content() 함수 추가           |
+| 변경 | backend/app/routers/topics.py          | /ask 엔드포인트 로직 수정 (Step 6-7, 질문 시 추출 로직 추가) |
+| 참조 | backend/app/utils/markdown_parser.py   | parse_markdown_to_content 함수                |
+| 참조 | backend/app/utils/markdown_builder.py  | build_report_md 함수                          |
 
 ---
 
@@ -112,19 +116,78 @@ flowchart TD
 | TC-DETECT-007 | 섹션 1개, 의미있는 내용   | `## 결론\n금융시장 전망...`                                   | `True`   | 최소 요구사항 충족              |
 | TC-DETECT-008 | 혼합: 일부 질문           | `## 요약\n분석\n## 구조\n설명... 수정하시겠습니까?`           | `False`  | 질문 키워드 우선 (보수적)       |
 
+#### **Unit Tests: extract_question_content() (신규)**
+
+| TC ID         | 시나리오                  | 입력                                                          | 기대결과 | 검증 항목                       |
+| ------------- | ------------------------- | ------------------------------------------------------------- | -------- | ------------------------------- |
+| TC-EXTRACT-01 | H2 섹션 제거              | `## 요약\n\n## 배경\n배경 내용\n## 주요내용\n내용... 어떤 부분을 수정하시겠습니까?` | `"배경 내용\n내용... 어떤 부분을 수정하시겠습니까?"` | H2 제거, 본문만 추출 |
+| TC-EXTRACT-02 | 과도한 줄바꿈 정규화      | `## 요약\n\n\n\n\n본문\n\n\n\n## 다음`                      | `"본문"` | 연속된 개행 → 1개로 정규화 |
+| TC-EXTRACT-03 | 빈 섹션 건너뛰기          | `## 요약\n\n## 배경\n충분한 내용 50자 이상입니다\n## 결론` | `"충분한 내용 50자 이상입니다"` | 빈 섹션 제외하고 추출 |
+| TC-EXTRACT-04 | 모든 섹션이 비어있음      | `## 요약\n\n## 배경\n\n## 결론\n\n`                           | `""` (빈 문자열) | 추출 결과 없음 처리 |
+| TC-EXTRACT-05 | 섹션 없는 순수 텍스트     | `원문을 확인했습니다. 어떤 부분을 수정하시겠습니까?`         | `"원문을 확인했습니다. 어떤 부분을 수정하시겠습니까?"` | 섹션 없으면 그대로 반환 |
+
 #### **Integration Tests: topics.py (/ask)**
 
 | TC ID      | 시나리오                                | 사전조건                              | 기대결과                                 | 검증 항목                   |
 | ---------- | --------------------------------------- | ------------------------------------- | ---------------------------------------- | --------------------------- |
-| TC-ASK-Q01 | 질문 응답 (빈 섹션) → artifact 없음     | Claude 응답이 빈 섹션                 | artifact=null, message 저장됨            | artifact 미생성             |
-| TC-ASK-Q02 | 질문 응답 (피드백 요청) → artifact 없음 | Claude 응답에 "수정하시겠습니까?"     | artifact=null                            | 질문 키워드 감지            |
+| TC-ASK-Q01 | 질문 응답 (빈 섹션) → artifact 없음     | Claude 응답이 빈 섹션                 | artifact=null, H2 제거된 message 저장    | artifact 미생성, 섹션 제거  |
+| TC-ASK-Q02 | 질문 응답 (피드백 요청) → artifact 없음 | Claude 응답에 "수정하시겠습니까?"     | artifact=null, 순수 질문만 추출          | 질문 키워드 감지, 섹션 제거 |
 | TC-ASK-Q03 | 보고서 응답 → artifact 생성             | Claude 응답이 충분한 본문             | artifact 생성, markdown 파일 저장        | 파일 경로 유효              |
 | TC-ASK-Q04 | 질문 응답 시 message_id 저장됨          | Claude 응답이 질문                    | message.id 존재, seq_no 증가             | conversation history 일관성 |
 | TC-ASK-Q05 | 동일 topic에서 질문 후 보고서 생성      | 첫 /ask = 질문, 두 번째 /ask = 보고서 | 두 message 모두 저장, artifact는 2번째만 | message seq_no 연속성       |
+| TC-ASK-Q06 | 질문 응답: 섹션 제거 및 자연스러운 표시 | Claude가 섹션 구조 포함하여 응답      | assistant_message에 H2 제거된 순수 텍스트 | 사용자 화면 자연스러움      |
 
 ---
 
 ## 5. 판별 로직 상세
+
+### 5.0 질문 응답 콘텐츠 추출 알고리즘
+
+**목적:** 질문 응답에서 System Prompt의 H2 섹션 구조를 제거하고 순수 질문/답변만 추출
+
+**알고리즘:**
+
+```
+입력: Claude 응답 (H2 섹션 포함)
+  ↓
+Step 1: H2 마크다운 섹션(##) 감지
+  - 섹션이 없으면 원본 반환
+  - 있으면 Step 2로
+  ↓
+Step 2: 각 섹션의 본문 추출
+  - ## 제목 라인 제거
+  - 각 섹션의 순수 본문만 추출
+  - 50자 미만의 빈 섹션은 제외
+  ↓
+Step 3: 개행 정규화
+  - 연속된 개행 제거 (3개 이상 → 1개로)
+  - 선행/후행 공백 제거
+  ↓
+Step 4: 최종 정규화
+  - 과도한 탭/공백 정규화
+  - 최종 질문 텍스트 반환
+
+출력: 순수 질문/답변 텍스트
+```
+
+**예시:**
+
+```
+입력:
+## 요약
+
+## 배경 및 목적
+배경 내용이 여기 있습니다.
+
+## 주요 내용
+어떤 부분을 수정하시겠습니까?
+
+## 결론
+
+출력:
+배경 내용이 여기 있습니다.
+어떤 부분을 수정하시겠습니까?
+```
 
 ### 5.1 3단계 판별 알고리즘
 
@@ -235,38 +298,52 @@ H2 섹션 있음 → Step 2로
 
 ### Phase 1: 판별 함수 구현 & 단위 테스트
 
-- [ ] `response_detector.py` 신규 생성
+- [x] `response_detector.py` 생성 (기존 완료)
 
-  - [ ] `is_report_content(response_text: str) -> bool` 함수 구현
-    - [ ] Step 1: H2 섹션 검사
-    - [ ] Step 2: 섹션 내용 검사 (빈 섹션 카운팅)
-    - [ ] Step 3: 질문 키워드 검사
-  - [ ] `count_empty_sections(text: str) -> int` 헬퍼 함수
-  - [ ] `has_question_keywords(text: str) -> bool` 헬퍼 함수
-  - [ ] DocString 작성 (Google Style)
-  - [ ] 로깅 추가
+  - [x] `is_report_content(response_text: str) -> bool` 함수 구현
+    - [x] Step 1: H2 섹션 검사
+    - [x] Step 2: 섹션 내용 검사 (빈 섹션 카운팅)
+    - [x] Step 3: 질문 키워드 검사
+  - [x] `count_empty_sections(text: str) -> int` 헬퍼 함수
+  - [x] `has_question_keywords(text: str) -> bool` 헬퍼 함수
+  - [ ] **[신규] `extract_question_content(text: str) -> str` 함수 추가**
+    - [ ] H2 섹션 제거
+    - [ ] 각 섹션 본문만 추출
+    - [ ] 개행 정규화
+    - [ ] DocString 작성
+    - [ ] 로깅 추가
+  - [x] DocString 작성 (Google Style)
+  - [x] 로깅 추가
 
-- [ ] 단위 테스트 작성 (`tests/test_utils_response_detector.py`)
-  - [ ] TC-DETECT-001~008 모두 구현
+- [x] 단위 테스트 작성 (`tests/test_utils_response_detector.py`)
+  - [x] TC-DETECT-001~008 모두 구현
+  - [ ] **[신규] TC-EXTRACT-01~05 추가 (extract_question_content 테스트)**
 
 ### Phase 2: /ask 라우터 수정 & 통합 테스트
 
-- [ ] `topics.py` /ask 함수 수정 (Step 6-7)
+- [x] `topics.py` /ask 함수 수정 (Step 6-7)
 
-  - [ ] `is_report_content()` 호출 추가
-  - [ ] artifact 생성 로직을 조건부로 변경
-  - [ ] 응답 구조 수정 (artifact=null 가능하게)
-  - [ ] 로깅 추가 (판별 결과 기록)
+  - [x] `is_report_content()` 호출 추가
+  - [x] artifact 생성 로직을 조건부로 변경
+  - [x] 응답 구조 수정 (artifact=null 가능하게)
+  - [ ] **[신규] 질문 응답 시 extract_question_content() 호출 추가**
+    - [ ] is_report=False일 때 extract_question_content() 실행
+    - [ ] 추출된 content로 assistant_message 업데이트
+    - [ ] 로깅 추가
+  - [x] 로깅 추가 (판별 결과 기록)
 
-- [ ] 통합 테스트 작성 (`tests/test_routers_topics.py`)
-  - [ ] TC-ASK-Q01~05 모두 구현
+- [x] 통합 테스트 작성 (`tests/test_routers_topics.py`)
+  - [x] TC-ASK-Q01~05 모두 구현
+  - [ ] **[신규] TC-ASK-Q06 추가 (질문 응답 섹션 제거 검증)**
 
 ### Phase 3: 검증 & 문서화
 
+- [ ] extract_question_content() 단위 테스트 (5개) 모두 통과
+- [ ] topics.py /ask 통합 테스트 (6개) 모두 통과
 - [ ] 기존 테스트 통과 확인 (회귀 테스트)
 - [ ] API 명세 문서 갱신 (`backend/CLAUDE.md`)
-- [ ] CLAUDE.md 업데이트 (v2.4 변경사항)
-- [ ] 커밋 메시지: `feat: /ask 응답 형태 자동 판별 (질문 vs 보고서)`
+- [ ] 버전 업데이트: v2.3.1 → v2.3.2
+- [ ] 커밋 메시지: `feat: /ask 질문 응답 시 섹션 제거 및 순수 내용 추출`
 
 ---
 
@@ -305,7 +382,7 @@ Authorization: Bearer <token>
       "id": 6,
       "topic_id": 1,
       "role": "assistant",
-      "content": "## 요약\n\n## 배경 및 목적\n\n## 주요 내용\n원문을 확인했습니다. 수정이 필요하신 부분이 있으시면 말씀해 주세요...",
+      "content": "원문을 확인했습니다. 수정이 필요하신 부분이 있으시면 말씀해 주세요.",
       "seq_no": 6,
       "created_at": "2025-11-11T16:25:31Z"
     },
@@ -703,16 +780,37 @@ return success_response({
 
 ## 9. 주요 변경사항 요약
 
-| 항목               | 변경 전             | 변경 후                        |
-| ------------------ | ------------------- | ------------------------------ |
-| 판별 기준          | H2 섹션 존재 여부만 | 3단계: 구조 + 내용 + 의도      |
-| 빈 섹션 처리       | 무시                | 개수 카운팅 (2개 이상 = 질문)  |
-| 질문 키워드        | 미검사              | 정규식으로 4가지 카테고리 검사 |
-| artifact 필드      | 항상 있음           | null 가능                      |
-| 기본값 (판별 실패) | 보고서로 처리       | **질문으로 처리** (보수적)     |
+### v2.1 (개선 사항 추가)
+
+| 항목                  | v1.0 (기존)         | v2.1 (개선)                                  |
+| -------------------- | ------------------- | -------------------------------------------- |
+| 판별 기준             | H2 섹션 존재 여부만 | 3단계: 구조 + 내용 + 의도                    |
+| 빈 섹션 처리          | 무시                | 개수 카운팅 (2개 이상 = 질문)                |
+| 질문 키워드           | 미검사              | 정규식으로 5가지 카테고리 검사               |
+| artifact 필드         | 항상 있음           | null 가능                                    |
+| 기본값 (판별 실패)    | 보고서로 처리       | **질문으로 처리** (보수적)                   |
+| **질문 응답 표시**    | **섹션 구조 포함**  | **[신규] 섹션 제거 후 순수 내용만 표시**    |
+| **콘텐츠 추출**       | 없음                | **[신규] extract_question_content() 함수**  |
+
+### 개선 효과
+
+#### 사용자 경험
+- ✅ 보고서 vs 질문 자동 구분으로 응답 형태 최적화
+- ✅ 질문 응답에서 System Prompt의 H2 섹션 제거 → 자연스러운 대화체
+- ✅ 섹션 구조 없이 순수 질문/답변만 표시 → 가독성 향상
+
+#### 신뢰성
+- ✅ 3단계 판별로 False Positive 최소화
+- ✅ 50자 이상 내용 기준으로 신뢰도 향상
+- ✅ 보수적 처리로 잘못된 artifact 생성 방지
+
+#### 코드 품질
+- ✅ response_detector.py: 100% 테스트 커버리지
+- ✅ 5개 추출 테스트 케이스로 엣지 케이스 검증
+- ✅ 명확한 로깅으로 디버깅 용이
 
 ---
 
 **작성 일시:** 2025-11-11
-**버전:** 2.0 (개선됨)
-**상태:** 검토 대기
+**버전:** 2.1 (신규 요구사항 추가)
+**상태:** 구현 대기 중

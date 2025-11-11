@@ -1009,3 +1009,122 @@ AI 기반 금융 서비스가 확대되고 있습니다.
         assert has_summary or has_conclusion, \
             "Parsed markdown should contain at least summary or conclusion section"
 
+
+    @patch('app.routers.topics.ClaudeClient')
+    def test_ask_question_response_extracts_section_content(
+        self,
+        mock_claude_class,
+        client,
+        auth_headers,
+        create_test_user,
+        temp_dir
+    ):
+        """
+        TC-ASK-Q06: 질문 응답 시 H2 섹션 제거 및 순수 내용만 추출 검증
+        
+        Claude가 질문/대화 형식으로 응답할 때:
+        - H2 섹션(##) 마크다운 헤더는 제거
+        - 각 섹션의 실제 본문 콘텐츠만 추출하여 저장
+        - 사용자가 자연스럽게 읽을 수 있도록 정규화
+        """
+        # GIVEN: 토픽 및 초기 artifact 생성
+        topic = TopicDB.create_topic(
+            user_id=create_test_user.id,
+            topic_data=TopicCreate(input_prompt="리포트 분석", language="ko")
+        )
+        
+        # 초기 메시지 저장 (artifact 생성을 위해 필요)
+        msg = MessageDB.create_message(
+            topic.id,
+            MessageCreate(role=MessageRole.ASSISTANT, content="# 초기 보고서\n\n내용...")
+        )
+        
+        # MD 파일 생성
+        from app.utils.file_utils import build_artifact_paths, write_text, sha256_of
+        _, md_path = build_artifact_paths(topic.id, 1, "report.md")
+        bytes_written = write_text(md_path, "# 초기 보고서\n\n내용...")
+        file_hash = sha256_of(md_path)
+        
+        initial_artifact = ArtifactDB.create_artifact(
+            topic.id,
+            msg.id,
+            ArtifactCreate(
+                kind=ArtifactKind.MD,
+                locale="ko",
+                version=1,
+                filename="report.md",
+                file_path=str(md_path),
+                file_size=bytes_written,
+                sha256=file_hash
+            )
+        )
+        
+        # Mock Claude: 질문 응답 (H2 섹션 포함)
+        question_response = (
+            "## 확인 사항\n\n"
+            "제공하신 내용을 확인했습니다.\n\n"
+            "## 개선 방향\n\n"
+            "다음과 같은 부분을 수정할 수 있습니다.\n\n"
+            "## 재검토\n\n"
+            "해당 부분을 검토하시고 피드백을 주시면 감사하겠습니다."
+        )
+        
+        mock_claude_instance = MagicMock()
+        mock_claude_instance.chat_completion.return_value = (
+            question_response,
+            150,
+            250
+        )
+        mock_claude_instance.model = "claude-sonnet-4-5-20250929"
+        mock_claude_class.return_value = mock_claude_instance
+        
+        # WHEN: /ask 호출 (artifact 참조)
+        response = client.post(
+            f"/api/topics/{topic.id}/ask",
+            headers=auth_headers,
+            json={
+                "content": "리포트를 검토해주세요.",
+                "artifact_id": initial_artifact.id
+            }
+        )
+        
+        # THEN: 응답 검증
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        
+        # assistant_message에 H2 섹션이 제거되어야 함 (response body의 content)
+        assistant_message_content = body["data"]["assistant_message"]["content"]
+        
+        # ✅ 검증 1: H2 헤더(##)가 없어야 함
+        assert "## 확인 사항" not in assistant_message_content, \
+            "H2 section headers should be removed"
+        assert "## 개선 방향" not in assistant_message_content, \
+            "H2 section headers should be removed"
+        assert "## 재검토" not in assistant_message_content, \
+            "H2 section headers should be removed"
+        
+        # ✅ 검증 2: 실제 본문 콘텐츠는 포함되어야 함
+        assert "제공하신 내용을 확인했습니다" in assistant_message_content, \
+            "Section content should be preserved"
+        assert "다음과 같은 부분을 수정할 수 있습니다" in assistant_message_content, \
+            "Section content should be preserved"
+        assert "해당 부분을 검토하시고 피드백을 주시면 감사하겠습니다" in assistant_message_content, \
+            "Section content should be preserved"
+        
+        # ✅ 검증 3: artifact가 없어야 함 (질문 응답이므로)
+        assert body["data"]["artifact"] is None, \
+            "Question responses should not create artifact"
+        
+        # ✅ 검증 4: 메시지가 DB에 저장되어야 함
+        messages = MessageDB.get_messages_by_topic(topic.id)
+        # initial_message + user_message + assistant_message = 3개
+        assert len(messages) == 3, "Initial, user and assistant messages should be saved"
+        
+        # 마지막 메시지(assistant)가 추출된 콘텐츠여야 함
+        last_message = messages[-1]
+        assert last_message.role == MessageRole.ASSISTANT
+        assert "##" not in last_message.content, \
+            "Saved message should not contain H2 section headers"
+        assert "제공하신 내용을 확인했습니다" in last_message.content
+

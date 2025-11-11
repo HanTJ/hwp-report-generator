@@ -10,6 +10,7 @@ from app.utils.response_detector import (
     count_empty_sections,
     has_question_keywords,
     remove_code_blocks,
+    extract_question_content,
 )
 
 
@@ -388,3 +389,83 @@ _생성일: 2025-11-11 16:20:16_
         # 빈 섹션 (요약, 배경 및 목적, 결론 및 제언) = 3개
         # 질문 키워드 ("수정하시겠습니까?", "말씀해 주세요")
         assert result is False
+
+
+
+@pytest.mark.unit
+@pytest.mark.response_detector
+class TestExtractQuestionContent:
+    """질문 응답 콘텐츠 추출 테스트"""
+
+    # TC-EXTRACT-01: H2 섹션 제거 및 본문 추출
+    def test_extract_h2_sections_removed(self):
+        """TC-EXTRACT-01: H2 섹션 제거"""
+        text = """## 요약
+
+## 배경
+배경 내용이 여기 있습니다.
+
+## 주요 내용
+어떤 부분을 수정하시겠습니까?
+
+## 결론
+"""
+        result = extract_question_content(text)
+        # H2 섹션은 제거되고 본문만 남아야 함
+        assert "## 요약" not in result
+        assert "## 배경" not in result
+        assert "배경 내용이 여기 있습니다." in result
+        assert "어떤 부분을 수정하시겠습니까?" in result
+
+    # TC-EXTRACT-02: 과도한 줄바꿈 정규화
+    def test_normalize_excessive_newlines(self):
+        """TC-EXTRACT-02: 과도한 줄바꿈 정규화"""
+        text = """## 요약
+
+
+
+
+본문"""
+        result = extract_question_content(text)
+        # 연속된 개행은 1개로 정규화되어야 함
+        assert "\n\n\n" not in result
+        assert "본문" in result
+
+    # TC-EXTRACT-03: 빈 섹션 건너뛰기
+    def test_skip_empty_sections(self):
+        """TC-EXTRACT-03: 빈 섹션 건너뛰기"""
+        text = """## 요약
+
+## 배경
+충분한 내용 50자 이상입니다. 이 섹션은 의미있는 내용을 담고 있습니다.
+
+## 결론
+"""
+        result = extract_question_content(text)
+        # 빈 섹션은 제외되고, 의미있는 내용만 추출
+        assert "충분한 내용" in result
+        assert "## 요약" not in result
+        assert "## 배경" not in result
+        assert len(result) > 30  # 실제 추출 본문 길이 검증
+
+    # TC-EXTRACT-04: 모든 섹션이 비어있음
+    def test_all_sections_empty(self):
+        """TC-EXTRACT-04: 모든 섹션이 비어있음"""
+        text = """## 요약
+
+## 배경
+
+## 결론
+
+"""
+        result = extract_question_content(text)
+        # 모든 섹션이 비어있으면 빈 문자열 반환
+        assert result == ""
+
+    # TC-EXTRACT-05: 섹션 없는 순수 텍스트
+    def test_no_sections_pure_text(self):
+        """TC-EXTRACT-05: 섹션 없는 순수 텍스트"""
+        text = "원문을 확인했습니다. 어떤 부분을 수정하시겠습니까?"
+        result = extract_question_content(text)
+        # 섹션이 없으면 원본 텍스트 그대로 반환
+        assert result == text
