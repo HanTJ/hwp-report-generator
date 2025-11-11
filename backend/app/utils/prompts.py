@@ -223,6 +223,8 @@ def get_system_prompt(
         logger.info(f"Fetching template - template_id={template_id}, user_id={user_id}")
 
         try:
+            from app.database.template_db import PlaceholderDB
+
             template = TemplateDB.get_template_by_id(template_id, user_id)
 
             if not template:
