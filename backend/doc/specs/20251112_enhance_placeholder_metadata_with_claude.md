@@ -8,7 +8,7 @@
   - 입력: Template에서 추출된 Placeholder 목록 (예: {{TITLE}}, {{SUMMARY}}, {{CUSTOM_PLACEHOLDER}})
   - 출력: Claude가 생성한 상세 메타정보 (type, description, examples, max_length 등)
   - 예외/제약:
-    - Claude API 응답시간: < 5초 (Template 업로드 시)
+    - Claude API 응답시간: 무제한 (v2.4.1에서 타임아웃 제약 제거됨)
     - 폴백: Claude API 실패 시 기본 규칙 사용
     - 캐싱: 동일 Placeholder에 대한 중복 API 호출 방지
   - 처리흐름 요약:
@@ -104,7 +104,7 @@ flowchart TD
 | TC ID | 계층 | 시나리오 | 목적 | 기대결과 |
 |-------|------|---------|------|---------|
 | TC-001 | Unit | Claude API 성공 호출 | 메타정보 정확성 | JSON 파싱 성공, 필드 완전 |
-| TC-002 | Unit | Claude API 실패 (timeout) | 폴백 작동 | 기본 규칙 적용, 경고 로깅 |
+| TC-002 | Unit | Claude API 실패 (명시적 timeout) | 폴백 작동 | 기본 규칙 적용, 경고 로깅 |
 | TC-003 | Unit | 캐싱된 메타정보 조회 | 중복 호출 방지 | DB에서 즉시 반환, API 미호출 |
 | TC-004 | Integration | Template 업로드 (1개 Placeholder) | E2E 플로우 | 201 응답, placeholders_metadata 포함 |
 | TC-005 | Integration | Template 업로드 (10개 Placeholder) | 대량 처리 | 모든 Placeholder 메타정보 생성 |
@@ -133,8 +133,8 @@ async def generate_metadata_with_claude(
     placeholder_name: str,
     template_context: str,
     existing_placeholders: List[str],
-    timeout: float = 5.0
-) -> Dict[str, any]:
+    timeout: Optional[float] = None
+) -> Dict[str, Any]:
     """
     Claude API를 사용하여 Placeholder의 상세 메타정보 생성
 
@@ -237,8 +237,8 @@ JSON 형식으로 응답해주세요."""
 async def batch_generate_metadata(
     placeholders: List[str],
     template_context: str,
-    timeout_per_item: float = 5.0
-) -> Dict[str, Dict]:
+    timeout_per_item: Optional[float] = None
+) -> Dict[str, Optional[Dict[str, Any]]]:
     """
     여러 Placeholder에 대해 병렬로 메타정보 생성
 
@@ -469,13 +469,13 @@ result = {
 
 ---
 
-## 10. 응답시간 제약
+## 10. 응답시간 특성
 
-| 항목 | 제약 | 설명 |
+| 항목 | 특성 | 설명 |
 |------|------|------|
-| 단일 Claude API 호출 | < 5초 | Timeout 설정 |
-| 10개 Placeholder 처리 | < 30초 | 병렬 처리 (asyncio) |
-| Template 업로드 전체 | < 60초 | 포함: 파일 검증, API, DB 저장 |
+| 단일 Claude API 호출 | 가변 (무제한) | v2.4.1에서 타임아웃 제약 제거, 품질 우선 |
+| 10개 Placeholder 처리 | 가변 | 병렬 처리 (asyncio), 개별 제약 없음 |
+| Template 업로드 전체 | 가변 | 포함: 파일 검증, API, DB 저장 |
 
 ---
 

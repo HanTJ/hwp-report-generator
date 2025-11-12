@@ -226,13 +226,21 @@ async def upload_template(
                 # 8. SHA256 계산
                 sha256 = manager.calculate_sha256(str(temp_file_path))
 
-                # [신규] 9단계: Placeholder 메타정보 생성
-                logger.info(f"[UPLOAD_TEMPLATE] Generating placeholder metadata - count={len(placeholder_list)}")
-                metadata = generate_placeholder_metadata(placeholder_list)
-                if metadata:
+                # [신규] 9단계: Placeholder 메타정보 생성 (Claude API 기반)
+                logger.info(f"[UPLOAD_TEMPLATE] Generating placeholder metadata with Claude - count={len(placeholder_list)}")
+                from app.utils.meta_info_generator import generate_placeholder_metadata_with_claude
+                try:
+                    metadata = await generate_placeholder_metadata_with_claude(
+                        raw_placeholders=placeholder_list,
+                        template_context=title,
+                        enable_fallback=True
+                    )
                     logger.info(f"[UPLOAD_TEMPLATE] Metadata generated successfully - count={metadata.total_count}")
-                else:
-                    logger.warning("[UPLOAD_TEMPLATE] Metadata generation failed, using fallback")
+                except Exception as e:
+                    logger.warning(f"[UPLOAD_TEMPLATE] Claude API failed, using fallback: {str(e)[:100]}")
+                    # 폴백: 기본 규칙 기반 메타정보 생성
+                    from app.utils.meta_info_generator import generate_placeholder_metadata
+                    metadata = generate_placeholder_metadata(placeholder_list)
 
                 # [변경] 10단계: 메타정보를 포함한 System Prompt 생성
                 # prompt_user는 None으로 유지 (사용자가 나중에 커스텀 프롬프트를 등록하기 위해 예약)

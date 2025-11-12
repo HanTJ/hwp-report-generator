@@ -5,8 +5,11 @@ Placeholder를 분석하여 각 Placeholder에 맞는 메타정보 JSON을 자�
 SystemPromptGenerate.md 규칙을 구현합니다.
 """
 
+import logging
 from typing import List, Dict, Any
 from app.models.placeholder import PlaceholderMetadata, PlaceholdersMetadataCollection
+
+logger = logging.getLogger(__name__)
 
 
 def create_meta_info_from_placeholders(placeholders: List[Any]) -> List[Dict[str, Any]]:
@@ -262,6 +265,150 @@ def generate_placeholder_metadata(
         metadatas.append(metadata)
 
     # PlaceholdersMetadataCollection 생성
+    return PlaceholdersMetadataCollection(
+        placeholders=metadatas,
+        total_count=len(raw_placeholders),
+        required_count=required_count,
+        optional_count=optional_count
+    )
+
+
+async def generate_placeholder_metadata_with_claude(
+    raw_placeholders: List[str],
+    template_context: str = "보고서",
+    enable_fallback: bool = True
+) -> PlaceholdersMetadataCollection:
+    """Claude API를 통해 Placeholder 메타정보 생성.
+
+    HWPX 파일에서 추출된 raw placeholder 키 목록을 받아
+    Claude API로 각 Placeholder의 상세 메타정보를 자동 생성합니다.
+    실패 시 기본 규칙으로 폴백합니다.
+
+    Args:
+        raw_placeholders: Placeholder 키 목록 (예: ["{{TITLE}}", "{{SUMMARY}}"])
+        template_context: 템플릿 컨텍스트 (예: "금융 보고서")
+        enable_fallback: Claude API 실패 시 기본 규칙 사용 여부
+
+    Returns:
+        PlaceholdersMetadataCollection: 구조화된 메타정보 컬렉션
+
+    Raises:
+        ValueError: 중복 Placeholder 감지 시
+
+    Examples:
+        >>> raw_placeholders = ["{{TITLE}}", "{{SUMMARY}}", "{{DATE}}"]
+        >>> metadata = await generate_placeholder_metadata_with_claude(
+        ...     raw_placeholders, "금융 보고서")
+        >>> print(metadata.total_count)
+        3
+        >>> print(metadata.required_count)
+        2
+    """
+    from app.utils.placeholder_metadata_generator import batch_generate_metadata
+
+    # 중복 검사
+    seen = set()
+    for ph_key in raw_placeholders:
+        if ph_key in seen:
+            raise ValueError(
+                f"중복된 Placeholder 발견: {ph_key}. "
+                "각 Placeholder는 템플릿에서 한 번만 정의되어야 합니다."
+            )
+        seen.add(ph_key)
+
+    # Claude API로 메타정보 생성 시도
+    claude_metadata = {}
+    try:
+        logger.info(f"[METADATA] Generating metadata with Claude - count={len(raw_placeholders)}")
+
+        claude_metadata = await batch_generate_metadata(
+            placeholders=raw_placeholders,
+            template_context=template_context,
+            timeout_per_item=None  # 무제한 대기 (v2.4.1)
+        )
+
+        logger.info(f"[METADATA] Claude API metadata generation completed")
+    except Exception as e:
+        logger.warning(
+            f"[METADATA] Claude API failed, using fallback rules: {str(e)[:100]}"
+        )
+        if not enable_fallback:
+            raise
+        claude_metadata = {}
+
+    # 각 Placeholder에 대해 메타정보 생성 (Claude + 기본 규칙 혼합)
+    metadatas: List[PlaceholderMetadata] = []
+    required_count = 0
+    optional_count = 0
+
+    for position, ph_key in enumerate(raw_placeholders):
+        ph_name = ph_key.replace("{{", "").replace("}}", "")
+
+        # Claude 메타정보 조회
+        claude_info = claude_metadata.get(ph_key)
+
+        if claude_info:
+            # Claude 응답 사용
+            metadata = PlaceholderMetadata(
+                name=ph_name,
+                placeholder_key=ph_key,
+                type=claude_info.get("type", "section_content"),
+                description=claude_info.get("description", ""),
+                example=claude_info.get("examples", [None])[0] if claude_info.get("examples") else None,
+                max_length=claude_info.get("max_length"),
+                min_length=claude_info.get("min_length"),
+                required=claude_info.get("required", True),
+                position=position
+            )
+        else:
+            # 기본 규칙 사용
+            type_mapping = {
+                "TITLE": "section_title",
+                "SUMMARY": "section_content",
+                "BACKGROUND": "section_content",
+                "MAIN_CONTENT": "section_content",
+                "CONCLUSION": "section_content",
+                "DATE": "meta",
+                "RISK": "section_content",
+            }
+
+            ph_type = type_mapping.get(ph_name, "section_content")
+            is_required = ph_type != "meta"
+
+            display_name = _get_display_name(ph_name, ph_type)
+            description = _get_description(ph_name, {"type": ph_type})
+            example_list = _get_examples(ph_name, {"type": ph_type})
+
+            # 길이 제한 설정
+            max_length = None
+            min_length = None
+            if ph_type == "section_title":
+                max_length = 200
+            elif ph_type == "section_content":
+                min_length = 100
+                max_length = 10000
+            elif ph_type == "meta":
+                max_length = 100
+
+            metadata = PlaceholderMetadata(
+                name=ph_name,
+                placeholder_key=ph_key,
+                type=ph_type,
+                description=description,
+                example=example_list[0] if example_list else None,
+                max_length=max_length,
+                min_length=min_length,
+                required=is_required,
+                position=position
+            )
+
+        metadatas.append(metadata)
+
+        if metadata.required:
+            required_count += 1
+        else:
+            optional_count += 1
+
     return PlaceholdersMetadataCollection(
         placeholders=metadatas,
         total_count=len(raw_placeholders),
