@@ -111,7 +111,36 @@ backend/doc/Backend_UnitSpec.md
 
 ---
 
-## 주요 개선사항 (v2.0 → v2.3)
+## 주요 개선사항 (v2.0 → v2.4)
+
+### v2.4 (2025-11-12) - Sequential Planning + Real-time Progress Tracking
+
+✅ **Sequential Planning 기반 보고서 계획 수립**
+- Template의 prompt_system을 활용하여 Claude Sequential Planning으로 보고서 계획 생성
+- 신규 엔드포인트: POST /api/topics/plan (< 2초 제약)
+- 신규 유틸: `utils/sequential_planning.py` (219줄)
+- 응답: 마크다운 형식 계획 + 섹션 목록
+
+✅ **백그라운드 보고서 생성 + 실시간 진행 추적**
+- 기존 POST /generate를 백그라운드 asyncio.create_task()로 리팩토링
+- 응답시간 제약: < 1초 (202 Accepted)
+- 메모리 기반 상태 관리: `utils/generation_status.py` (298줄)
+- 신규 엔드포인트:
+  - GET /api/topics/{id}/status (폴링, < 500ms)
+  - GET /api/topics/{id}/status/stream (SSE, 실시간 완료 알림)
+
+✅ **Pydantic 모델 추가**
+- `PlanRequest`, `PlanResponse`, `PlanSection` 모델
+- `GenerateRequest`, `GenerateResponse` 모델
+- `StatusResponse` 모델
+
+✅ **테스트 추가**
+- `test_generation_status.py`: 35개 unit tests (100% 통과)
+- generation_status 모듈 커버리지 97%
+
+✅ **Unit Spec 문서화**
+- `backend/doc/specs/20251112_sequential_planning_with_sse_progress.md`
+- 완전한 API 정의, 테스트 계획, 구현 체크리스트 포함
 
 ### v2.3 (2025-11-11) - /ask 응답 형태 자동 판별 + 통합 문서화
 
@@ -302,6 +331,6 @@ Claude: Unit Spec 작성
 
 ---
 
-**마지막 업데이트:** 2025-11-11
-**버전:** 2.3.1
-**상태:** ✅ /ask 응답 형태 자동 판별 기능 완성
+**마지막 업데이트:** 2025-11-12
+**버전:** 2.4.0
+**상태:** ✅ Sequential Planning + Real-time Progress Tracking 완성

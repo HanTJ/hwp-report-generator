@@ -5,9 +5,19 @@ Handles CRUD operations for topics (conversation threads).
 """
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
+import asyncio
+import json
+import time
+import logging
+from datetime import datetime
 
 from app.models.user import User
-from app.models.topic import TopicCreate, TopicUpdate, TopicResponse, TopicListResponse
+from app.models.topic import (
+    TopicCreate, TopicUpdate, TopicResponse, TopicListResponse,
+    PlanRequest, PlanResponse, PlanSection,
+    GenerateRequest, GenerateResponse,
+    StatusResponse
+)
 from app.models.message import MessageCreate, MessageResponse, AskRequest
 from app.models.artifact import ArtifactCreate, ArtifactResponse
 from app.models.ai_usage import AiUsageCreate
@@ -29,11 +39,16 @@ from app.utils.prompts import (
 from app.utils.markdown_parser import parse_markdown_to_content
 from app.utils.exceptions import InvalidTemplateError
 from app.utils.response_detector import is_report_content, extract_question_content
-import time
-import logging
 from shared.constants import ProjectPath
-
 from app.database.template_db import TemplateDB
+
+# Sequential Planning 관련 모듈
+from app.utils.sequential_planning import sequential_planning, SequentialPlanningError, TimeoutError as SequentialPlanningTimeout
+from app.utils.generation_status import (
+    update_generation_status, get_generation_status, clear_generation_status,
+    is_generating, init_generation_status, update_progress, mark_completed, mark_failed
+)
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -998,3 +1013,497 @@ async def ask(
             "latency_ms": latency_ms
         }
     })
+
+
+# ============================================================
+# Sequential Planning Endpoints
+# ============================================================
+
+@router.post("/plan", summary="Generate report plan with Sequential Planning", response_model=dict)
+async def plan_report(
+    request: PlanRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """Sequential Planning을 이용한 보고서 계획 수립
+
+    Template의 prompt_system을 활용하여 체계적인 보고서 계획을 생성합니다.
+
+    응답시간 제약: 반드시 2초 이내
+
+    Args:
+        request: PlanRequest 모델
+            - topic: 보고서 주제 (필수)
+            - template_id: 템플릿 ID (선택)
+        current_user: 인증된 사용자
+
+    Returns:
+        PlanResponse를 포함한 ApiResponse
+    """
+    start_time = time.time()
+
+    try:
+        logger.info(f"[PLAN] Started - topic='{request.topic}', template_id={request.template_id}, user_id={current_user.id}")
+
+        # Sequential Planning 호출
+        plan_result = await sequential_planning(
+            topic=request.topic,
+            template_id=request.template_id,
+            user_id=current_user.id
+        )
+
+        # 새로운 topic 생성 또는 기존 topic 조회
+        topic_data = TopicCreate(
+            input_prompt=request.topic,
+            template_id=request.template_id
+        )
+        topic = TopicDB.create_topic(current_user.id, topic_data)
+
+        elapsed = time.time() - start_time
+        logger.info(f"[PLAN] Completed - topic_id={topic.id}, elapsed={elapsed:.2f}s")
+
+        # PlanSection 모델로 변환
+        sections = [
+            PlanSection(**s) if isinstance(s, dict) else s
+            for s in plan_result.get("sections", [])
+        ]
+
+        return success_response(
+            PlanResponse(
+                topic_id=topic.id,
+                plan=plan_result["plan"],
+                sections=sections,
+                estimated_sections_count=len(sections)
+            )
+        )
+
+    except SequentialPlanningTimeout as e:
+        logger.error(f"[PLAN] Timeout exceeded - error={str(e)}")
+        return error_response(
+            code=ErrorCode.REQUEST_TIMEOUT,
+            http_status=504,
+            message="보고서 계획 생성이 2초를 초과했습니다.",
+            hint="나중에 다시 시도해주세요."
+        )
+
+    except SequentialPlanningError as e:
+        logger.error(f"[PLAN] Planning failed - error={str(e)}", exc_info=True)
+        return error_response(
+            code=ErrorCode.REPORT_GENERATION_FAILED,
+            http_status=500,
+            message="보고서 계획 생성에 실패했습니다.",
+            details={"error": str(e)}
+        )
+
+    except ValueError as e:
+        logger.warning(f"[PLAN] Validation error - error={str(e)}")
+        return error_response(
+            code=ErrorCode.VALIDATION_ERROR,
+            http_status=400,
+            message=str(e)
+        )
+
+    except Exception as e:
+        logger.error(f"[PLAN] Unexpected error - error={str(e)}", exc_info=True)
+        return error_response(
+            code=ErrorCode.SERVER_INTERNAL_ERROR,
+            http_status=500,
+            message="보고서 계획 생성 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
+
+
+@router.post("/{topic_id}/generate", summary="Start background report generation", response_model=dict)
+async def generate_report_background(
+    topic_id: int,
+    request: GenerateRequest,
+    current_user: User = Depends(get_current_active_user),
+    background_tasks = None
+):
+    """보고서 생성 시작 (백그라운드 asyncio task)
+
+    사용자가 승인한 계획을 바탕으로 보고서 생성을 백그라운드에서 시작합니다.
+
+    응답시간 제약: 반드시 1초 이내
+
+    Args:
+        topic_id: 토픽 ID
+        request: GenerateRequest 모델
+            - topic: 보고서 주제
+            - plan: Sequential Planning에서 받은 계획
+            - template_id: 템플릿 ID (선택)
+        current_user: 인증된 사용자
+
+    Returns:
+        202 Accepted - GenerateResponse 포함
+    """
+    start_time = time.time()
+
+    try:
+        logger.info(f"[GENERATE] Started - topic_id={topic_id}, user_id={current_user.id}")
+
+        # Topic 조회 및 권한 확인
+        topic = TopicDB.get_topic_by_id(topic_id)
+        if not topic:
+            logger.warning(f"[GENERATE] Topic not found - topic_id={topic_id}")
+            return error_response(
+                code=ErrorCode.TOPIC_NOT_FOUND,
+                http_status=404,
+                message="토픽을 찾을 수 없습니다."
+            )
+
+        if topic.user_id != current_user.id and not current_user.is_admin:
+            logger.warning(f"[GENERATE] Unauthorized - topic_id={topic_id}, owner={topic.user_id}, requester={current_user.id}")
+            return error_response(
+                code=ErrorCode.TOPIC_UNAUTHORIZED,
+                http_status=403,
+                message="이 토픽에 접근할 권한이 없습니다."
+            )
+
+        # 중복 생성 확인
+        if is_generating(topic_id):
+            logger.warning(f"[GENERATE] Already generating - topic_id={topic_id}")
+            return error_response(
+                code=ErrorCode.CONFLICT,
+                http_status=409,
+                message="이미 이 토픽에 대한 보고서 생성이 진행 중입니다."
+            )
+
+        # 초기 상태 설정
+        init_generation_status(topic_id)
+        logger.info(f"[GENERATE] Status initialized - topic_id={topic_id}")
+
+        # 백그라운드 task 생성
+        asyncio.create_task(
+            _background_generate_report(
+                topic_id=topic_id,
+                topic=request.topic,
+                plan=request.plan,
+                template_id=request.template_id,
+                user_id=current_user.id
+            )
+        )
+
+        elapsed = time.time() - start_time
+        logger.info(f"[GENERATE] Task created - topic_id={topic_id}, elapsed={elapsed:.2f}s")
+
+        return success_response(
+            GenerateResponse(
+                topic_id=topic_id,
+                status="generating",
+                message="Report generation started in background",
+                status_check_url=f"/api/topics/{topic_id}/status"
+            ),
+            status_code=202
+        )
+
+    except Exception as e:
+        logger.error(f"[GENERATE] Unexpected error - error={str(e)}", exc_info=True)
+        return error_response(
+            code=ErrorCode.SERVER_INTERNAL_ERROR,
+            http_status=500,
+            message="보고서 생성 시작 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
+
+
+@router.get("/{topic_id}/status", summary="Get report generation status (polling)", response_model=dict)
+async def get_generation_status_endpoint(
+    topic_id: int,
+    current_user: User = Depends(get_current_active_user)
+):
+    """보고서 생성 상태 조회 (폴링용)
+
+    현재 보고서 생성의 진행 상태를 조회합니다.
+
+    응답시간 제약: < 500ms
+
+    Args:
+        topic_id: 토픽 ID
+        current_user: 인증된 사용자
+
+    Returns:
+        StatusResponse를 포함한 ApiResponse
+    """
+    try:
+        # Topic 조회 및 권한 확인
+        topic = TopicDB.get_topic_by_id(topic_id)
+        if not topic:
+            logger.warning(f"[STATUS] Topic not found - topic_id={topic_id}")
+            return error_response(
+                code=ErrorCode.TOPIC_NOT_FOUND,
+                http_status=404,
+                message="토픽을 찾을 수 없습니다."
+            )
+
+        if topic.user_id != current_user.id and not current_user.is_admin:
+            logger.warning(f"[STATUS] Unauthorized - topic_id={topic_id}, owner={topic.user_id}, requester={current_user.id}")
+            return error_response(
+                code=ErrorCode.TOPIC_UNAUTHORIZED,
+                http_status=403,
+                message="이 토픽에 접근할 권한이 없습니다."
+            )
+
+        # 생성 상태 조회
+        status = get_generation_status(topic_id)
+
+        if status is None:
+            logger.debug(f"[STATUS] No generation status found - topic_id={topic_id}")
+            return error_response(
+                code=ErrorCode.NOT_FOUND,
+                http_status=404,
+                message=f"토픽 {topic_id}의 생성 상태를 찾을 수 없습니다."
+            )
+
+        # StatusResponse 모델로 변환
+        response_data = StatusResponse(
+            topic_id=topic_id,
+            status=status.get("status"),
+            progress_percent=status.get("progress_percent", 0),
+            current_step=status.get("current_step"),
+            started_at=status.get("started_at"),
+            estimated_completion=status.get("estimated_completion"),
+            artifact_id=status.get("artifact_id"),
+            completed_at=status.get("completed_at"),
+            error_message=status.get("error_message")
+        )
+
+        logger.debug(f"[STATUS] Retrieved - topic_id={topic_id}, status={status.get('status')}")
+
+        return success_response(response_data)
+
+    except Exception as e:
+        logger.error(f"[STATUS] Unexpected error - error={str(e)}", exc_info=True)
+        return error_response(
+            code=ErrorCode.SERVER_INTERNAL_ERROR,
+            http_status=500,
+            message="상태 조회 중 오류가 발생했습니다.",
+            details={"error": str(e)}
+        )
+
+
+@router.get("/{topic_id}/status/stream", summary="Get completion notification stream (SSE)")
+async def stream_generation_status(
+    topic_id: int,
+    current_user: User = Depends(get_current_active_user)
+):
+    """보고서 생성 완료 알림 (SSE 스트림)
+
+    클라이언트가 연결을 유지하면서 대기하다가 보고서 생성이 완료되면
+    서버에서 이벤트를 푸시합니다.
+
+    Args:
+        topic_id: 토픽 ID
+        current_user: 인증된 사용자
+
+    Returns:
+        SSE 스트림 응답 (text/event-stream)
+    """
+    # Topic 조회 및 권한 확인
+    topic = TopicDB.get_topic_by_id(topic_id)
+    if not topic:
+        logger.warning(f"[STREAM] Topic not found - topic_id={topic_id}")
+        return error_response(
+            code=ErrorCode.TOPIC_NOT_FOUND,
+            http_status=404,
+            message="토픽을 찾을 수 없습니다."
+        )
+
+    if topic.user_id != current_user.id and not current_user.is_admin:
+        logger.warning(f"[STREAM] Unauthorized - topic_id={topic_id}, owner={topic.user_id}, requester={current_user.id}")
+        return error_response(
+            code=ErrorCode.TOPIC_UNAUTHORIZED,
+            http_status=403,
+            message="이 토픽에 접근할 권한이 없습니다."
+        )
+
+    logger.info(f"[STREAM] Started - topic_id={topic_id}, user_id={current_user.id}")
+
+    async def event_generator():
+        """SSE 이벤트 생성기"""
+        max_wait_time = 3600  # 1시간 타임아웃
+        start_time = time.time()
+        last_status = None
+        check_interval = 0.5  # 0.5초마다 상태 확인
+
+        try:
+            while time.time() - start_time < max_wait_time:
+                current_status = get_generation_status(topic_id)
+
+                # 상태가 없는 경우 (아직 시작되지 않음)
+                if current_status is None:
+                    await asyncio.sleep(check_interval)
+                    continue
+
+                # 상태가 변경되었으면 이벤트 발송
+                if current_status != last_status:
+                    # Status update 이벤트
+                    event_data = {
+                        "event": "status_update" if current_status.get("status") == "generating" else "completion",
+                        "status": current_status.get("status"),
+                        "progress_percent": current_status.get("progress_percent", 0)
+                    }
+                    yield f"data: {json.dumps(event_data)}\n\n"
+
+                    logger.debug(f"[STREAM] Event sent - topic_id={topic_id}, event={event_data['event']}")
+
+                    last_status = current_status.copy()
+
+                    # 완료 또는 실패 시 종료
+                    if current_status.get("status") in ["completed", "failed"]:
+                        # 최종 completion 이벤트
+                        final_event = {
+                            "event": "completion",
+                            "status": current_status.get("status"),
+                            "artifact_id": current_status.get("artifact_id"),
+                            "error_message": current_status.get("error_message")
+                        }
+                        yield f"data: {json.dumps(final_event)}\n\n"
+                        logger.info(f"[STREAM] Final event sent - topic_id={topic_id}, status={current_status.get('status')}")
+                        break
+
+                # 상태 확인 대기
+                await asyncio.sleep(check_interval)
+
+        except asyncio.CancelledError:
+            logger.info(f"[STREAM] Client disconnected - topic_id={topic_id}")
+        except Exception as e:
+            logger.error(f"[STREAM] Error in event generator - error={str(e)}", exc_info=True)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )
+
+
+async def _background_generate_report(
+    topic_id: int,
+    topic: str,
+    plan: str,
+    template_id: Optional[int],
+    user_id: str
+):
+    """백그라운드에서 실제 보고서 생성 (기존 generate 로직 통합)
+
+    Args:
+        topic_id: 토픽 ID
+        topic: 보고서 주제
+        plan: Sequential Planning에서 받은 계획
+        template_id: 템플릿 ID (선택)
+        user_id: 사용자 ID
+    """
+    try:
+        logger.info(f"[BACKGROUND] Report generation started - topic_id={topic_id}")
+
+        # === Step 1: 진행 상태 업데이트 ===
+        update_progress(
+            topic_id,
+            progress_percent=10,
+            current_step="Preparing content..."
+        )
+
+        # === Step 2: Claude API 호출 ===
+        logger.info(f"[BACKGROUND] Calling Claude API - topic_id={topic_id}")
+        update_progress(
+            topic_id,
+            progress_percent=20,
+            current_step="Calling Claude API..."
+        )
+
+        # 기존 generate 엔드포인트의 로직 활용
+        claude = ClaudeClient()
+
+        # System prompt 선택
+        system_prompt = get_system_prompt(
+            template_id=template_id,
+            user_id=int(user_id) if isinstance(user_id, str) else user_id
+        )
+
+        # User prompt 구성
+        user_prompt = f"주제: {topic}\n\n계획:\n{plan}\n\n위의 계획을 바탕으로 상세한 보고서를 작성해주세요."
+
+        start_time = time.time()
+        markdown = claude.generate_report(topic=topic)
+        latency_ms = int((time.time() - start_time) * 1000)
+
+        input_tokens = claude.last_input_tokens
+        output_tokens = claude.last_output_tokens
+
+        logger.info(f"[BACKGROUND] Content generated - topic_id={topic_id}, tokens={input_tokens}+{output_tokens}")
+
+        # === Step 3: 마크다운 파싱 및 변환 ===
+        logger.info(f"[BACKGROUND] Parsing markdown - topic_id={topic_id}")
+        update_progress(
+            topic_id,
+            progress_percent=50,
+            current_step="Processing markdown..."
+        )
+
+        parsed_content = parse_markdown_to_content(markdown)
+        built_markdown = build_report_md(parsed_content)
+
+        # === Step 4: 파일 저장 ===
+        logger.info(f"[BACKGROUND] Saving files - topic_id={topic_id}")
+        update_progress(
+            topic_id,
+            progress_percent=70,
+            current_step="Saving to storage..."
+        )
+
+        topic_obj = TopicDB.get_topic_by_id(topic_id)
+        version = next_artifact_version()
+        md_path, hwpx_path, pdf_path = build_artifact_paths(topic_id, version)
+
+        bytes_written = write_text(md_path, built_markdown)
+        file_hash = sha256_of(md_path)
+
+        logger.info(f"[BACKGROUND] Files saved - topic_id={topic_id}, size={bytes_written}")
+
+        # === Step 5: DB 저장 ===
+        logger.info(f"[BACKGROUND] Saving to database - topic_id={topic_id}")
+        update_progress(
+            topic_id,
+            progress_percent=85,
+            current_step="Saving metadata..."
+        )
+
+        assistant_msg = MessageDB.create_message(
+            topic_id,
+            MessageCreate(role=MessageRole.ASSISTANT, content=built_markdown)
+        )
+
+        artifact = ArtifactDB.create_artifact(
+            topic_id,
+            assistant_msg.id,
+            ArtifactCreate(
+                kind=ArtifactKind.MD,
+                locale="ko",
+                version=version,
+                filename=md_path.name,
+                file_path=str(md_path),
+                file_size=bytes_written,
+                sha256=file_hash
+            )
+        )
+
+        # AI 사용량 저장
+        try:
+            AiUsageDB.create_ai_usage(
+                topic_id,
+                assistant_msg.id,
+                AiUsageCreate(
+                    model=claude.model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    latency_ms=latency_ms
+                )
+            )
+        except Exception as e:
+            logger.error(f"[BACKGROUND] Failed to save AI usage - error={str(e)}")
+
+        # === Step 6: 완료 상태 업데이트 ===
+        logger.info(f"[BACKGROUND] Report generation completed - topic_id={topic_id}, artifact_id={artifact.id}")
+        mark_completed(topic_id, artifact.id)
+
+    except Exception as e:
+        logger.error(f"[BACKGROUND] Report generation failed - topic_id={topic_id}, error={str(e)}", exc_info=True)
+        mark_failed(topic_id, str(e))
