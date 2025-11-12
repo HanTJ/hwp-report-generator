@@ -31,7 +31,7 @@ from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
 from app.utils.templates_manager import TemplatesManager
 from app.utils.prompts import create_system_prompt_with_metadata, create_dynamic_system_prompt
-from app.utils.claude_metadata_generator import generate_placeholder_metadata
+from app.utils.meta_info_generator import generate_placeholder_metadata
 
 router = APIRouter(prefix="/api/templates", tags=["Templates"])
 
@@ -226,18 +226,20 @@ async def upload_template(
                 # 8. SHA256 계산
                 sha256 = manager.calculate_sha256(str(temp_file_path))
 
-                # [신규] 9단계: Claude API로 Placeholder 메타정보 생성
+                # [신규] 9단계: Placeholder 메타정보 생성
                 logger.info(f"[UPLOAD_TEMPLATE] Generating placeholder metadata - count={len(placeholder_list)}")
                 metadata = generate_placeholder_metadata(placeholder_list)
                 if metadata:
-                    logger.info(f"[UPLOAD_TEMPLATE] Metadata generated successfully - count={len(metadata)}")
+                    logger.info(f"[UPLOAD_TEMPLATE] Metadata generated successfully - count={metadata.total_count}")
                 else:
                     logger.warning("[UPLOAD_TEMPLATE] Metadata generation failed, using fallback")
 
                 # [변경] 10단계: 메타정보를 포함한 System Prompt 생성
                 # prompt_user는 None으로 유지 (사용자가 나중에 커스텀 프롬프트를 등록하기 위해 예약)
                 prompt_user = None
-                prompt_system = create_system_prompt_with_metadata(placeholder_list, metadata)
+                # metadata를 dict 리스트로 변환 (PlaceholderMetadata 객체 → dict)
+                metadata_dicts = [p.model_dump() for p in metadata.placeholders] if metadata else None
+                prompt_system = create_system_prompt_with_metadata(placeholder_list, metadata_dicts)
                 logger.info(f"[UPLOAD_TEMPLATE] System prompt created - length={len(prompt_system)}")
 
                 # [신규] 11단계: DB 트랜잭션으로 Template + Placeholders 원자적 저장
@@ -286,9 +288,9 @@ async def upload_template(
                 # 응답에 metadata 추가 (메타정보 JSON)
                 response_dict = response_data.model_dump()
                 if metadata:
-                    response_dict['metadata'] = metadata
+                    response_dict['placeholders_metadata'] = metadata.model_dump()
                 else:
-                    response_dict['metadata'] = None
+                    response_dict['placeholders_metadata'] = None
 
                 return success_response(response_dict)
 
@@ -836,21 +838,23 @@ async def regenerate_template_prompt_system(
             )
 
         # 4. Claude API로 메타정보 생성 (선택사항)
-        metadata = None
+        metadata_dicts = None
         if placeholder_keys:
             try:
                 metadata = generate_placeholder_metadata(placeholder_keys)
                 logger.info(
                     f"[REGENERATE_PROMPT] Metadata generated - template_id={template_id}, "
-                    f"metadata_count={len(metadata) if metadata else 0}"
+                    f"metadata_count={metadata.total_count if metadata else 0}"
                 )
+                # metadata를 dict 리스트로 변환
+                metadata_dicts = [p.model_dump() for p in metadata.placeholders] if metadata else None
             except Exception as e:
                 logger.warning(f"[REGENERATE_PROMPT] Metadata generation failed (non-blocking) - {str(e)}")
                 # 메타정보 생성 실패는 비치명적 (metadata=None으로 계속 진행)
 
         # 5. 메타정보를 포함한 System Prompt 생성
         try:
-            new_prompt_system = create_system_prompt_with_metadata(placeholder_keys, metadata)
+            new_prompt_system = create_system_prompt_with_metadata(placeholder_keys, metadata_dicts)
             logger.info(
                 f"[REGENERATE_PROMPT] System prompt generated - template_id={template_id}, "
                 f"prompt_length={len(new_prompt_system)}"

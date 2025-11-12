@@ -6,6 +6,7 @@ SystemPromptGenerate.md 규칙을 구현합니다.
 """
 
 from typing import List, Dict, Any
+from app.models.placeholder import PlaceholderMetadata, PlaceholdersMetadataCollection
 
 
 def create_meta_info_from_placeholders(placeholders: List[Any]) -> List[Dict[str, Any]]:
@@ -160,3 +161,110 @@ def _get_examples(key_name: str, classification: Dict) -> List[str]:
     }
 
     return examples.get(key_name, [f"{key_name}에 해당하는 예시를 제공하세요."])
+
+
+def generate_placeholder_metadata(
+    raw_placeholders: List[str]
+) -> PlaceholdersMetadataCollection:
+    """Placeholder 키 목록에서 구조화된 메타정보 생성.
+
+    HWPX 파일에서 추출된 raw placeholder 키 목록(예: ["{{TITLE}}", "{{SUMMARY}}"])을
+    받아 각 Placeholder의 타입, 필수 여부, 길이 제한 등을 포함한
+    구조화된 메타정보 JSON을 생성합니다.
+
+    Args:
+        raw_placeholders: Placeholder 키 목록 (예: ["{{TITLE}}", "{{SUMMARY}}"])
+
+    Returns:
+        PlaceholdersMetadataCollection: 구조화된 메타정보 컬렉션
+
+    Raises:
+        ValueError: 중복 Placeholder 감지 시
+
+    Examples:
+        >>> raw_placeholders = ["{{TITLE}}", "{{SUMMARY}}", "{{DATE}}"]
+        >>> metadata = generate_placeholder_metadata(raw_placeholders)
+        >>> print(metadata.total_count)
+        3
+        >>> print(metadata.required_count)
+        2
+    """
+    # 중복 검사
+    seen = set()
+    for ph_key in raw_placeholders:
+        if ph_key in seen:
+            raise ValueError(
+                f"중복된 Placeholder 발견: {ph_key}. "
+                "각 Placeholder는 템플릿에서 한 번만 정의되어야 합니다."
+            )
+        seen.add(ph_key)
+
+    # 타입별 분류 규칙
+    type_mapping = {
+        "TITLE": "section_title",
+        "SUMMARY": "section_content",
+        "BACKGROUND": "section_content",
+        "MAIN_CONTENT": "section_content",
+        "CONCLUSION": "section_content",
+        "DATE": "meta",
+        "RISK": "section_content",
+    }
+
+    # 각 Placeholder의 메타정보 생성
+    metadatas: List[PlaceholderMetadata] = []
+    required_count = 0
+    optional_count = 0
+
+    for position, ph_key in enumerate(raw_placeholders):
+        # 키 이름 추출 (예: "{{TITLE}}" -> "TITLE")
+        ph_name = ph_key.replace("{{", "").replace("}}", "")
+
+        # 타입 결정
+        ph_type = type_mapping.get(ph_name, "section_content")
+
+        # 필수 여부 (meta 타입 제외)
+        is_required = ph_type != "meta"
+        if is_required:
+            required_count += 1
+        else:
+            optional_count += 1
+
+        # display_name과 description 조회
+        display_name = _get_display_name(ph_name, ph_type)
+        description = _get_description(ph_name, {"type": ph_type})
+        example_list = _get_examples(ph_name, {"type": ph_type})
+        example_value = example_list[0] if example_list else None
+
+        # 길이 제한 설정 (타입별)
+        max_length = None
+        min_length = None
+        if ph_type == "section_title":
+            max_length = 200
+        elif ph_type == "section_content":
+            min_length = 100
+            max_length = 10000
+        elif ph_type == "meta":
+            max_length = 100
+
+        # PlaceholderMetadata 객체 생성
+        metadata = PlaceholderMetadata(
+            name=ph_name,
+            placeholder_key=ph_key,
+            type=ph_type,
+            required=is_required,
+            position=position,
+            max_length=max_length,
+            min_length=min_length,
+            description=description,
+            example=example_value
+        )
+
+        metadatas.append(metadata)
+
+    # PlaceholdersMetadataCollection 생성
+    return PlaceholdersMetadataCollection(
+        placeholders=metadatas,
+        total_count=len(raw_placeholders),
+        required_count=required_count,
+        optional_count=optional_count
+    )
