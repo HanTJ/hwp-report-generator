@@ -1,0 +1,313 @@
+"""Claude API 기반 Placeholder 메타정보 생성기.
+
+Template 업로드 시 각 Placeholder에 대해 Claude API를 호출하여
+상세한 메타정보(type, description, examples, max_length 등)를 자동으로 생성합니다.
+실패 시 기본 규칙으로 폴백합니다.
+
+Features:
+- Claude API 기반 메타정보 생성
+- 타임아웃 및 에러 처리
+- 폴백 메커니즘 (기본 규칙)
+- 캐싱 지원 (동일 Placeholder 중복 호출 방지)
+"""
+
+import asyncio
+import json
+import logging
+from typing import Any, Dict, List, Optional
+
+from app.utils.claude_client import ClaudeClient
+
+logger = logging.getLogger(__name__)
+
+# 동일 Placeholder에 대한 메타정보 캐싱
+# {"{{TITLE}}": {...메타정보...}, ...}
+_placeholder_metadata_cache: Dict[str, Dict[str, Any]] = {}
+
+
+async def generate_metadata_with_claude(
+    placeholder_key: str,
+    placeholder_name: str,
+    template_context: str,
+    existing_placeholders: List[str],
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Claude API를 사용하여 Placeholder의 상세 메타정보 생성.
+
+    Args:
+        placeholder_key: Placeholder 키 (예: "{{TITLE}}")
+        placeholder_name: Placeholder 이름 (예: "TITLE")
+        template_context: 템플릿 컨텍스트 (예: "금융 보고서")
+        existing_placeholders: 템플릿의 전체 Placeholder 목록
+        timeout: API 호출 타임아웃 (초), None이면 무제한 대기
+
+    Returns:
+        {
+            "type": "section_title" | "section_content" | "field" | "meta",
+            "description": "Placeholder 설명...",
+            "examples": ["예1", "예2", "예3"],
+            "max_length": 200,
+            "min_length": 10,
+            "required": true
+        }
+
+    Raises:
+        asyncio.TimeoutError: 타임아웃 발생 시 (timeout이 설정된 경우)
+        json.JSONDecodeError: 응답 파싱 실패 시
+        Exception: Claude API 호출 실패 시
+
+    Note:
+        - 캐시를 먼저 확인하여 중복 호출 방지
+        - 실패 시 로깅하지만 호출자가 폴백 처리
+    """
+    # 1. 캐시 확인
+    if placeholder_key in _placeholder_metadata_cache:
+        logger.info(f"[CACHE HIT] Placeholder metadata for {placeholder_key}")
+        return _placeholder_metadata_cache[placeholder_key]
+
+    # 2. Claude 프롬프트 생성
+    system_prompt = _build_system_prompt()
+    user_prompt = _build_user_prompt(
+        placeholder_key, placeholder_name, template_context, existing_placeholders
+    )
+
+    try:
+        # 3. Claude API 호출 (타임아웃은 선택사항)
+        client = ClaudeClient()
+
+        # chat_completion은 (messages: List[Dict], system_prompt: str, ...) 형식
+        user_message = {"role": "user", "content": user_prompt}
+
+        if timeout is not None:
+            # 타임아웃이 설정된 경우
+            metadata_json = await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.chat_completion,
+                    [user_message],
+                    system_prompt=system_prompt,
+                ),
+                timeout=timeout,
+            )
+        else:
+            # 타임아웃 없이 무제한 대기
+            metadata_json = await asyncio.to_thread(
+                client.chat_completion,
+                [user_message],
+                system_prompt=system_prompt,
+            )
+
+        # chat_completion은 (response_text, input_tokens, output_tokens) 튜플 반환
+        if isinstance(metadata_json, tuple):
+            metadata_json = metadata_json[0]
+
+        # 4. JSON 파싱
+        metadata = json.loads(metadata_json)
+
+        # 5. 메타정보 검증 (기본 필드 확인)
+        required_fields = ["type", "description", "examples", "required"]
+        missing_fields = [f for f in required_fields if f not in metadata]
+        if missing_fields:
+            logger.warning(
+                f"Claude response missing fields for {placeholder_key}: {missing_fields}"
+            )
+            # 누락된 필드는 기본값으로 채우기
+            metadata = _apply_default_values(metadata, placeholder_name)
+
+        # 6. 캐시 저장
+        _placeholder_metadata_cache[placeholder_key] = metadata
+
+        logger.info(f"✅ Generated metadata for {placeholder_key} via Claude API")
+        return metadata
+
+    except asyncio.TimeoutError:
+        logger.warning(
+            f"⏱️ Claude API timeout for {placeholder_key} (>{timeout}s)"
+        )
+        raise
+
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Failed to parse Claude response for {placeholder_key}: {e}")
+        raise
+
+    except Exception as e:
+        logger.error(
+            f"❌ Claude API error for {placeholder_key}: {e}", exc_info=True
+        )
+        raise
+
+
+async def batch_generate_metadata(
+    placeholders: List[str],
+    template_context: str,
+    timeout_per_item: Optional[float] = None,
+) -> Dict[str, Optional[Dict[str, Any]]]:
+    """여러 Placeholder에 대해 병렬로 메타정보 생성.
+
+    이 함수는 asyncio를 사용하여 여러 Claude API 호출을 병렬로 처리합니다.
+    실패한 항목도 처리를 계속 진행합니다 (폴백 처리를 위해).
+
+    Args:
+        placeholders: Placeholder 키 목록 (예: ["{{TITLE}}", "{{SUMMARY}}"])
+        template_context: 템플릿 컨텍스트 (예: "금융 보고서")
+        timeout_per_item: 각 항목의 타임아웃 (초), None이면 무제한 대기 (기본값)
+
+    Returns:
+        {
+            "{{TITLE}}": {...메타정보...},
+            "{{SUMMARY}}": {...메타정보...},
+            ...
+        }
+
+        None 값은 Claude API 호출 실패 항목을 나타냅니다.
+        호출자는 None을 감지하고 기본 규칙으로 폴백합니다.
+
+    Note:
+        - 각 Placeholder는 독립적으로 처리됨
+        - 하나의 실패가 다른 항목에 영향 없음
+        - 전체 처리 시간은 max(각 항목 시간) (병렬 처리)
+    """
+    tasks = []
+
+    # Task 생성 및 목록 구성
+    for ph_key in placeholders:
+        ph_name = ph_key.replace("{{", "").replace("}}", "")
+        task = generate_metadata_with_claude(
+            placeholder_key=ph_key,
+            placeholder_name=ph_name,
+            template_context=template_context,
+            existing_placeholders=placeholders,
+            timeout=timeout_per_item,
+        )
+        tasks.append((ph_key, task))
+
+    results = {}
+
+    # 각 Task 실행 및 결과 수집
+    for ph_key, task in tasks:
+        try:
+            metadata = await task
+            results[ph_key] = metadata
+            logger.debug(f"✅ Batch: {ph_key} succeeded")
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Batch: Failed to generate metadata for {ph_key}: {type(e).__name__}"
+            )
+            results[ph_key] = None  # 실패한 항목은 None으로 표시
+
+    return results
+
+
+def _build_system_prompt() -> str:
+    """Claude 시스템 프롬프트 구성.
+
+    Returns:
+        str: 시스템 프롬프트
+    """
+    return """당신은 문서 템플릿 설계 전문가입니다.
+주어진 Placeholder 이름을 분석하여 다음 정보를 JSON으로 제공하세요:
+
+- type: "section_title", "section_content", "field", "meta" 중 하나
+  * section_title: 보고서의 주요 섹션 제목 (예: TITLE, MAIN_HEADING)
+  * section_content: 보고서의 본문 섹션 (예: SUMMARY, CONCLUSION)
+  * field: 구조화된 필드 (예: DATE, AUTHOR, DEPARTMENT)
+  * meta: 메타정보 (예: REVISION, STATUS)
+
+- description: Placeholder의 용도와 작성 가이드 (2-3문장, 한글 또는 영문)
+- examples: 2-3개의 실제 예시 (배열)
+- max_length: 권장 최대 길이 (문자 수, 없으면 null)
+- min_length: 권장 최소 길이 (문자 수, 없으면 null)
+- required: 필수 여부 (true/false)
+
+응답은 **반드시 유효한 JSON만** 포함하세요. 설명이나 주석은 포함하지 마세요."""
+
+
+def _build_user_prompt(
+    placeholder_key: str,
+    placeholder_name: str,
+    template_context: str,
+    existing_placeholders: List[str],
+) -> str:
+    """Claude 사용자 프롬프트 구성.
+
+    Args:
+        placeholder_key: Placeholder 키 (예: "{{TITLE}}")
+        placeholder_name: Placeholder 이름 (예: "TITLE")
+        template_context: 템플릿 컨텍스트
+        existing_placeholders: 템플릿의 전체 Placeholder 목록
+
+    Returns:
+        str: 사용자 프롬프트
+    """
+    return f"""다음 Placeholder에 대한 메타정보를 JSON으로 생성해주세요:
+
+{{
+  "placeholder_key": "{placeholder_key}",
+  "placeholder_name": "{placeholder_name}",
+  "template_context": "{template_context}",
+  "existing_placeholders": {json.dumps(existing_placeholders, ensure_ascii=False)}
+}}
+
+응답 예시:
+{{
+  "type": "section_title",
+  "description": "보고서의 명확하고 간결한 제목을 작성하세요. 주요 주제를 한 문장으로 표현해야 하며, 독자의 관심을 끌 수 있는 명확한 표현이 중요합니다.",
+  "examples": [
+    "2025년 디지털뱅킹 시장 트렌드 분석",
+    "모바일 결제 확대에 따른 금융 환경 변화",
+    "AI 기술 도입이 금융권에 미치는 영향"
+  ],
+  "max_length": 200,
+  "min_length": 10,
+  "required": true
+}}
+
+JSON만 반환하세요."""
+
+
+def _apply_default_values(metadata: Dict[str, Any], placeholder_name: str) -> Dict[str, Any]:
+    """메타정보에 기본값 적용.
+
+    Claude 응답이 불완전한 경우 누락된 필드를 기본값으로 채웁니다.
+
+    Args:
+        metadata: Claude가 생성한 메타정보 (불완전할 수 있음)
+        placeholder_name: Placeholder 이름
+
+    Returns:
+        완성된 메타정보 dict
+    """
+    # 기본값 정의
+    defaults = {
+        "type": "section_content",
+        "description": f"Placeholder: {placeholder_name}",
+        "examples": ["예시 1", "예시 2"],
+        "max_length": None,
+        "min_length": None,
+        "required": True,
+    }
+
+    # 메타정보 보완
+    for key, default_value in defaults.items():
+        if key not in metadata or metadata[key] is None:
+            metadata[key] = default_value
+
+    return metadata
+
+
+def clear_cache() -> None:
+    """Placeholder 메타정보 캐시 초기화.
+
+    테스트나 캐시 재설정이 필요한 경우 사용합니다.
+    """
+    global _placeholder_metadata_cache
+    _placeholder_metadata_cache.clear()
+    logger.info("🧹 Placeholder metadata cache cleared")
+
+
+def get_cache_size() -> int:
+    """캐시에 저장된 항목 수 반환.
+
+    Returns:
+        int: 캐시 항목 수
+    """
+    return len(_placeholder_metadata_cache)
