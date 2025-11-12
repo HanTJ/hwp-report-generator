@@ -350,19 +350,24 @@ class TestDynamicPromptIntegration:
             mock_claude.model = "claude-sonnet-4-5-20250929"
 
             # Claude 응답: 동적 prompt에 맞춰 구조화된 markdown
+            # 중요: 각 섹션이 50자 이상이어야 artifact로 인식됨
             claude_response = """# AI 기술 동향 보고서
 
 ## TITLE
-최신 AI 기술 트렌드
+최신 AI 기술 트렌드와 산업 영향 분석 보고서
 
 ## OVERVIEW
-현재 AI 산업의 개요입니다.
+현재 AI 산업의 주요 동향과 기술 발전을 종합적으로 분석한 보고서입니다. 생성형 AI, 멀티모달 모델, 엣지 AI 등 핵심 기술 영역의 발전 현황을 다룹니다.
 
 ## KEY_INSIGHTS
-주요 인사이트입니다.
+1. 생성형 AI의 급속한 발전: ChatGPT, Claude 등의 대형 언어 모델이 산업 전반에 미치는 영향이 증대되고 있습니다.
+2. 기업 도입 확대: 금융, 제조, 헬스케어 등 다양한 산업에서 AI 기술 도입이 가속화되고 있습니다.
+3. 규제 강화: 개인정보보호와 AI 윤리에 대한 국제적 규제가 강화될 예정입니다.
 
 ## RECOMMENDATIONS
-향후 권고사항입니다."""
+1. AI 기술 투자 확대: 핵심 AI 기술 개발에 대한 지속적 투자가 필요합니다.
+2. 인력 개발: AI 엔지니어, 데이터 과학자 등 전문 인력 육성이 중요합니다.
+3. 규제 준수: 새로운 규제 환경에 대비한 AI 거버넌스 체계 구축이 필요합니다."""
 
             mock_claude.chat_completion.return_value = (claude_response, 150, 300)
 

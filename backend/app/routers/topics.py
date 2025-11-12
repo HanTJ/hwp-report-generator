@@ -801,6 +801,12 @@ async def ask(
     claude_messages = [topic_context_msg] + claude_messages
 
     logger.info(f"[ASK] Added topic context as first message - topic={topic.input_prompt}")
+    logger.info(f"[ASK] Topic context message: {topic_context_msg}")
+
+    # 디버깅: 모든 메시지 내용 로깅 (각 메시지의 content 길이)
+    for i, msg in enumerate(claude_messages):
+        content_preview = msg.get("content", "")[:100] if isinstance(msg, dict) else str(msg)[:100]
+        logger.info(f"[ASK] Message[{i}] - role={msg.get('role', 'N/A')}, length={len(msg.get('content', ''))}, preview={content_preview}")
 
     # 길이 검증
     total_chars = sum(len(msg["content"]) for msg in claude_messages)

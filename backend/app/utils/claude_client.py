@@ -70,7 +70,35 @@ class ClaudeClient:
             )
 
             # 응답 텍스트 (Markdown)
-            content = message.content[0].text
+            logger.info(f"Claude API 응답 객체 정보 (생성 모드):")
+            logger.info(f"  - stop_reason: {getattr(message, 'stop_reason', 'N/A')}")
+            logger.info(f"  - content 개수: {len(message.content) if message.content else 0}")
+
+            if not message.content:
+                # content가 비어있을 때 상세 정보 로깅
+                logger.error(f"Claude API content가 비어있습니다! (생성 모드)")
+                logger.error(f"  - stop_reason: {getattr(message, 'stop_reason', 'N/A')}")
+                logger.error(f"  - usage.input_tokens: {getattr(message.usage, 'input_tokens', 'N/A')}")
+                logger.error(f"  - usage.output_tokens: {getattr(message.usage, 'output_tokens', 'N/A')}")
+                logger.error(f"  - model: {getattr(message, 'model', 'N/A')}")
+
+                raise ValueError(
+                    f"Claude API 응답이 비어있습니다 (생성 모드). "
+                    f"stop_reason={getattr(message, 'stop_reason', 'N/A')}, "
+                    f"output_tokens={getattr(message.usage, 'output_tokens', 'N/A')}"
+                )
+
+            # text 타입의 content 추출 (tool_use 등 다른 타입 제외)
+            text_content = None
+            for content_block in message.content:
+                if hasattr(content_block, 'text'):
+                    text_content = content_block.text
+                    break
+
+            if not text_content:
+                raise ValueError(f"Claude API 응답에서 텍스트 컨텐츠를 찾을 수 없습니다. Content types: {[type(c).__name__ for c in message.content]}")
+
+            content = text_content
 
             logger.info("=" * 80)
             logger.info("Claude API 응답 내용 (Markdown):")
@@ -160,8 +188,60 @@ class ClaudeClient:
             # API call with optional web search
             response = self.client.messages.create(**api_params)
 
-            # Extract response content
-            content = response.content[0].text
+            # Extract response content with detailed logging
+            logger.info(f"Claude API 응답 객체 정보:")
+            logger.info(f"  - stop_reason: {getattr(response, 'stop_reason', 'N/A')}")
+            logger.info(f"  - content 개수: {len(response.content) if response.content else 0}")
+            logger.info(f"  - model: {getattr(response, 'model', 'N/A')}")
+
+            # 응답 객체 전체 구조 확인
+            try:
+                import json
+                response_dict = response.model_dump() if hasattr(response, 'model_dump') else response.dict()
+                logger.info(f"응답 JSON: {json.dumps(response_dict, default=str, indent=2)}")
+            except Exception as e:
+                logger.error(f"응답 JSON 변환 실패: {str(e)}")
+                logger.error(f"응답 객체 타입: {type(response)}")
+                logger.error(f"응답 객체 속성: {dir(response)}")
+
+            if response.content:
+                for i, content_block in enumerate(response.content):
+                    logger.info(f"  - content[{i}] 타입: {type(content_block).__name__}")
+                    if hasattr(content_block, 'text'):
+                        logger.info(f"    - text 길이: {len(content_block.text)}")
+                    if hasattr(content_block, 'type'):
+                        logger.info(f"    - type 속성: {content_block.type}")
+
+            if not response.content:
+                # content가 비어있을 때 상세 정보 로깅
+                logger.error(f"Claude API content가 비어있습니다!")
+                logger.error(f"  - stop_reason: {getattr(response, 'stop_reason', 'N/A')}")
+                logger.error(f"  - usage.input_tokens: {getattr(response.usage, 'input_tokens', 'N/A')}")
+                logger.error(f"  - usage.output_tokens: {getattr(response.usage, 'output_tokens', 'N/A')}")
+                logger.error(f"  - model: {getattr(response, 'model', 'N/A')}")
+                logger.error(f"  - id: {getattr(response, 'id', 'N/A')}")
+
+                # API 메시지 내용 확인 (디버깅용)
+                logger.error(f"  - 요청한 메시지 개수: {len(messages)}")
+                logger.error(f"  - 시스템 프롬프트 길이: {len(system_prompt) if system_prompt else 0}")
+
+                raise ValueError(
+                    f"Claude API 응답이 비어있습니다. "
+                    f"stop_reason={getattr(response, 'stop_reason', 'N/A')}, "
+                    f"output_tokens={getattr(response.usage, 'output_tokens', 'N/A')}"
+                )
+
+            # text 타입의 content 추출 (tool_use 등 다른 타입 제외)
+            text_content = None
+            for content_block in response.content:
+                if hasattr(content_block, 'text'):
+                    text_content = content_block.text
+                    break
+
+            if not text_content:
+                raise ValueError(f"Claude API 응답에서 텍스트 컨텐츠를 찾을 수 없습니다. Content types: {[type(c).__name__ for c in response.content]}")
+
+            content = text_content
 
             logger.info("=" * 80)
             logger.info("Claude API 응답 (채팅 모드):")
