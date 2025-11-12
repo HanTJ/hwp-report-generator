@@ -768,7 +768,9 @@ async def ask(
                     self.seq_no = seq_no
 
             artifact_msg = ArtifactMessage(
-                content=f"""현재 보고서(MD) 원문입니다. 개정 시 이를 기준으로 반영하세요.
+                content=f"""{content}
+
+현재 보고서(MD) 원문입니다. 개정 시 이를 기준으로 반영하세요.
 
 ```markdown
 {md_content}
@@ -816,12 +818,12 @@ async def ask(
             hint="max_messages를 줄이거나 include_artifact_content를 false로 설정해주세요."
         )
 
-    # === 4단계: System Prompt 선택 (우선순위: custom > template > default) ===
-    logger.info(f"[ASK] Selecting system prompt - custom={body.system_prompt is not None}, template_id={body.template_id}")
+    # === 4단계: System Prompt 선택 (우선순위: template > default) ===
+    logger.info(f"[ASK] Selecting system prompt - template_id={body.template_id}")
 
     try:
         system_prompt = get_system_prompt(
-            custom_prompt=body.system_prompt,
+            custom_prompt=None,
             template_id=body.template_id,
             user_id=current_user.id
         )

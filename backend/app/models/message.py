@@ -85,9 +85,8 @@ class AskRequest(BaseModel):
     Attributes:
         content: User question (1-50,000 chars)
         artifact_id: Specific artifact to reference (null = use latest MD)
-        include_artifact_content: Include file content in context (default: true)
+        include_artifact_content: Include file content in context (default: false)
         max_messages: Max number of user messages to include (null = all)
-        system_prompt: Custom system prompt (optional)
         template_id: Template ID for dynamic system prompt generation (optional)
     """
 
@@ -104,7 +103,7 @@ class AskRequest(BaseModel):
     )
 
     include_artifact_content: bool = Field(
-        default=True,
+        default=False,
         description="Include artifact file content in context"
     )
 
@@ -113,12 +112,6 @@ class AskRequest(BaseModel):
         ge=1,
         le=100,
         description="Maximum number of user messages to include"
-    )
-
-    system_prompt: Optional[str] = Field(
-        default=None,
-        max_length=10000,
-        description="Custom system prompt"
     )
 
     template_id: Optional[int] = Field(
