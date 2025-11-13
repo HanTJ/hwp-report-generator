@@ -51,6 +51,8 @@ class TemplateCreate(TemplateBase):
     file_path: str = Field(..., description="저장 경로")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     sha256: str = Field(..., description="파일 무결성 체크용 해시")
+    prompt_user: Optional[str] = Field(None, description="사용자가 정의한 커스텀 System Prompt (선택)")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
 
 
 class Template(TemplateCreate):
@@ -80,6 +82,8 @@ class UploadTemplateResponse(BaseModel):
     filename: str = Field(..., description="파일명")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     placeholders: List[PlaceholderResponse] = Field(..., description="플레이스홀더 목록")
+    prompt_user: Optional[str] = Field(None, description="사용자가 정의한 커스텀 System Prompt (선택)")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
     created_at: datetime = Field(..., description="생성 일시")
 
 
@@ -101,6 +105,7 @@ class TemplateDetailResponse(BaseModel):
     filename: str = Field(..., description="파일명")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     placeholders: List[PlaceholderResponse] = Field(..., description="플레이스홀더 목록")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
     created_at: datetime = Field(..., description="생성 일시")
 
 
@@ -112,4 +117,49 @@ class AdminTemplateResponse(BaseModel):
     username: str = Field(..., description="사용자명")
     file_size: int = Field(..., description="파일 크기 (bytes)")
     placeholder_count: int = Field(..., description="플레이스홀더 개수")
+    prompt_system: Optional[str] = Field(None, description="동적 생성된 System Prompt")
     created_at: datetime = Field(..., description="생성 일시")
+
+
+class UpdatePromptSystemRequest(BaseModel):
+    """시스템 프롬프트 수정 요청 모델."""
+
+    prompt_system: str = Field(..., description="새로운 시스템 프롬프트")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "prompt_system": "새로운 시스템 프롬프트 텍스트"
+            }
+        }
+
+
+class UpdatePromptUserRequest(BaseModel):
+    """사용자 프롬프트 수정 요청 모델."""
+
+    prompt_user: str = Field(..., description="새로운 사용자 프롬프트")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "prompt_user": "새로운 사용자 프롬프트 텍스트"
+            }
+        }
+
+
+class UpdatePromptResponse(BaseModel):
+    """프롬프트 수정 응답 모델."""
+
+    id: int = Field(..., description="템플릿 ID")
+    title: str = Field(..., description="템플릿 제목")
+    prompt_system: Optional[str] = Field(None, description="시스템 프롬프트")
+    prompt_user: Optional[str] = Field(None, description="사용자 프롬프트")
+    updated_at: datetime = Field(..., description="수정 일시")
+
+
+class RegeneratePromptResponse(BaseModel):
+    """프롬프트 재생성 응답 모델."""
+
+    id: int = Field(..., description="템플릿 ID")
+    prompt_system: Optional[str] = Field(None, description="재생성된 시스템 프롬프트")
+    regenerated_at: datetime = Field(..., description="재생성 일시")

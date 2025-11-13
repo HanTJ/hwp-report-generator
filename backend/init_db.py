@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 데이터베이스 초기화 스크립트
 """
@@ -34,7 +35,7 @@ def main():
 
     # 데이터베이스 초기화
     init_db()
-    print("✅ 데이터베이스 테이블이 생성되었습니다.")
+    print("[OK] 데이터베이스 테이블이 생성되었습니다.")
 
     # 관리자 계정 생성
     admin_email = os.getenv("ADMIN_EMAIL")
@@ -51,7 +52,7 @@ def main():
     # 기존 관리자 확인
     existing_admin = UserDB.get_user_by_email(admin_email)
     if existing_admin:
-        print(f"✅ 관리자 계정이 이미 존재합니다: {admin_email}")
+        print(f"[OK] 관리자 계정이 이미 존재합니다: {admin_email}")
     else:
         # 관리자 계정 생성
         admin_data = UserCreate(
@@ -67,7 +68,7 @@ def main():
         update = UserUpdate(is_active=True, is_admin=True)
         UserDB.update_user(admin_user.id, update)
 
-        print(f"✅ 관리자 계정이 생성되었습니다:")
+        print(f"[OK] 관리자 계정이 생성되었습니다:")
         print(f"   이메일: {admin_email}")
         print(f"   비밀번호: {admin_password}")
 

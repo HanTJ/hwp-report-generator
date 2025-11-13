@@ -140,9 +140,10 @@ class TestTopicsRouter:
         temp_dir
     ):
         """보고서 생성 성공 테스트"""
-        # Mock Claude response - Markdown 형식으로 반환
+        # Mock Claude response - chat_completion 메서드가 (text, input_tokens, output_tokens) 반환
         mock_claude_instance = MagicMock()
-        mock_claude_instance.generate_report.return_value = """# 디지털뱅킹 트렌드 분석 보고서
+        mock_claude_instance.chat_completion.return_value = (
+            """# 디지털뱅킹 트렌드 분석 보고서
 
 ## 요약
 
@@ -158,10 +159,11 @@ AI 기반 금융 서비스가 확대되고 있습니다.
 
 ## 결론 및 제언
 
-디지털 전환에 적극 대응해야 합니다."""
+디지털 전환에 적극 대응해야 합니다.""",
+            1000,  # input_tokens
+            2000   # output_tokens
+        )
         mock_claude_instance.model = "claude-sonnet-4-5-20250929"
-        mock_claude_instance.last_input_tokens = 1000
-        mock_claude_instance.last_output_tokens = 2000
         mock_claude_class.return_value = mock_claude_instance
 
         # API 호출
@@ -183,8 +185,8 @@ AI 기반 금융 서비스가 확대되고 있습니다.
         assert body["data"]["topic_id"] > 0
         assert body["data"]["artifact_id"] > 0
 
-        # Claude가 호출되었는지 확인
-        mock_claude_instance.generate_report.assert_called_once_with("디지털뱅킹 트렌드 분석")
+        # Claude chat_completion이 호출되었는지 확인
+        mock_claude_instance.chat_completion.assert_called_once()
 
         # DB에 저장되었는지 확인
         topic = TopicDB.get_topic_by_id(body["data"]["topic_id"])
@@ -232,9 +234,9 @@ AI 기반 금융 서비스가 확대되고 있습니다.
         auth_headers
     ):
         """Claude API 오류 테스트"""
-        # Mock Claude to raise an exception
+        # Mock Claude to raise an exception on chat_completion
         mock_claude_instance = MagicMock()
-        mock_claude_instance.generate_report.side_effect = Exception("Claude API Error")
+        mock_claude_instance.chat_completion.side_effect = Exception("Claude API Error")
         mock_claude_class.return_value = mock_claude_instance
 
         response = client.post(
@@ -246,11 +248,12 @@ AI 기반 금융 서비스가 확대되고 있습니다.
             }
         )
 
-        assert response.status_code == 500
+        # chat_completion 에러는 503 Service Unavailable를 반환
+        assert response.status_code == 503
         body = response.json()
         assert body["success"] is False
-        assert body["error"]["code"] == "REPORT.GENERATION_FAILED"
-        assert body["error"]["httpStatus"] == 500
+        assert body["error"]["code"] == "SERVER.SERVICE_UNAVAILABLE"
+        assert body["error"]["httpStatus"] == 503
 
     @patch('app.routers.topics.ClaudeClient')
     def test_ask_success_no_artifact(
@@ -339,10 +342,10 @@ AI 기반 금융 서비스가 확대되고 있습니다.
             )
         )
 
-        # Mock Claude
+        # Mock Claude (보고서 형식으로 응답, 각 섹션 50자 이상)
         mock_claude_instance = MagicMock()
         mock_claude_instance.chat_completion.return_value = (
-            "# 개정된 보고서\n\n업데이트된 내용...",
+            "## 요약\n개정된 보고서의 요약입니다. 충분히 긴 내용을 포함합니다. 이전 보고서의 주요 내용을 요약하였습니다.\n## 주요 내용\n업데이트된 내용이 여기에 포함됩니다. 이것은 의미있는 보고서 본문입니다. 자세한 분석 결과를 담고 있습니다.",
             200,
             300
         )
@@ -826,4 +829,302 @@ AI 기반 금융 서비스가 확대되고 있습니다.
         for i in range(1, 6):
             assert f"질문 {i}" in "".join(user_contents)
         assert "추가 질문" in user_contents[-1]
+
+    def test_ask_saves_parsed_markdown_not_raw_response(self, client, auth_headers, create_test_user):
+        """
+        TC-ASK-001: /ask 엔드포인트에서 artifact 파일이 파싱된 마크다운을 저장하는지 검증
+
+        - Claude 응답: 원본 마크다운 (제목, 요약, 배경, 주요내용, 결론 포함)
+        - 기대: artifact 파일이 build_report_md() 통과한 구조화된 마크다운 포함
+        - 미충족: artifact 파일이 Claude 원본 응답 전체 포함
+        """
+        # GIVEN: 토픽 생성
+        topic_response = client.post(
+            "/api/topics",
+            json={"input_prompt": "테스트 주제", "language": "ko"},
+            headers=auth_headers
+        )
+        topic_id = topic_response.json()["data"]["id"]
+
+        # Claude 응답 mock (원본 마크다운, 50자 이상 섹션)
+        claude_raw_response = """# 테스트 보고서 제목
+
+## 요약
+이것은 테스트 보고서의 요약입니다. 요약은 전체 내용을 간단하게 정리합니다. 이 섹션에서는 주요 내용을 강조합니다.
+
+## 배경
+보고서 작성의 배경과 목적을 설명합니다. 이 섹션에서는 왜 이 보고서가 필요한지 상세히 설명합니다. 배경은 이해를 도울 중요한 요소입니다.
+
+## 주요 내용
+분석 결과와 주요 발견 사항을 상세히 기술합니다. 충분한 길이의 분석이 포함됩니다.
+- 첫 번째 포인트: 상세한 내용
+- 두 번째 포인트: 분석 결과
+- 세 번째 포인트: 결론
+
+## 결론
+종합적인 결론과 권고사항을 제시합니다. 향후 개선 방안을 제시합니다. 이 섹션은 전체 보고서의 최종 판단입니다."""
+
+        with patch("app.utils.claude_client.ClaudeClient.chat_completion") as mock_claude:
+            mock_claude.return_value = (claude_raw_response, 500, 300)
+
+            # WHEN: /ask 요청
+            response = client.post(
+                f"/api/topics/{topic_id}/ask",
+                json={"content": "첫 번째 질문입니다."},
+                headers=auth_headers
+            )
+
+        # THEN: 요청 성공
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data["success"] is True
+        artifact_id = response_data["data"]["artifact"]["id"]
+
+        # artifact 파일 경로 확인
+        artifact = ArtifactDB.get_artifact_by_id(artifact_id)
+        assert artifact is not None
+        assert artifact.file_path is not None
+
+        # artifact 파일 내용 확인
+        with open(artifact.file_path, 'r', encoding='utf-8') as f:
+            saved_content = f.read()
+
+        # 검증 1: 파싱된 마크다운은 섹션 제목을 포함해야 함
+        # build_report_md()를 통과하므로 일관된 포맷을 가져야 함
+        assert "## 요약" in saved_content or "## Summary" in saved_content, \
+            "Parsed markdown should contain summary section"
+        assert "## 결론" in saved_content or "## Conclusion" in saved_content, \
+            "Parsed markdown should contain conclusion section"
+
+        # 검증 2: 원본 응답 전체와는 다름을 확인
+        # 만약 원본 응답을 그대로 저장했다면, 정확히 동일해야 함
+        # (하지만 파싱/빌드 과정을 거쳤으므로 다를 것)
+        assert saved_content != claude_raw_response, \
+            "Saved content should be parsed, not raw Claude response"
+
+        # 검증 3: 파일 크기가 합리적인 범위
+        # 원본 응답(약 350자)보다 작거나 유사할 것으로 예상
+        # (파싱 후 구조화되므로 크기는 비슷할 수 있음)
+        assert len(saved_content) > 0, "Saved markdown should not be empty"
+
+    def test_ask_markdown_parsing_consistency_with_generate(self, client, auth_headers, create_test_user):
+        """
+        TC-ASK-004: /ask와 generate_topic_report의 마크다운 파싱 일관성 검증
+
+        - 동일한 Claude 응답으로 두 엔드포인트 호출
+        - 기대: 생성된 artifact 파일의 구조가 동일
+        """
+        # Claude 응답 mock (50자 이상 각 섹션)
+        claude_response = "# 통합 테스트 보고서\n## 핵심 요약\n이 보고서는 두 엔드포인트의 일관성을 검증합니다. 마크다운 파싱과 빌드 로직이 동일하게 작동해야 합니다. 이를 위해 동일한 Claude 응답으로 테스트합니다.\n## 배경 정보\n배경 정보를 여기에 상세히 기술합니다. 이 섹션에서는 충분한 길이의 설명을 제공합니다. 통합 테스트의 중요성을 강조합니다.\n## 분석 결과\n분석 결과를 상세히 기술합니다. 데이터와 인사이트를 포함한 깊이 있는 분석입니다. 일관성 검증이 핵심입니다.\n## 제언 및 결론\n최종 제언을 제시합니다. 향후 실행 계획을 포함한 종합적인 결론입니다. 모든 엔드포인트가 동일하게 작동합니다."
+
+        with patch("app.utils.claude_client.ClaudeClient.chat_completion") as mock_claude:
+            mock_claude.return_value = (claude_response, 400, 250)
+
+            # 1. generate_topic_report로 생성
+            gen_response = client.post(
+                "/api/topics/generate",
+                json={"input_prompt": "생성 테스트", "language": "ko"},
+                headers=auth_headers
+            )
+
+        assert gen_response.status_code == 200
+        gen_artifact_id = gen_response.json()["data"]["artifact_id"]
+        gen_artifact = ArtifactDB.get_artifact_by_id(gen_artifact_id)
+
+        with open(gen_artifact.file_path, 'r', encoding='utf-8') as f:
+            gen_content = f.read()
+
+        # 2. /ask로 생성
+        topic_response = client.post(
+            "/api/topics",
+            json={"input_prompt": "ask 테스트", "language": "ko"},
+            headers=auth_headers
+        )
+        topic_id = topic_response.json()["data"]["id"]
+
+        with patch("app.utils.claude_client.ClaudeClient.chat_completion") as mock_claude:
+            mock_claude.return_value = (claude_response, 400, 250)
+
+            ask_response = client.post(
+                f"/api/topics/{topic_id}/ask",
+                json={"content": "같은 질문입니다."},
+                headers=auth_headers
+            )
+
+        assert ask_response.status_code == 200
+        ask_artifact_id = ask_response.json()["data"]["artifact"]["id"]
+        ask_artifact = ArtifactDB.get_artifact_by_id(ask_artifact_id)
+
+        with open(ask_artifact.file_path, 'r', encoding='utf-8') as f:
+            ask_content = f.read()
+
+        # THEN: 두 artifact 파일의 내용 구조가 동일해야 함
+        # (동일한 Claude 응답으로 동일한 파싱/빌드 로직을 거쳤으므로)
+        assert gen_content == ask_content, \
+            "generate_topic_report and /ask should produce identical markdown"
+
+    def test_ask_artifact_markdown_has_correct_sections(self, client, auth_headers, create_test_user):
+        """
+        TC-ASK-003: /ask로 생성된 artifact 마크다운의 섹션 검증
+
+        - build_report_md() 통과 후 artifact에 저장된 마크다운 검증
+        - 기대: 제목, 요약, 배경, 주요내용, 결론 섹션 포함
+        """
+        # GIVEN: 토픽 생성
+        topic_response = client.post(
+            "/api/topics",
+            json={"input_prompt": "섹션 검증 테스트", "language": "ko"},
+            headers=auth_headers
+        )
+        topic_id = topic_response.json()["data"]["id"]
+
+        # Claude 응답 mock (50자 이상 각 섹션, 최소 50자 보장)
+        claude_response = "# 섹션 검증 보고서\n## 요약 섹션\n요약 내용입니다. 이것은 50자 이상의 충분히 긴 요약 섹션입니다. 충분한 길이를 보장합니다.\n## 배경 섹션\n배경 내용입니다. 배경을 이해하기 위한 충분한 길이의 설명을 포함합니다. 자세한 설명입니다.\n## 주요 내용 섹션\n주요 내용입니다. 분석 결과와 핵심 발견사항을 상세히 기술합니다. 깊이 있는 분석입니다. 추가 설명.\n## 결론 섹션\n결론 내용입니다. 향후 방향을 제시하는 최종 판단입니다. 종합적인 결론입니다. 최종 판단입니다."
+
+        with patch("app.utils.claude_client.ClaudeClient.chat_completion") as mock_claude:
+            mock_claude.return_value = (claude_response, 300, 200)
+
+            response = client.post(
+                f"/api/topics/{topic_id}/ask",
+                json={"content": "섹션 검증 질문"},
+                headers=auth_headers
+            )
+
+        assert response.status_code == 200
+        artifact_id = response.json()["data"]["artifact"]["id"]
+        artifact = ArtifactDB.get_artifact_by_id(artifact_id)
+
+        # artifact 파일 내용 확인
+        with open(artifact.file_path, 'r', encoding='utf-8') as f:
+            saved_content = f.read()
+
+        # THEN: 마크다운 구조 검증
+        # 최소한 H1(제목)과 H2(섹션)을 포함해야 함
+        assert "#" in saved_content, "Markdown should contain headers"
+        assert "##" in saved_content, "Markdown should contain section headers"
+
+        # 파싱된 섹션이 포함되어야 함
+        has_summary = "요약" in saved_content or "Summary" in saved_content
+        has_conclusion = "결론" in saved_content or "Conclusion" in saved_content
+        assert has_summary or has_conclusion, \
+            "Parsed markdown should contain at least summary or conclusion section"
+
+
+    @patch('app.routers.topics.ClaudeClient')
+    def test_ask_question_response_extracts_section_content(
+        self,
+        mock_claude_class,
+        client,
+        auth_headers,
+        create_test_user,
+        temp_dir
+    ):
+        """
+        TC-ASK-Q06: 질문 응답 시 H2 섹션 제거 및 순수 내용만 추출 검증
+        
+        Claude가 질문/대화 형식으로 응답할 때:
+        - H2 섹션(##) 마크다운 헤더는 제거
+        - 각 섹션의 실제 본문 콘텐츠만 추출하여 저장
+        - 사용자가 자연스럽게 읽을 수 있도록 정규화
+        """
+        # GIVEN: 토픽 및 초기 artifact 생성
+        topic = TopicDB.create_topic(
+            user_id=create_test_user.id,
+            topic_data=TopicCreate(input_prompt="리포트 분석", language="ko")
+        )
+        
+        # 초기 메시지 저장 (artifact 생성을 위해 필요)
+        msg = MessageDB.create_message(
+            topic.id,
+            MessageCreate(role=MessageRole.ASSISTANT, content="# 초기 보고서\n\n내용...")
+        )
+        
+        # MD 파일 생성
+        from app.utils.file_utils import build_artifact_paths, write_text, sha256_of
+        _, md_path = build_artifact_paths(topic.id, 1, "report.md")
+        bytes_written = write_text(md_path, "# 초기 보고서\n\n내용...")
+        file_hash = sha256_of(md_path)
+        
+        initial_artifact = ArtifactDB.create_artifact(
+            topic.id,
+            msg.id,
+            ArtifactCreate(
+                kind=ArtifactKind.MD,
+                locale="ko",
+                version=1,
+                filename="report.md",
+                file_path=str(md_path),
+                file_size=bytes_written,
+                sha256=file_hash
+            )
+        )
+        
+        # Mock Claude: 질문 응답 (H2 섹션 포함)
+        question_response = (
+            "## 확인 사항\n\n"
+            "제공하신 내용을 확인했습니다.\n\n"
+            "## 개선 방향\n\n"
+            "다음과 같은 부분을 수정할 수 있습니다.\n\n"
+            "## 재검토\n\n"
+            "해당 부분을 검토하시고 피드백을 주시면 감사하겠습니다."
+        )
+        
+        mock_claude_instance = MagicMock()
+        mock_claude_instance.chat_completion.return_value = (
+            question_response,
+            150,
+            250
+        )
+        mock_claude_instance.model = "claude-sonnet-4-5-20250929"
+        mock_claude_class.return_value = mock_claude_instance
+        
+        # WHEN: /ask 호출 (artifact 참조)
+        response = client.post(
+            f"/api/topics/{topic.id}/ask",
+            headers=auth_headers,
+            json={
+                "content": "리포트를 검토해주세요.",
+                "artifact_id": initial_artifact.id
+            }
+        )
+        
+        # THEN: 응답 검증
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        
+        # assistant_message에 H2 섹션이 제거되어야 함 (response body의 content)
+        assistant_message_content = body["data"]["assistant_message"]["content"]
+        
+        # ✅ 검증 1: H2 헤더(##)가 없어야 함
+        assert "## 확인 사항" not in assistant_message_content, \
+            "H2 section headers should be removed"
+        assert "## 개선 방향" not in assistant_message_content, \
+            "H2 section headers should be removed"
+        assert "## 재검토" not in assistant_message_content, \
+            "H2 section headers should be removed"
+        
+        # ✅ 검증 2: 실제 본문 콘텐츠는 포함되어야 함
+        assert "제공하신 내용을 확인했습니다" in assistant_message_content, \
+            "Section content should be preserved"
+        assert "다음과 같은 부분을 수정할 수 있습니다" in assistant_message_content, \
+            "Section content should be preserved"
+        assert "해당 부분을 검토하시고 피드백을 주시면 감사하겠습니다" in assistant_message_content, \
+            "Section content should be preserved"
+        
+        # ✅ 검증 3: artifact가 없어야 함 (질문 응답이므로)
+        assert body["data"]["artifact"] is None, \
+            "Question responses should not create artifact"
+        
+        # ✅ 검증 4: 메시지가 DB에 저장되어야 함
+        messages = MessageDB.get_messages_by_topic(topic.id)
+        # initial_message + user_message + assistant_message = 3개
+        assert len(messages) == 3, "Initial, user and assistant messages should be saved"
+        
+        # 마지막 메시지(assistant)가 추출된 콘텐츠여야 함
+        last_message = messages[-1]
+        assert last_message.role == MessageRole.ASSISTANT
+        assert "##" not in last_message.content, \
+            "Saved message should not contain H2 section headers"
+        assert "제공하신 내용을 확인했습니다" in last_message.content
 

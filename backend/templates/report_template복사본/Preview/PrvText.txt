@@ -1,0 +1,23 @@
+<>
+<{{TITLE}}>
+<  >
+작성일: {{DATE}}
+
+<1 ><{{TITLE_BACKGROUND}}>
+< {{BACKGROUND}} >
+<2 >< {{TITLE_MAIN_CONTENT}}>
+{{MAIN_CONTENT}}
+<h1><h2><h3><h4><h5>
+<r1c1><r1c2><r1c3><r1c4><r1c5>
+<r2c1><r2c2><r2c3><r2c4><r2c5>
+<r3c1><r3c2><r3c3><r3c4><r3c5>
+<r4c1><r4c2><r4c3><r4c4><r4c5>
+
+<3 >< {{TITLE_CONCLUSION}}>
+{{CONCLUSION}}
+□ OL > LI
+UL > LI
+2. UL > LI
+
+<4 >< {{TITLE_SUMARY}}>
+{{SUMARY}}

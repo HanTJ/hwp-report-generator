@@ -15,9 +15,11 @@ class TopicCreate(BaseModel):
     Attributes:
         input_prompt: User's original input describing the report subject
         language: Primary language for the report (default: 'ko')
+        template_id: Optional template ID to use for dynamic system prompt generation
     """
     input_prompt: str = Field(..., min_length=1, max_length=1000, description="Report topic input")
     language: str = Field(default="ko", description="Primary language (ko/en)")
+    template_id: Optional[int] = Field(default=None, description="Template ID for dynamic system prompt generation")
 
 
 class TopicUpdate(BaseModel):
@@ -96,3 +98,141 @@ class TopicListResponse(BaseModel):
     total: int
     page: int = 1
     page_size: int = 20
+
+
+class TopicMessageRequest(BaseModel):
+    """Request model for asking a question on a topic.
+
+    Attributes:
+        user_message: The user's message or question
+        template_id: Optional template ID to use for dynamic system prompt generation
+        selected_artifact_ids: Optional list of artifact IDs to include in context
+    """
+    user_message: str = Field(..., min_length=1, max_length=5000)
+    template_id: Optional[int] = Field(None, description="사용할 템플릿 ID (선택)")
+    selected_artifact_ids: Optional[list[int]] = Field(None, description="컨텍스트에 포함할 아티팩트 ID 목록")
+
+
+# ============================================================
+# Sequential Planning Models
+# ============================================================
+
+class PlanRequest(BaseModel):
+    """POST /api/topics/plan 요청 모델
+
+    Sequential Planning을 통한 보고서 계획 수립을 요청합니다.
+
+    Attributes:
+        topic: 보고서 주제 (필수, 최대 200자)
+        template_id: 사용할 템플릿 ID (선택, None이면 default template 사용)
+    """
+    topic: str = Field(..., min_length=1, max_length=200, description="보고서 주제")
+    template_id: Optional[int] = Field(None, description="템플릿 ID (선택)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "topic": "AI 시장 분석",
+                "template_id": 1
+            }
+        }
+
+
+class PlanSection(BaseModel):
+    """보고서 계획의 섹션 정보
+
+    Attributes:
+        title: 섹션 제목
+        description: 섹션 설명
+        key_points: 섹션의 주요 포인트 목록
+        order: 섹션 순서
+    """
+    title: str = Field(..., description="섹션 제목")
+    description: str = Field(..., description="섹션 설명")
+    key_points: Optional[list[str]] = Field(None, description="섹션 주요 포인트")
+    order: int = Field(..., description="섹션 순서")
+
+
+class PlanResponse(BaseModel):
+    """POST /api/topics/plan 응답 모델
+
+    Sequential Planning으로 생성된 보고서 계획을 반환합니다.
+
+    Attributes:
+        topic_id: 토픽 ID
+        plan: Markdown 형식의 계획 문서
+        sections: 섹션 목록
+        estimated_sections_count: 예상 섹션 수
+    """
+    topic_id: int
+    plan: str
+    sections: list[PlanSection]
+    estimated_sections_count: int
+
+
+class GenerateRequest(BaseModel):
+    """POST /api/topics/generate 요청 모델
+
+    사용자가 승인한 계획을 바탕으로 보고서 생성을 시작합니다.
+
+    Attributes:
+        topic: 보고서 주제 (필수)
+        plan: Sequential Planning에서 받은 계획 (필수)
+        template_id: 사용할 템플릿 ID (선택)
+    """
+    topic: str = Field(..., min_length=1, max_length=200, description="보고서 주제")
+    plan: str = Field(..., min_length=1, description="Sequential Planning에서 받은 계획")
+    template_id: Optional[int] = Field(None, description="템플릿 ID (선택)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "topic": "AI 시장 분석",
+                "plan": "# 보고서 계획\n## 개요\n...",
+                "template_id": 1
+            }
+        }
+
+
+class GenerateResponse(BaseModel):
+    """POST /api/topics/generate 응답 모델 (202 Accepted)
+
+    보고서 생성이 백그라운드 task로 시작되었음을 알립니다.
+
+    Attributes:
+        topic_id: 토픽 ID
+        status: 생성 상태 ("generating")
+        message: 상태 메시지
+        status_check_url: 진행 상황 확인 URL
+    """
+    topic_id: int
+    status: str  # "generating"
+    message: str
+    status_check_url: str
+
+
+class StatusResponse(BaseModel):
+    """GET /api/topics/{id}/status 응답 모델
+
+    보고서 생성의 현재 진행 상태를 반환합니다.
+
+    Attributes:
+        topic_id: 토픽 ID
+        status: 생성 상태 ("generating", "completed", "failed")
+        progress_percent: 진행률 (0-100)
+        current_step: 현재 진행 단계 (generating 중일 때만)
+        started_at: 생성 시작 시간
+        estimated_completion: 예상 완료 시간
+        artifact_id: 생성된 artifact ID (completed일 때만)
+        completed_at: 완료 시간 (completed일 때만)
+        error_message: 에러 메시지 (failed일 때만)
+    """
+    topic_id: int
+    status: str
+    progress_percent: int
+    current_step: Optional[str] = None
+    started_at: Optional[str] = None
+    estimated_completion: Optional[str] = None
+    artifact_id: Optional[int] = None
+    completed_at: Optional[str] = None
+    error_message: Optional[str] = None

@@ -150,3 +150,189 @@ class TestClaudeClientGenerateReport:
             client.generate_report("테스트 주제")
 
         assert "API Error" in str(exc_info.value)
+
+
+@pytest.mark.unit
+class TestClaudeClientChatCompletion:
+    """Chat completion 메서드 테스트 (기본, 빠른, 추론)"""
+
+    @pytest.fixture
+    def mock_fast_response(self):
+        """빠른 모델 응답 mock"""
+        mock_response = Mock()
+        mock_response.content = [
+            Mock(text="요약: 디지털뱅킹은 빠르게 발전하고 있습니다.")
+        ]
+        mock_response.usage = Mock(
+            input_tokens=800,
+            output_tokens=150
+        )
+        return mock_response
+
+    @patch.dict('os.environ', {
+        'CLAUDE_API_KEY': 'test_api_key',
+        'CLAUDE_MODEL': 'claude-sonnet-4-5-20250929',
+        'CLAUDE_FAST_MODEL': 'claude-haiku-4-5-20251001',
+        'CLAUDE_REASONING_MODEL': 'claude-opus-4-1-20250805'
+    })
+    @patch('app.utils.claude_client.Anthropic')
+    def test_chat_completion_success(self, mock_anthropic_class, mock_claude_response):
+        """chat_completion() 기본 메서드 테스트"""
+        mock_client_instance = Mock()
+        mock_anthropic_class.return_value = mock_client_instance
+        mock_client_instance.messages.create.return_value = mock_claude_response
+
+        client = ClaudeClient()
+        messages = [{"role": "user", "content": "보고서를 작성하세요"}]
+
+        response, input_tokens, output_tokens = client.chat_completion(messages)
+
+        assert isinstance(response, str)
+        assert len(response) > 0
+        assert input_tokens == 1500
+        assert output_tokens == 3200
+        assert client.last_total_tokens == 4700
+
+    @patch.dict('os.environ', {
+        'CLAUDE_API_KEY': 'test_api_key',
+        'CLAUDE_MODEL': 'claude-sonnet-4-5-20250929',
+        'CLAUDE_FAST_MODEL': 'claude-haiku-4-5-20251001',
+        'CLAUDE_REASONING_MODEL': 'claude-opus-4-1-20250805'
+    })
+    @patch('app.utils.claude_client.Anthropic')
+    def test_chat_completion_fast_success(self, mock_anthropic_class, mock_fast_response):
+        """chat_completion_fast() 빠른 모델 테스트"""
+        mock_client_instance = Mock()
+        mock_anthropic_class.return_value = mock_client_instance
+        mock_client_instance.messages.create.return_value = mock_fast_response
+
+        client = ClaudeClient()
+        messages = [{"role": "user", "content": "개요를 작성하세요"}]
+
+        response, input_tokens, output_tokens = client.chat_completion_fast(messages)
+
+        # 빠른 모델 사용 확인
+        assert isinstance(response, str)
+        assert "요약" in response
+        assert input_tokens == 800
+        assert output_tokens == 150
+
+    @patch.dict('os.environ', {
+        'CLAUDE_API_KEY': 'test_api_key',
+        'CLAUDE_MODEL': 'claude-sonnet-4-5-20250929',
+        'CLAUDE_FAST_MODEL': 'claude-haiku-4-5-20251001',
+        'CLAUDE_REASONING_MODEL': 'claude-opus-4-1-20250805'
+    })
+    @patch('app.utils.claude_client.Anthropic')
+    def test_chat_completion_reasoning_success(self, mock_anthropic_class, mock_claude_response):
+        """chat_completion_reasoning() 추론 모델 테스트"""
+        mock_client_instance = Mock()
+        mock_anthropic_class.return_value = mock_client_instance
+        mock_client_instance.messages.create.return_value = mock_claude_response
+
+        client = ClaudeClient()
+        messages = [{"role": "user", "content": "복잡한 분석을 수행하세요"}]
+
+        response, input_tokens, output_tokens = client.chat_completion_reasoning(messages)
+
+        assert isinstance(response, str)
+        assert input_tokens == 1500
+        assert output_tokens == 3200
+
+    @patch.dict('os.environ', {
+        'CLAUDE_API_KEY': 'test_api_key',
+        'CLAUDE_MODEL': 'claude-sonnet-4-5-20250929',
+        'CLAUDE_FAST_MODEL': 'claude-haiku-4-5-20251001',
+        'CLAUDE_REASONING_MODEL': 'claude-opus-4-1-20250805'
+    })
+    @patch('app.utils.claude_client.Anthropic')
+    def test_chat_completion_with_custom_system_prompt(self, mock_anthropic_class, mock_claude_response):
+        """커스텀 system_prompt 사용 테스트"""
+        mock_client_instance = Mock()
+        mock_anthropic_class.return_value = mock_client_instance
+        mock_client_instance.messages.create.return_value = mock_claude_response
+
+        client = ClaudeClient()
+        messages = [{"role": "user", "content": "테스트"}]
+        custom_prompt = "커스텀 시스템 프롬프트"
+
+        response, input_tokens, output_tokens = client.chat_completion(
+            messages, system_prompt=custom_prompt
+        )
+
+        # API 호출 시 커스텀 프롬프트가 전달되었는지 확인
+        call_args = mock_client_instance.messages.create.call_args
+        assert call_args.kwargs['system'] == custom_prompt
+
+    @patch.dict('os.environ', {
+        'CLAUDE_API_KEY': 'test_api_key',
+        'CLAUDE_MODEL': 'claude-sonnet-4-5-20250929',
+        'CLAUDE_FAST_MODEL': 'claude-haiku-4-5-20251001',
+        'CLAUDE_REASONING_MODEL': 'claude-opus-4-1-20250805'
+    })
+    @patch('app.utils.claude_client.Anthropic')
+    def test_models_loaded_correctly(self, mock_anthropic_class):
+        """세 가지 모델이 올바르게 로드되었는지 테스트"""
+        mock_client_instance = Mock()
+        mock_anthropic_class.return_value = mock_client_instance
+
+        client = ClaudeClient()
+
+        # 각 모델 확인
+        assert client.model == 'claude-sonnet-4-5-20250929'
+        assert client.fast_model == 'claude-haiku-4-5-20251001'
+        assert client.reasoning_model == 'claude-opus-4-1-20250805'
+
+    @patch.dict('os.environ', {
+        'CLAUDE_API_KEY': 'test_api_key',
+        'CLAUDE_MODEL': 'claude-sonnet-4-5-20250929',
+        'CLAUDE_FAST_MODEL': 'claude-haiku-4-5-20251001',
+        'CLAUDE_REASONING_MODEL': 'claude-opus-4-1-20250805'
+    })
+    @patch('app.utils.claude_client.Anthropic')
+    def test_token_tracking_across_methods(self, mock_anthropic_class, mock_claude_response):
+        """모든 메서드에서 토큰 추적이 정상 작동하는지 테스트"""
+        mock_client_instance = Mock()
+        mock_anthropic_class.return_value = mock_client_instance
+        mock_client_instance.messages.create.return_value = mock_claude_response
+
+        client = ClaudeClient()
+        messages = [{"role": "user", "content": "테스트"}]
+
+        # chat_completion 호출
+        client.chat_completion(messages)
+        assert client.last_input_tokens == 1500
+        assert client.last_output_tokens == 3200
+
+        # chat_completion_fast 호출
+        fast_response = Mock()
+        fast_response.content = [Mock(text="빠른 응답")]
+        fast_response.usage = Mock(input_tokens=500, output_tokens=100)
+        mock_client_instance.messages.create.return_value = fast_response
+
+        client.chat_completion_fast(messages)
+        assert client.last_input_tokens == 500
+        assert client.last_output_tokens == 100
+
+    @patch.dict('os.environ', {
+        'CLAUDE_API_KEY': 'test_api_key',
+        'CLAUDE_MODEL': 'claude-sonnet-4-5-20250929',
+        'CLAUDE_FAST_MODEL': 'claude-haiku-4-5-20251001',
+        'CLAUDE_REASONING_MODEL': 'claude-opus-4-1-20250805'
+    })
+    @patch('app.utils.claude_client.Anthropic')
+    def test_get_token_usage(self, mock_anthropic_class, mock_claude_response):
+        """get_token_usage() 메서드 테스트"""
+        mock_client_instance = Mock()
+        mock_anthropic_class.return_value = mock_client_instance
+        mock_client_instance.messages.create.return_value = mock_claude_response
+
+        client = ClaudeClient()
+        messages = [{"role": "user", "content": "테스트"}]
+
+        client.chat_completion(messages)
+        usage = client.get_token_usage()
+
+        assert usage["input_tokens"] == 1500
+        assert usage["output_tokens"] == 3200
+        assert usage["total_tokens"] == 4700

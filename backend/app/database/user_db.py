@@ -71,8 +71,14 @@ class UserDB:
         return [UserDB._row_to_user(row) for row in rows]
 
     @staticmethod
-    def update_user(user_id: int, update: UserUpdate) -> Optional[User]:
-        """사용자 정보 수정"""
+    def update_user(user_id: int, update) -> Optional[User]:
+        """사용자 정보 수정 (딕셔너리 또는 UserUpdate 객체 지원)"""
+        from app.models.user import UserUpdate
+        
+        # 딕셔너리를 UserUpdate 모델로 변환
+        if isinstance(update, dict):
+            update = UserUpdate(**update)
+        
         conn = get_db_connection()
         cursor = conn.cursor()
 

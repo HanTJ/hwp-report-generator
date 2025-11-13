@@ -1,497 +1,336 @@
-# CLAUDE.md
+# CLAUDE.md - HWP Report Generator 개발 가이드
 
-이 파일은 Claude Code (claude.ai/code)가 이 저장소의 코드 작업 시 참고하는 가이드입니다.
-
-## 프로젝트 개요
-
-**HWP Report Generator**: Claude AI를 활용하여 한글(HWP) 형식의 금융 보고서를 자동 생성하는 FastAPI 기반 웹 시스템. 사용자가 주제를 입력하면 은행 내부 양식에 맞춰 완전한 보고서를 생성합니다.
-
-## 기술 스택
-
-- **Backend**: FastAPI (Python 3.12), SQLite
-- **패키지 관리**: uv (권장) 또는 pip
-- **AI**: Claude API (anthropic==0.71.0) - Model: claude-sonnet-4-5-20250929
-- **HWP 처리**: olefile, zipfile (HWPX 형식)
-- **Frontend**: React 18 + TypeScript + Vite
-- **인증**: JWT (python-jose, passlib)
-
-## 아키텍처
-
-### 핵심 컴포넌트
-
-**Backend** (`backend/app/`):
-1. **main.py**: FastAPI 앱 진입점, 라우터 등록
-2. **routers/**: API 라우트 핸들러 (auth, topics, messages, artifacts, admin, reports-deprecated)
-3. **models/**: Pydantic 모델 (request/response 검증)
-4. **database/**: SQLite 연결 및 CRUD 작업
-5. **utils/**:
-   - `prompts.py`: 시스템 프롬프트 중앙 관리 (v2.1)
-   - `claude_client.py`: Claude API 통합 (Markdown 생성)
-   - `markdown_parser.py`: Markdown → 구조화 데이터 변환 (동적 섹션 추출)
-   - `hwp_handler.py`: HWPX 파일 조작 (unzip → XML 수정 → rezip)
-   - `response_helper.py`: API 표준 응답 헬퍼
-   - `auth.py`: JWT 인증 및 비밀번호 해싱
-
-**Frontend** (`frontend/src/`):
-1. **components/**: 재사용 가능한 React 컴포넌트
-2. **pages/**: 페이지 컴포넌트
-3. **services/**: API 클라이언트 서비스
-4. **types/api.ts**: TypeScript 타입 정의
-
-### 데이터 플로우 (v2.0+)
-
-1. 사용자가 Topic(대화 주제) 생성 → `/api/topics`
-2. 사용자 메시지 입력 → `/api/topics/{topic_id}/ask`
-3. 컨텍스트 구성 (이전 메시지 + 최신/선택된 MD 내용)
-4. Claude API 호출 → Markdown 응답
-5. `markdown_parser.parse_markdown_to_content()`로 구조화
-6. Message + Artifact(MD) + AI Usage 저장
-7. 필요 시 MD → HWPX 변환 → `/api/artifacts/{id}/convert`
-
-### 프롬프트 아키텍처 (v2.1)
-
-**설계 원칙:**
-- 시스템 프롬프트: 순수 지시사항만 (데이터 제외)
-- 주제/컨텍스트: 메시지 배열로 전달
-- 중앙 관리: `utils/prompts.py`
-
-**주요 상수:**
-```python
-# utils/prompts.py
-FINANCIAL_REPORT_SYSTEM_PROMPT = """당신은 금융 기관의 전문 보고서 작성자입니다.
-다음 구조로 Markdown 보고서를 작성하세요:
-
-# [보고서 제목]
-## [요약 섹션 제목]
-[요약 내용]
-## [배경 섹션 제목]
-[배경 내용]
-## [주요 내용 섹션 제목]
-[주요 내용]
-## [결론 섹션 제목]
-[결론 내용]
-"""
-```
-
-**주제 컨텍스트 전달:**
-```python
-# 주제는 시스템 프롬프트가 아닌 메시지로 전달
-messages = [
-    {"role": "user", "content": f"다음 주제로 보고서를 작성해주세요:\n\n{topic}"}
-]
-```
-
-### Markdown 파싱 (v2.1)
-
-**동적 섹션 추출:**
-```python
-# markdown_parser.py
-def parse_markdown_to_content(md_text: str) -> Dict[str, str]:
-    """
-    Markdown을 HWP content dict로 변환
-    - H1: 제목 추출
-    - H2 섹션: 키워드 기반 자동 분류
-      - 요약: "요약", "summary", "핵심"
-      - 배경: "배경", "목적", "background", "추진"
-      - 주요내용: "주요", "내용", "분석", "결과"
-      - 결론: "결론", "제언", "향후", "계획" (우선순위 높음)
-    - 동적 제목 추출: 각 섹션의 실제 H2 제목을 title_xxx로 반환
-    """
-```
-
-**우선순위 조정 (v2.1):**
-- "향후 추진 계획"처럼 "추진"(배경)과 "향후"(결론) 키워드가 겹치는 경우
-- 결론 키워드 체크를 배경보다 먼저 수행하여 올바르게 분류
-
-## 환경 설정
-
-`backend/.env` 파일:
-```env
-CLAUDE_API_KEY=your_api_key_here
-CLAUDE_MODEL=claude-sonnet-4-5-20250929
-
-# JWT 설정
-JWT_SECRET_KEY=your-secret-key-change-this
-JWT_ALGORITHM=HS256
-JWT_EXPIRE_MINUTES=1440
-
-# 관리자 계정
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=admin123!@#
-ADMIN_USERNAME=관리자
-
-# 프로젝트 루트 (필수!)
-PATH_PROJECT_HOME=D:\\WorkSpace\\hwp-report\\hwp-report-generator
-```
-
-**보안**: `.env` 파일은 절대 Git에 커밋하지 마세요.
-
-## 개발 명령어
-
-### Backend
-
-```bash
-cd backend
-
-# 의존성 설치 (uv 권장)
-uv pip install -r requirements.txt
-
-# DB 초기화
-uv run python init_db.py
-
-# 개발 서버 실행
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# 테스트 실행
-uv run pytest tests/ -v
-
-# 커버리지 포함 테스트
-uv run pytest tests/ -v --cov=app --cov-report=term-missing
-```
-
-### Frontend
-
-```bash
-cd frontend
-
-# 의존성 설치
-npm install
-
-# 개발 서버
-npm run dev
-
-# 프로덕션 빌드
-npm run build
-```
-
-### 접속
-
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- Swagger UI: http://localhost:8000/docs
-
-## API 응답 표준
-
-### ⚠️ 필수 준수 규칙
-
-**모든 신규 API 엔드포인트는 표준 응답 형식을 사용해야 합니다.**
-
-- ✅ **필수**: `success_response()` / `error_response()` 사용 (`utils/response_helper.py`)
-- ✅ **필수**: `ErrorCode` 클래스 상수 사용
-- ❌ **금지**: `HTTPException` 직접 사용
-- ❌ **금지**: 에러 코드 하드코딩
-
-### 표준 응답 구조
-
-**성공:**
-```json
-{
-  "success": true,
-  "data": { /* 실제 데이터 */ },
-  "error": null,
-  "meta": { "requestId": "uuid" },
-  "feedback": []
-}
-```
-
-**실패:**
-```json
-{
-  "success": false,
-  "data": null,
-  "error": {
-    "code": "DOMAIN.DETAIL",
-    "httpStatus": 404,
-    "message": "에러 메시지",
-    "details": {},
-    "traceId": "uuid",
-    "hint": "해결 방법"
-  },
-  "meta": { "requestId": "uuid" },
-  "feedback": []
-}
-```
-
-### 구현 예시
-
-```python
-from app.utils.response_helper import success_response, error_response, ErrorCode
-
-# 성공
-return success_response({
-    "id": 123,
-    "name": "example"
-})
-
-# 실패
-return error_response(
-    code=ErrorCode.TOPIC_NOT_FOUND,
-    http_status=404,
-    message="토픽을 찾을 수 없습니다.",
-    hint="토픽 ID를 확인해주세요."
-)
-```
-
-### 현재 구현 상태
-
-| Router | 준수율 | 상태 |
-|--------|--------|------|
-| Topics | 100% ✅ | 참조 구현 |
-| Messages | 100% ✅ | 완전 준수 |
-| Artifacts | 100% ✅ | 완전 준수 |
-| Auth | 100% ✅ | 완전 준수 |
-| Admin | 100% ✅ | 완전 준수 |
-| Reports | 100% ✅ | 완전 준수 (Deprecated) |
-
-**전체 준수율**: 100% (28/28 활성 엔드포인트) ✨
-
-## HWP 파일 처리
-
-- **형식**: HWPX (HWP가 아님). HWPX는 XML 파일을 포함한 ZIP 아카이브
-- **처리**: Unzip → XML 파싱/수정 → Rezip
-- **호환성**: HWPX 형식은 크로스 플랫폼 호환성 보장
-- **인코딩**: 한글 텍스트는 UTF-8 필수
-- **자동 템플릿**: `templates/report_template.hwpx`가 없으면 첫 보고서 생성 시 자동 생성
-
-### 줄바꿈 처리
-
-1. **문단 분리**: `\n\n` → 별도 `<hp:p>` 태그
-2. **줄바꿈**: `\n` → `<hp:lineBreak/>` XML 태그
-3. **레이아웃 정리**: 불완전한 `<hp:linesegarray>` 요소 자동 제거
-4. **자동 계산**: 한글 워드프로세서가 파일 열 때 레이아웃 정보 자동 재계산
-
-### HWPX 템플릿 플레이스홀더
-
-**컨텐츠:**
-- `{{TITLE}}` - 보고서 제목
-- `{{DATE}}` - 생성 날짜
-- `{{SUMMARY}}` - 요약 내용
-- `{{BACKGROUND}}` - 배경 내용
-- `{{MAIN_CONTENT}}` - 주요 내용
-- `{{CONCLUSION}}` - 결론 내용
-
-**섹션 제목 (동적 추출 - v2.1):**
-- `{{TITLE_SUMMARY}}` - 요약 섹션 제목
-- `{{TITLE_BACKGROUND}}` - 배경 섹션 제목
-- `{{TITLE_MAIN_CONTENT}}` - 주요 내용 섹션 제목
-- `{{TITLE_CONCLUSION}}` - 결론 섹션 제목
-
-## 주요 API 엔드포인트
-
-### 인증 (`/api/auth`)
-- `POST /api/auth/register` - 회원가입
-- `POST /api/auth/login` - 로그인 (JWT 발급)
-- `GET /api/auth/me` - 내 정보
-- `POST /api/auth/logout` - 로그아웃
-
-### 주제 (`/api/topics`) - v2.0
-- `POST /api/topics` - 토픽 생성
-- `POST /api/topics/generate` - 한 번에 MD 생성 (토픽+메시지+아티팩트)
-- `GET /api/topics` - 내 토픽 목록
-- `GET /api/topics/{topic_id}` - 단건 조회
-- `POST /api/topics/{topic_id}/ask` - **메시지 체이닝** (컨텍스트 기반 대화)
-
-### 메시지 (`/api/topics/{topic_id}/messages`)
-- `POST /api/topics/{topic_id}/messages` - 메시지 생성
-- `GET /api/topics/{topic_id}/messages` - 메시지 목록
-
-### 아티팩트 (`/api/artifacts`)
-- `GET /api/artifacts/{artifact_id}` - 메타 조회
-- `GET /api/artifacts/{artifact_id}/content` - 내용 조회 (MD만)
-- `GET /api/artifacts/{artifact_id}/download` - 파일 다운로드
-- `POST /api/artifacts/{artifact_id}/convert` - MD → HWPX 변환
-- `GET /api/artifacts/messages/{message_id}/hwpx/download` - 메시지 기반 HWPX 다운로드 (자동 변환)
-
-### 관리자 (`/api/admin`)
-- `GET /api/admin/users` - 사용자 목록
-- `POST /api/admin/users/{user_id}/approve` - 승인
-- `GET /api/admin/token-usage` - 토큰 사용량
-
-### 레거시 (`/api/reports`) - Deprecated
-- ⚠️ v1.0 호환성 유지, 향후 제거 예정
-- 신규 개발은 `/api/topics` 사용
-
-## 주요 변경사항
-
-### v2.1 (2025-11-04) - 프롬프트 통합
-
-**새로운 파일:**
-- `app/utils/prompts.py` - 시스템 프롬프트 중앙 관리
-
-**아키텍처 변경:**
-1. **ClaudeClient 반환 타입**: `Dict[str, str]` → `str` (Markdown)
-2. **파싱 로직 분리**: ClaudeClient에서 제거, 호출자가 `parse_markdown_to_content()` 사용
-3. **프롬프트 순수성**: 시스템 프롬프트에서 주제 제거, 메시지로 전달
-4. **동적 섹션 추출**: 하드코딩된 제목 제거, 키워드 기반 자동 분류
-5. **관심사 분리**: ClaudeClient(AI 호출) / markdown_parser(파싱) / 호출자(비즈니스 로직)
-
-**테스트:**
-- 19개 실패 테스트 수정
-- 9개 deprecated 테스트 스킵
-- 커버리지 유지: 70%+
-
-**참고:** `backend/doc/07.PromptIntegrate.md`
-
-### v2.0 (2025-10-31) - 대화형 시스템
-
-**시스템 전환:**
-- 단일 요청 → 대화형 시스템 (Topics + Messages)
-- 직접 HWPX 생성 → Markdown 생성 후 변환
-
-**새 기능:**
-- Topics (대화 주제/스레드)
-- Messages (사용자/AI 메시지)
-- Artifacts (MD, HWPX 버전 관리)
-- AI Usage (메시지별 사용량 추적)
-- Transformations (변환 이력)
-
-**API 표준:**
-- 모든 엔드포인트 표준 응답 형식 (100% compliance)
-
-**테스트:**
-- 커버리지 48% → 70%+ (+22%)
-- claude_client: 14% → 100%
-- hwp_handler: 15% → 83%
-
-## 에러 코드
-
-에러 코드는 `DOMAIN.DETAIL` 형식:
-
-**인증 (`AUTH.*`):**
-- `AUTH.INVALID_TOKEN` - 유효하지 않은 토큰
-- `AUTH.INVALID_CREDENTIALS` - 잘못된 이메일/비밀번호
-- `AUTH.UNAUTHORIZED` - 권한 부족
-
-**주제 (`TOPIC.*`):**
-- `TOPIC.NOT_FOUND` - 주제를 찾을 수 없음
-- `TOPIC.UNAUTHORIZED` - 접근 권한 없음
-- `TOPIC.CREATION_FAILED` - 생성 실패
-
-**메시지 (`MESSAGE.*`):**
-- `MESSAGE.NOT_FOUND` - 메시지를 찾을 수 없음
-- `MESSAGE.CREATION_FAILED` - 생성 실패
-
-**아티팩트 (`ARTIFACT.*`):**
-- `ARTIFACT.NOT_FOUND` - 아티팩트를 찾을 수 없음
-- `ARTIFACT.DOWNLOAD_FAILED` - 다운로드 실패
-
-**검증 (`VALIDATION.*`):**
-- `VALIDATION.REQUIRED_FIELD` - 필수 필드 누락
-- `VALIDATION.INVALID_FORMAT` - 잘못된 형식
-
-**서버 (`SERVER.*`):**
-- `SERVER.INTERNAL_ERROR` - 내부 서버 오류
-- `SERVER.DATABASE_ERROR` - 데이터베이스 오류
-
-## 프로젝트 구조
-
-```
-hwp-report-generator/
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── routers/        # auth, topics, messages, artifacts, admin, reports
-│   │   ├── models/         # Pydantic 모델
-│   │   ├── database/       # SQLite CRUD
-│   │   └── utils/
-│   │       ├── prompts.py         # ✨ 시스템 프롬프트 (v2.1)
-│   │       ├── claude_client.py   # Claude API (Markdown 반환)
-│   │       ├── markdown_parser.py # ✨ 동적 파싱 (v2.1)
-│   │       ├── hwp_handler.py     # HWPX 처리
-│   │       ├── response_helper.py # API 표준 응답
-│   │       └── auth.py            # JWT
-│   ├── templates/          # report_template.hwpx
-│   ├── artifacts/          # 생성 파일 (MD, HWPX)
-│   ├── data/               # hwp_reports.db
-│   ├── doc/                # 개발 문서
-│   ├── tests/              # pytest 테스트
-│   └── .env
-│
-├── frontend/               # React + TypeScript
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   └── types/api.ts
-│   └── package.json
-│
-├── CLAUDE.md              # 이 파일
-├── BACKEND_ONBOARDING.md  # 백엔드 상세 가이드
-└── README.md
-```
-
-## Unit Spec Workflow
-
-**⚠️ MANDATORY: Before implementing ANY feature or fix, Claude Code MUST create a Unit Spec document.**
-
-### Workflow
-
-1. **User Request** → Feature/bug description
-2. **Unit Spec Creation** → Claude creates spec following template
-3. **User Review** → User reviews and approves
-4. **Implementation** → Implement per spec
-5. **Testing** → Verify test cases in spec
-
-### Unit Spec Template
-
-Each spec includes:
-
-1. **Requirements Summary**
-   - Purpose (one-line)
-   - Type: ☐ New ☐ Change ☐ Delete
-   - Core requirements (input/output/constraints/flow)
-
-2. **Implementation Files** (New/Change/Reference table)
-
-3. **Flow Diagram** (Mermaid)
-
-4. **Test Plan**
-   - TDD principles
-   - Test cases table (TC ID, Layer, Scenario, Purpose, Input, Expected)
-
-### Spec File Management
-
-- **Location:** `backend/doc/specs/`
-- **Naming:** `YYYYMMDD_feature_name.md`
-- **Template:** `backend/doc/Backend_UnitSpec.md`
-
-### Example
-
-```
-User: "Add PDF export feature"
-
-Claude: "Creating Unit Spec first..."
-→ Creates: backend/doc/specs/20251106_pdf_export.md
-→ Shows: Summary of requirements, files, flow, tests
-→ Asks: "Please review. Proceed?"
-
-User: "Approved"
-
-Claude: "Implementing..."
-→ Code + Tests → Report results
-```
-
-### Benefits
-
-- Clear requirements before coding
-- Test-first development (TDD)
-- Built-in documentation
-- Early review point
-- Consistent process
+이 파일은 Claude Code (claude.ai/code)가 이 저장소의 코드 작업 시 참고하는 종합 개발 가이드입니다.
 
 ---
 
-## 참고 문서
+## ⚠️ CRITICAL: 백엔드 개발 시 Unit Spec 우선 규칙
 
-- `BACKEND_ONBOARDING.md` - 백엔드 온보딩 상세 가이드
-- `backend/BACKEND_TEST.md` - 테스트 가이드
+### 🔴 의무 규칙 (반드시 따라야 함)
+
+**Rule #1: 반드시 Unit Spec부터 작성**
+- 모든 신규 기능, 버그 수정, 리팩토링은 **코드 작성 전에 반드시 Unit Spec을 먼저 작성**
+- 규모가 작아도, 간단해 보여도 **예외 없음**
+- Unit Spec 없이 코드 작성은 거절됨
+
+**Rule #2: 사용자 승인 후에만 구현**
+- Unit Spec 작성 후 사용자의 검토 및 승인을 받을 때까지 대기
+- 사용자가 수정을 요청하면 스펙을 수정
+- 승인이 나면 그제서야 구현 시작
+
+**Rule #3: Spec을 100% 준수하여 구현**
+- 승인된 Spec에서 정의한 테스트 케이스를 모두 통과시켜야 함
+- Spec의 파일 변경, 엔드포인트, 로직을 정확히 따름
+- 사용자 승인 없이 Spec 변경 금지
+
+**Rule #4: 모든 문서와 테스트 함께 제출**
+- 코드 + 테스트 + Unit Spec 문서를 함께 커밋
+- CLAUDE.md 업데이트 포함
+
+### 🎯 Claude Code가 따를 프롬프트 지시
+
+> **백엔드 코드 작업을 시작하기 전에 반드시 이를 읽으세요.**
+
+**Step 1: 사용자 요청 분석**
+- 사용자가 백엔드 기능을 요청하면, **절대로 코드를 먼저 작성하지 마세요**
+- 신규 기능, 버그 수정, 리팩토링 모두 동일하게 적용
+
+**Step 2: Unit Spec 작성 (90% 이상의 시간을 여기에)**
+```
+// 생성할 Spec 파일 경로
+backend/doc/specs/YYYYMMDD_feature_name.md
+
+// 사용할 템플릿
+backend/doc/Backend_UnitSpec.md
+
+// 포함할 항목 (모두 필수):
+1. 요구사항 요약 (Purpose, Type, Core Requirements)
+2. 구현 대상 파일 (New/Change/Reference 표)
+3. 흐름도 (Mermaid flowchart 또는 sequence diagram)
+4. 테스트 계획 (최소 3개 이상의 TC, Layer별 분류)
+5. 에러 처리 시나리오
+```
+
+**Step 3: 사용자 검토 대기**
+- Spec을 사용자에게 제시하고 승인을 받을 때까지 대기
+- "이 Spec이 맞나요? 수정할 부분이 있나요?" 물어보기
+- 사용자 의견 반영하여 Spec 수정
+
+**Step 4: 승인 후 구현**
+- 사용자 승인 이후에만 코드 작성 시작
+- Spec에서 정의한 테스트 케이스를 먼저 작성 (TDD)
+- 테스트가 모두 통과할 때까지 구현
+
+**Step 5: 최종 검증 및 커밋**
+- 모든 테스트 통과 확인
+- CLAUDE.md 업데이트
+- Unit Spec 문서 + 코드 + 테스트 함께 커밋
+
+---
+
+## 프로젝트 개요
+
+**HWP Report Generator**: Claude AI를 활용하여 한글(HWP) 형식의 금융 보고서를 자동 생성하는 FastAPI 기반 웹 시스템입니다.
+
+- 사용자가 주제를 입력 → Claude AI로 보고서 내용 자동 생성 → HWPX 형식 파일 생성
+- **v2.0+**: 대화형 시스템 (토픽 기반 스레드, 메시지 체이닝)
+- **v2.2**: Template 기반 동적 System Prompt 지원
+- **v2.3**: 통합 문서화 및 아키텍처 정리
+
+---
+
+## 기술 스택
+
+| 영역 | 스택 | 버전 |
+|------|------|------|
+| **Backend** | FastAPI | 0.104.1 |
+| **Runtime** | Python | 3.12 |
+| **패키지 관리** | uv / pip | - |
+| **AI** | Anthropic Claude API | anthropic==0.71.0 |
+| **Model** | Claude Sonnet 4.5 | claude-sonnet-4-5-20250929 |
+| **DB** | SQLite | 3.x |
+| **HWPX 처리** | olefile, zipfile | olefile==0.47 |
+| **인증** | JWT | python-jose==3.3.0 |
+| **해싱** | bcrypt | bcrypt==4.1.2 |
+| **Frontend** | React + TypeScript | 18.x / 5.x |
+
+---
+
+## Backend Architecture (Detailed Documentation)
+
+**📖 For comprehensive backend documentation including:**
+- Complete architecture overview (routers, models, database schemas)
+- Core functions with step-by-step flows (generate_topic_report 9 steps, ask 12 steps, upload_template 9 steps)
+- Database design (11 tables with SQL schemas)
+- API endpoints (6 routers)
+- E2E workflows (2 scenarios)
+- Development checklist (Step 0, 1, 2)
+- Environment setup & folder structure
+
+**→ See [backend/CLAUDE.md](backend/CLAUDE.md)**
+
+---
+
+## 주요 개선사항 (v2.0 → v2.4)
+
+### v2.4 (2025-11-12) - Sequential Planning + Real-time Progress Tracking
+
+✅ **Sequential Planning 기반 보고서 계획 수립**
+- Template의 prompt_system을 활용하여 Claude Sequential Planning으로 보고서 계획 생성
+- 신규 엔드포인트: POST /api/topics/plan (< 2초 제약)
+- 신규 유틸: `utils/sequential_planning.py` (219줄)
+- 응답: 마크다운 형식 계획 + 섹션 목록
+
+✅ **백그라운드 보고서 생성 + 실시간 진행 추적**
+- 기존 POST /generate를 백그라운드 asyncio.create_task()로 리팩토링
+- 응답시간 제약: < 1초 (202 Accepted)
+- 메모리 기반 상태 관리: `utils/generation_status.py` (298줄)
+- 신규 엔드포인트:
+  - GET /api/topics/{id}/status (폴링, < 500ms)
+  - GET /api/topics/{id}/status/stream (SSE, 실시간 완료 알림)
+
+✅ **Pydantic 모델 추가**
+- `PlanRequest`, `PlanResponse`, `PlanSection` 모델
+- `GenerateRequest`, `GenerateResponse` 모델
+- `StatusResponse` 모델
+
+✅ **테스트 추가**
+- `test_generation_status.py`: 35개 unit tests (100% 통과)
+- generation_status 모듈 커버리지 97%
+
+✅ **Unit Spec 문서화**
+- `backend/doc/specs/20251112_sequential_planning_with_sse_progress.md`
+- 완전한 API 정의, 테스트 계획, 구현 체크리스트 포함
+
+### v2.3 (2025-11-11) - /ask 응답 형태 자동 판별 + 통합 문서화
+
+✅ **/ask 응답 형태 자동 판별 (질문 vs 보고서)**
+- Claude API 응답을 자동으로 분류 (3단계 감지 알고리즘)
+- 보고서: 마크다운 H2 섹션 + 충분한 내용 → artifact 생성
+- 질문: 추가 정보 요청 또는 사용자 입력 필요 → artifact 없이 응답만 반환
+- 신규 util: `response_detector.py` (231줄)
+- 테스트: 40개 단위 테스트 (100% 통과)
+
+✅ **백엔드 CLAUDE.md 완전 갱신**
+- 주요 함수 E2E 플로우 상세 분석
+- 모든 라우터, 모델, DB 구조 문서화
+- 환경 변수 설정 가이드
+- 12단계 ask() 플로우 도식화
+
+✅ **아키텍처 정리**
+- 라우터 6개, 모델 9개, DB 11개, Utils 13개 분류
+- 각 컴포넌트의 역할 명확화
+- 의존성 관계 정의
+
+### v2.2 (2025-11-10) - 동적 Prompt + 마크다운 파싱 수정
+
+✅ **Template 기반 동적 System Prompt**
+- 템플릿 업로드 시 Placeholder 추출 → System Prompt 자동 생성
+- POST /api/topics/generate, POST /api/topics/{id}/ask에서 template_id 지원
+- 우선순위: custom > template_id > default
+
+✅ **/ask 아티팩트 마크다운 파싱 수정**
+- 문제: Claude 응답 전체가 artifact로 저장됨
+- 해결: parse_markdown_to_content() + build_report_md() 적용
+- /generate와 /ask의 일관성 확보
+
+✅ **테스트 추가**
+- /ask 마크다운 파싱 3개 신규 테스트
+- 전체 topics 테스트 28/28 통과 (100%)
+- topics.py 커버리지 39% → 78%
+
+### v2.1 (2025-11-04) - 프롬프트 통합
+
+✅ **System Prompt 중앙 관리** (utils/prompts.py)
+- FINANCIAL_REPORT_SYSTEM_PROMPT 상수화
+- create_dynamic_system_prompt() 함수
+- create_topic_context_message() 함수
+
+✅ **동적 섹션 추출** (markdown_parser.py)
+- H2 섹션 자동 분류 (요약, 배경, 주요내용, 결론)
+- 동적 제목 추출 (title_summary, title_background, ...)
+- 키워드 우선순위 조정
+
+✅ **ClaudeClient 반환 타입 변경**
+- Dict[str, str] → str (Markdown만 반환)
+- 파싱 책임을 호출자로 이전 (관심사 분리)
+
+### v2.0 (2025-10-31) - 대화형 시스템
+
+✅ **Topics + Messages 아키텍처**
+- 단일 요청 → 대화형 시스템 (토픽 스레드)
+- 메시지 seq_no 기반 순서 관리
+- 컨텍스트 유지 (이전 메시지 참조)
+
+✅ **Artifacts 버전 관리**
+- MD (Markdown), HWPX, PDF 지원
+- 버전 번호로 변경사항 추적
+- Transformation 이력 (MD→HWPX 변환)
+
+✅ **API 표준화**
+- success_response(), error_response() 헬퍼
+- ErrorCode 클래스 (DOMAIN.DETAIL 형식)
+- 모든 엔드포인트 100% 준수
+
+---
+
+## 개발 체크리스트 (백엔드)
+
+### ✅ Step 0: Unit Spec 작성 (필수, 가장 먼저)
+
+**이 단계를 완료하지 않으면 다음 단계로 진행할 수 없습니다.**
+
+```
+사용자 요청
+    ↓
+Claude: Unit Spec 작성
+    ↓
+[생성 위치] backend/doc/specs/YYYYMMDD_feature_name.md
+[템플릿] backend/doc/Backend_UnitSpec.md
+    ↓
+사용자: 스펙 검토 및 승인
+    ↓
+승인 ✅ → Step 1로 진행
+또는
+수정 요청 → 스펙 수정 후 재제출
+```
+
+**Unit Spec에 포함되어야 할 항목:**
+- [ ] 요구사항 요약 (Purpose, Type, Core Requirements)
+- [ ] 구현 대상 파일 (New/Change/Reference)
+- [ ] 흐름도 (Mermaid)
+- [ ] 테스트 계획 (최소 3개 이상 TC)
+- [ ] 에러 처리 시나리오
+
+---
+
+### ✅ Step 1: 구현 (Unit Spec 승인 후)
+
+**Step 0의 승인을 받았을 때만 진행**
+
+#### 1-1. 데이터 모델 정의
+- [ ] Pydantic 모델 정의 (`models/*.py`)
+- [ ] 필드 타입 힌트 완벽
+- [ ] 선택/필수 필드 명확히
+
+#### 1-2. 데이터베이스 로직
+- [ ] DB CRUD 메서드 구현 (`database/*.py`)
+- [ ] 트랜잭션 처리 (필요시)
+- [ ] SQL 쿼리 파라미터화 (SQL Injection 방지)
+- [ ] 인덱스 고려
+
+#### 1-3. 라우터/API 구현
+- [ ] 라우터 함수 구현 (`routers/*.py`)
+- [ ] API 응답: **반드시** `success_response()` / `error_response()` 사용
+- [ ] 에러 코드: **반드시** `ErrorCode` 상수 사용
+- [ ] HTTP 상태 코드 정확히
+
+#### 1-4. 로깅 및 문서화
+- [ ] 로깅 추가 (`logger.info()`, `logger.warning()`, `logger.error()`)
+- [ ] DocString 작성 (Google 스타일, 모든 함수)
+- [ ] 파라미터, 반환값, 예외 명시
+
+#### 1-5. 테스트 작성
+- [ ] 테스트 작성 (`tests/test_*.py`)
+- [ ] Unit Spec의 모든 TC 구현
+- [ ] 성공 케이스 + 에러 케이스 모두
+- [ ] 모든 테스트 **반드시 통과**
+
+---
+
+### ✅ Step 2: 검증 및 최종 확인 (구현 후)
+
+#### 2-1. 기존 코드 영향 확인
+- [ ] 기존 테스트 실행 (새 에러 없는지 확인)
+- [ ] 호환성 검증 (breaking change 없는지)
+- [ ] 의존성 충돌 확인
+
+#### 2-2. 문서 업데이트
+- [ ] CLAUDE.md 업데이트 (새 엔드포인트, 모델, DB 등)
+- [ ] 필요시 README.md 업데이트
+
+#### 2-3. 깃 커밋
+- [ ] Unit Spec 문서 포함 (`backend/doc/specs/YYYYMMDD_*.md`)
+- [ ] 깃 커밋 메시지: feat/fix/refactor 명확히
+- [ ] 커밋 메시지에 Unit Spec 파일 명시
+
+---
+
+### 🚫 주의사항
+
+**다음은 절대 하면 안 됨:**
+- ❌ Unit Spec 없이 코드 작성 시작
+- ❌ Unit Spec 미승인 상태에서 구현
+- ❌ 승인된 Spec에서 임의로 변경
+- ❌ 테스트 없이 구현 완료했다고 간주
+- ❌ HTTPException 직접 사용 (response_helper 사용)
+- ❌ 에러 코드 하드코딩 (ErrorCode 상수 사용)
+
+---
+
+### 버그 수정 / 리팩토링 시
+
+**중요: 규모가 작아도 Unit Spec 필수**
+
+- [ ] Unit Spec 작성 (버그/리팩토링 계획)
+- [ ] 사용자 승인 (큰 변경사항일 경우)
+- [ ] 기존 테스트 확인 (모두 통과해야 함)
+- [ ] 새 테스트 추가 (버그 재발 방지)
+- [ ] CLAUDE.md 업데이트
+
+---
+
+## 참고 자료
+
 - `backend/CLAUDE.md` - 백엔드 개발 가이드라인 (DocString, 파일 관리)
-- `backend/doc/Backend_UnitSpec.md` - **Unit Spec 템플릿**
+- `backend/BACKEND_TEST.md` - 테스트 작성 가이드
+- `backend/doc/Backend_UnitSpec.md` - Unit Spec 템플릿
+- `backend/doc/specs/` - 구현된 스펙 문서들
 - `backend/doc/07.PromptIntegrate.md` - 프롬프트 통합 가이드
 - `backend/doc/04.messageChaining.md` - 메시지 체이닝 설계
 
 ---
 
-**마지막 업데이트:** 2025-11-06
-**버전:** 2.2
-**Claude Code 최적화**
+**마지막 업데이트:** 2025-11-12
+**버전:** 2.4.0
+**상태:** ✅ Sequential Planning + Real-time Progress Tracking 완성

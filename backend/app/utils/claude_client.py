@@ -20,23 +20,45 @@ logger = logging.getLogger(__name__)
 
 
 class ClaudeClient:
-    """Claude API를 사용하여 보고서 내용을 생성하는 클라이언트"""
+    """Claude API를 사용하여 보고서 내용을 생성하는 클라이언트
+
+    세 가지 메서드 지원:
+    - chat_completion(): 기본 모델 (Sonnet 4.5)
+    - chat_completion_fast(): 빠른 모델 (Haiku 4.5)
+    - chat_completion_reasoning(): 추론 모델 (Opus)
+    """
 
     def __init__(self):
-        """Claude 클라이언트 초기화"""
+        """Claude 클라이언트 초기화 - 세 가지 모델 로드"""
         self.api_key = os.getenv("CLAUDE_API_KEY")
-        self.model = os.getenv("CLAUDE_MODEL", ClaudeConfig.MODEL)
-        self.max_tokens = ClaudeConfig.MAX_TOKENS
 
         if not self.api_key:
             raise ValueError("CLAUDE_API_KEY 환경 변수가 설정되지 않았습니다.")
 
+        # 기본 모델 (Sonnet 4.5)
+        self.model = os.getenv("CLAUDE_MODEL", ClaudeConfig.MODEL)
+
+        # 빠른 모델 (Haiku 4.5)
+        self.fast_model = os.getenv("CLAUDE_FAST_MODEL", ClaudeConfig.FAST_MODEL)
+
+        # 추론 모델 (Opus)
+        self.reasoning_model = os.getenv(
+            "CLAUDE_REASONING_MODEL",
+            ClaudeConfig.REASONING_MODEL
+        )
+
+        self.max_tokens = ClaudeConfig.MAX_TOKENS
         self.client = Anthropic(api_key=self.api_key)
 
         # 토큰 사용량 추적
         self.last_input_tokens = 0
         self.last_output_tokens = 0
         self.last_total_tokens = 0
+
+        logger.info(f"ClaudeClient 초기화 완료")
+        logger.info(f"  - 기본 모델: {self.model}")
+        logger.info(f"  - 빠른 모델: {self.fast_model}")
+        logger.info(f"  - 추론 모델: {self.reasoning_model}")
 
     def generate_report(self, topic: str) -> str:
         """주제를 받아 금융 업무보고서 내용을 Markdown 형식으로 생성합니다.
@@ -70,7 +92,35 @@ class ClaudeClient:
             )
 
             # 응답 텍스트 (Markdown)
-            content = message.content[0].text
+            logger.info(f"Claude API 응답 객체 정보 (생성 모드):")
+            logger.info(f"  - stop_reason: {getattr(message, 'stop_reason', 'N/A')}")
+            logger.info(f"  - content 개수: {len(message.content) if message.content else 0}")
+
+            if not message.content:
+                # content가 비어있을 때 상세 정보 로깅
+                logger.error(f"Claude API content가 비어있습니다! (생성 모드)")
+                logger.error(f"  - stop_reason: {getattr(message, 'stop_reason', 'N/A')}")
+                logger.error(f"  - usage.input_tokens: {getattr(message.usage, 'input_tokens', 'N/A')}")
+                logger.error(f"  - usage.output_tokens: {getattr(message.usage, 'output_tokens', 'N/A')}")
+                logger.error(f"  - model: {getattr(message, 'model', 'N/A')}")
+
+                raise ValueError(
+                    f"Claude API 응답이 비어있습니다 (생성 모드). "
+                    f"stop_reason={getattr(message, 'stop_reason', 'N/A')}, "
+                    f"output_tokens={getattr(message.usage, 'output_tokens', 'N/A')}"
+                )
+
+            # text 타입의 content 추출 (tool_use 등 다른 타입 제외)
+            text_content = None
+            for content_block in message.content:
+                if hasattr(content_block, 'text'):
+                    text_content = content_block.text
+                    break
+
+            if not text_content:
+                raise ValueError(f"Claude API 응답에서 텍스트 컨텐츠를 찾을 수 없습니다. Content types: {[type(c).__name__ for c in message.content]}")
+
+            content = text_content
 
             logger.info("=" * 80)
             logger.info("Claude API 응답 내용 (Markdown):")
@@ -160,8 +210,60 @@ class ClaudeClient:
             # API call with optional web search
             response = self.client.messages.create(**api_params)
 
-            # Extract response content
-            content = response.content[0].text
+            # Extract response content with detailed logging
+            logger.info(f"Claude API 응답 객체 정보:")
+            logger.info(f"  - stop_reason: {getattr(response, 'stop_reason', 'N/A')}")
+            logger.info(f"  - content 개수: {len(response.content) if response.content else 0}")
+            logger.info(f"  - model: {getattr(response, 'model', 'N/A')}")
+
+            # 응답 객체 전체 구조 확인
+            try:
+                import json
+                response_dict = response.model_dump() if hasattr(response, 'model_dump') else response.dict()
+                logger.info(f"응답 JSON: {json.dumps(response_dict, default=str, indent=2)}")
+            except Exception as e:
+                logger.error(f"응답 JSON 변환 실패: {str(e)}")
+                logger.error(f"응답 객체 타입: {type(response)}")
+                logger.error(f"응답 객체 속성: {dir(response)}")
+
+            if response.content:
+                for i, content_block in enumerate(response.content):
+                    logger.info(f"  - content[{i}] 타입: {type(content_block).__name__}")
+                    if hasattr(content_block, 'text'):
+                        logger.info(f"    - text 길이: {len(content_block.text)}")
+                    if hasattr(content_block, 'type'):
+                        logger.info(f"    - type 속성: {content_block.type}")
+
+            if not response.content:
+                # content가 비어있을 때 상세 정보 로깅
+                logger.error(f"Claude API content가 비어있습니다!")
+                logger.error(f"  - stop_reason: {getattr(response, 'stop_reason', 'N/A')}")
+                logger.error(f"  - usage.input_tokens: {getattr(response.usage, 'input_tokens', 'N/A')}")
+                logger.error(f"  - usage.output_tokens: {getattr(response.usage, 'output_tokens', 'N/A')}")
+                logger.error(f"  - model: {getattr(response, 'model', 'N/A')}")
+                logger.error(f"  - id: {getattr(response, 'id', 'N/A')}")
+
+                # API 메시지 내용 확인 (디버깅용)
+                logger.error(f"  - 요청한 메시지 개수: {len(messages)}")
+                logger.error(f"  - 시스템 프롬프트 길이: {len(system_prompt) if system_prompt else 0}")
+
+                raise ValueError(
+                    f"Claude API 응답이 비어있습니다. "
+                    f"stop_reason={getattr(response, 'stop_reason', 'N/A')}, "
+                    f"output_tokens={getattr(response.usage, 'output_tokens', 'N/A')}"
+                )
+
+            # text 타입의 content 추출 (tool_use 등 다른 타입 제외)
+            text_content = None
+            for content_block in response.content:
+                if hasattr(content_block, 'text'):
+                    text_content = content_block.text
+                    break
+
+            if not text_content:
+                raise ValueError(f"Claude API 응답에서 텍스트 컨텐츠를 찾을 수 없습니다. Content types: {[type(c).__name__ for c in response.content]}")
+
+            content = text_content
 
             logger.info("=" * 80)
             logger.info("Claude API 응답 (채팅 모드):")
@@ -185,6 +287,125 @@ class ClaudeClient:
         except Exception as e:
             logger.error(f"Claude chat completion 중 오류 발생: {str(e)}")
             raise Exception(f"Claude chat completion 중 오류 발생: {str(e)}")
+
+    def chat_completion_fast(
+        self,
+        messages: list[Dict[str, str]],
+        system_prompt: str = None,
+        isWebSearch: bool = False
+    ) -> tuple[str, int, int]:
+        """빠른 모델(Haiku)을 사용한 Chat completion - 개요, 계획, 요약용
+
+        Args:
+            messages: 메시지 리스트
+            system_prompt: 시스템 프롬프트
+            isWebSearch: 웹 검색 활성화 여부
+
+        Returns:
+            (응답 텍스트, input_tokens, output_tokens)
+        """
+        return self._call_claude(
+            model=self.fast_model,
+            messages=messages,
+            system_prompt=system_prompt,
+            isWebSearch=isWebSearch,
+            model_name="Haiku (빠른)"
+        )
+
+    def chat_completion_reasoning(
+        self,
+        messages: list[Dict[str, str]],
+        system_prompt: str = None,
+        isWebSearch: bool = False
+    ) -> tuple[str, int, int]:
+        """추론 모델(Opus)을 사용한 Chat completion - 복잡 분석용
+
+        Args:
+            messages: 메시지 리스트
+            system_prompt: 시스템 프롬프트
+            isWebSearch: 웹 검색 활성화 여부
+
+        Returns:
+            (응답 텍스트, input_tokens, output_tokens)
+        """
+        return self._call_claude(
+            model=self.reasoning_model,
+            messages=messages,
+            system_prompt=system_prompt,
+            isWebSearch=isWebSearch,
+            model_name="Opus (추론)"
+        )
+
+    def _call_claude(
+        self,
+        model: str,
+        messages: list[Dict[str, str]],
+        system_prompt: str = None,
+        isWebSearch: bool = False,
+        model_name: str = "Unknown"
+    ) -> tuple[str, int, int]:
+        """공통 Claude API 호출 로직
+
+        Args:
+            model: 사용할 모델 ID
+            messages: 메시지 리스트
+            system_prompt: 시스템 프롬프트
+            isWebSearch: 웹 검색 활성화
+            model_name: 로깅용 모델명
+
+        Returns:
+            (응답 텍스트, input_tokens, output_tokens)
+        """
+        if system_prompt is None:
+            system_prompt = FINANCIAL_REPORT_SYSTEM_PROMPT
+
+        try:
+            logger.info(f"Claude API 호출 - 모델: {model_name}, 메시지: {len(messages)}")
+
+            # API call 파라미터
+            api_params = {
+                "model": model,
+                "max_tokens": self.max_tokens,
+                "system": system_prompt,
+                "messages": messages
+            }
+
+            # 웹 검색 활성화 시
+            if isWebSearch:
+                api_params["tools"] = [{"type": "web_search_20250131"}]
+                logger.info("웹 검색 도구 활성화")
+
+            # API call
+            response = self.client.messages.create(**api_params)
+
+            # 응답 검증
+            if not response.content:
+                raise ValueError(f"Claude API 응답이 비어있습니다")
+
+            text_content = None
+            for content_block in response.content:
+                if hasattr(content_block, 'text'):
+                    text_content = content_block.text
+                    break
+
+            if not text_content:
+                raise ValueError(f"Claude API에서 텍스트를 찾을 수 없습니다")
+
+            # 토큰 저장
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+
+            self.last_input_tokens = input_tokens
+            self.last_output_tokens = output_tokens
+            self.last_total_tokens = input_tokens + output_tokens
+
+            logger.info(f"응답 완료 - {model_name}, Input: {input_tokens}, Output: {output_tokens}")
+
+            return text_content, input_tokens, output_tokens
+
+        except Exception as e:
+            logger.error(f"Claude API 오류 ({model_name}): {str(e)}")
+            raise Exception(f"Claude API 오류 ({model_name}): {str(e)}")
 
     def get_token_usage(self) -> Dict[str, int]:
         """Gets the last API call's token usage.

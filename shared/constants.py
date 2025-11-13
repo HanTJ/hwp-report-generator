@@ -167,6 +167,9 @@ class ErrorCode:
         NETWORK_ERROR = _props.get("ERROR.SYSTEM.NETWORK_ERROR")
         TIMEOUT = _props.get("ERROR.SYSTEM.TIMEOUT")
 
+    class REQUEST:
+        TIMEOUT = _props.get("ERROR.REQUEST.TIMEOUT")
+
 
 # ============================================================
 # 피드백 코드
@@ -364,10 +367,18 @@ class BusinessRule:
 
 class ClaudeConfig:
     """Claude API 설정"""
-    MODEL = _props.get("CLAUDE.MODEL")
-    MAX_TOKENS = _props.get_int("CLAUDE.MAX_TOKENS")
+    # 기본 모델 (Sonnet 4.5 - 고품질)
+    MODEL = _props.get("CLAUDE.MODEL", "claude-sonnet-4-5-20250929")
+
+    # 빠른 모델 (Haiku 4.5 - 응답 속도 우선, 개요/계획/요약용)
+    FAST_MODEL = _props.get("CLAUDE.FAST_MODEL", "claude-haiku-4-5-20251001")
+
+    # 추론 모델 (Opus - 복잡한 분석용)
+    REASONING_MODEL = _props.get("CLAUDE.REASONING_MODEL", "claude-opus-4-1-20250805")
+
+    MAX_TOKENS = _props.get_int("CLAUDE.MAX_TOKENS", 4096)
     TEMPERATURE = float(_props.get("CLAUDE.TEMPERATURE", "1.0"))
-    TIMEOUT_SECONDS = _props.get_int("CLAUDE.TIMEOUT_SECONDS")
+    TIMEOUT_SECONDS = _props.get_int("CLAUDE.TIMEOUT_SECONDS", 300)
 
 
 # ============================================================

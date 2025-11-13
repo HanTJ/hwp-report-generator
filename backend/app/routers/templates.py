@@ -4,9 +4,13 @@ Handles template upload, retrieval, and deletion operations.
 """
 
 import uuid
+import logging
+from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 from app.models.user import User
 from app.models.template import (
@@ -15,6 +19,10 @@ from app.models.template import (
     TemplateDetailResponse,
     AdminTemplateResponse,
     PlaceholderResponse,
+    UpdatePromptSystemRequest,
+    UpdatePromptUserRequest,
+    UpdatePromptResponse,
+    RegeneratePromptResponse,
 )
 from app.database.template_db import TemplateDB, PlaceholderDB
 from app.database.user_db import UserDB
@@ -22,6 +30,8 @@ from app.models.template import TemplateCreate
 from app.utils.auth import get_current_active_user
 from app.utils.response_helper import success_response, error_response, ErrorCode
 from app.utils.templates_manager import TemplatesManager
+from app.utils.prompts import create_system_prompt_with_metadata, create_dynamic_system_prompt
+from app.utils.meta_info_generator import generate_placeholder_metadata
 
 router = APIRouter(prefix="/api/templates", tags=["Templates"])
 
@@ -216,36 +226,64 @@ async def upload_template(
                 # 8. SHA256 계산
                 sha256 = manager.calculate_sha256(str(temp_file_path))
 
-                # 9. DB 트랜잭션 시작
-                # 템플릿 생성 (Template 테이블 INSERT)
+                # [신규] 9단계: Placeholder 메타정보 생성 (Claude API 기반)
+                logger.info(f"[UPLOAD_TEMPLATE] Generating placeholder metadata with Claude - count={len(placeholder_list)}")
+                from app.utils.meta_info_generator import generate_placeholder_metadata_with_claude
+                try:
+                    metadata = await generate_placeholder_metadata_with_claude(
+                        raw_placeholders=placeholder_list,
+                        template_context=title,
+                        enable_fallback=True
+                    )
+                    logger.info(f"[UPLOAD_TEMPLATE] Metadata generated successfully - count={metadata.total_count}")
+                except Exception as e:
+                    logger.warning(f"[UPLOAD_TEMPLATE] Claude API failed, using fallback: {str(e)[:100]}")
+                    # 폴백: 기본 규칙 기반 메타정보 생성
+                    from app.utils.meta_info_generator import generate_placeholder_metadata
+                    metadata = generate_placeholder_metadata(placeholder_list)
+
+                # [변경] 10단계: 메타정보를 포함한 System Prompt 생성
+                # prompt_user는 None으로 유지 (사용자가 나중에 커스텀 프롬프트를 등록하기 위해 예약)
+                prompt_user = None
+                # metadata를 dict 리스트로 변환 (PlaceholderMetadata 객체 → dict)
+                # 동적 매핑: placeholder_key를 "key" 필드로 매핑하여 prompts.py와 호환
+                metadata_dicts = [
+                    {**p.model_dump(), "key": p.placeholder_key}
+                    for p in metadata.placeholders
+                ] if metadata else None
+                prompt_system = create_system_prompt_with_metadata(placeholder_list, metadata_dicts)
+                logger.info(f"[UPLOAD_TEMPLATE] System prompt created - length={len(prompt_system)}")
+
+                # [신규] 11단계: DB 트랜잭션으로 Template + Placeholders 원자적 저장
                 template_data = TemplateCreate(
                     title=title,
                     description=None,
                     filename=file.filename,
                     file_path="",  # 임시값, 아래에서 업데이트
                     file_size=len(file_content),
-                    sha256=sha256
+                    sha256=sha256,
+                    prompt_user=prompt_user,         # 신규: Placeholder 목록
+                    prompt_system=prompt_system      # 신규: 생성된 System Prompt
                 )
-                # 템플릿 생성 (파일명 중복 허용)
-                template = TemplateDB.create_template(current_user.id, template_data)
 
-                # 10. 최종 파일 저장 경로로 이동
+                # create_template_with_transaction: Template + Placeholder 원자적 저장
+                template = TemplateDB.create_template_with_transaction(
+                    current_user.id,
+                    template_data,
+                    placeholder_list
+                )
+
+                # [기존] 12단계: 최종 파일 저장 경로로 이동
                 final_file_path = manager.save_template_file(
                     str(temp_file_path),
                     current_user.id,
                     template.id
                 )
 
-                # 11. 플레이스홀더 저장 (Placeholders 테이블 INSERT)
-                created_placeholders = PlaceholderDB.create_placeholders_batch(
-                    template.id,
-                    placeholder_list
-                )
-
-                # 12. 응답 생성
+                # [기존] 13단계: 응답 생성
                 placeholder_responses = [
-                    PlaceholderResponse(key=p.placeholder_key)
-                    for p in created_placeholders
+                    PlaceholderResponse(key=key)
+                    for key in placeholder_list
                 ]
 
                 response_data = UploadTemplateResponse(
@@ -254,10 +292,19 @@ async def upload_template(
                     filename=template.filename,
                     file_size=template.file_size,
                     placeholders=placeholder_responses,
+                    prompt_user=template.prompt_user,         # 신규
+                    prompt_system=template.prompt_system,     # 신규
                     created_at=template.created_at
                 )
 
-                return success_response(response_data.model_dump())
+                # 응답에 metadata 추가 (메타정보 JSON)
+                response_dict = response_data.model_dump()
+                if metadata:
+                    response_dict['placeholders_metadata'] = metadata.model_dump()
+                else:
+                    response_dict['placeholders_metadata'] = None
+
+                return success_response(response_dict)
 
             finally:
                 # 임시 파일 정리
@@ -482,4 +529,391 @@ async def delete_template(
             code=ErrorCode.SERVER_INTERNAL_ERROR,
             http_status=500,
             message="템플릿 삭제 중 오류가 발생했습니다."
+        )
+
+
+@router.put("/{template_id}/prompt-system", summary="Update template prompt_system")
+async def update_template_prompt_system(
+    template_id: int,
+    request: UpdatePromptSystemRequest,
+    current_user: User = Depends(get_current_active_user)
+) -> dict:
+    """템플릿의 prompt_system을 수정합니다.
+
+    경로 파라미터(Path Parameters):
+        - template_id: 수정할 템플릿 ID
+
+    요청 본문(Request Body):
+        - prompt_system: 새로운 시스템 프롬프트 (필수, 빈 값 불가)
+
+    반환(Returns):
+        수정된 템플릿 정보 (id, title, prompt_system, prompt_user, updated_at)
+
+    에러 코드(Error Codes):
+        - TEMPLATE.INVALID_PROMPT: prompt_system이 빈 값
+        - TEMPLATE.NOT_FOUND: 템플릿을 찾을 수 없음
+        - TEMPLATE.FORBIDDEN: 권한 부족 (자신의 템플릿이 아님)
+        - AUTH.UNAUTHORIZED: 토큰 인증 실패
+        - SERVER.INTERNAL_ERROR: 서버 오류
+
+    권한 검증(Permission):
+        - 일반 사용자: 자신이 생성한 템플릿만 수정 가능
+        - 관리자(is_admin=True): 모든 사용자의 템플릿 수정 가능
+
+    예시(Examples):
+        요청(Request):
+        ```
+        PUT /api/templates/1/prompt-system
+        Content-Type: application/json
+
+        {
+          "prompt_system": "새로운 시스템 프롬프트"
+        }
+        ```
+
+        응답(Response, 200):
+        ```json
+        {
+          "success": true,
+          "message": "System prompt updated successfully",
+          "data": {
+            "id": 1,
+            "title": "재무보고서 템플릿",
+            "prompt_system": "새로운 시스템 프롬프트",
+            "prompt_user": "기존 사용자 프롬프트",
+            "updated_at": "2025-11-11T10:30:00"
+          }
+        }
+        ```
+    """
+    try:
+        # 1. 입력값 검증
+        if not request.prompt_system or request.prompt_system.strip() == "":
+            logger.warning(f"[UPDATE_PROMPT_SYSTEM] Empty prompt_system - user_id={current_user.id}")
+            return error_response(
+                code=ErrorCode.TEMPLATE_INVALID_PROMPT,
+                http_status=400,
+                message="System prompt cannot be empty",
+                hint="유효한 시스템 프롬프트를 입력해주세요."
+            )
+
+        # 2. 템플릿 조회 및 권한 검증
+        template = TemplateDB.get_template_by_id(template_id)
+        if not template:
+            logger.warning(f"[UPDATE_PROMPT_SYSTEM] Template not found - template_id={template_id}")
+            return error_response(
+                code=ErrorCode.TEMPLATE_NOT_FOUND,
+                http_status=404,
+                message="Template not found",
+                hint="템플릿 ID를 확인해주세요."
+            )
+
+        # 3. 권한 검증 (관리자 또는 소유자만 가능)
+        if not current_user.is_admin and template.user_id != current_user.id:
+            logger.warning(
+                f"[UPDATE_PROMPT_SYSTEM] Permission denied - user_id={current_user.id}, "
+                f"template_owner_id={template.user_id}"
+            )
+            return error_response(
+                code=ErrorCode.TEMPLATE_FORBIDDEN,
+                http_status=403,
+                message="Forbidden: Cannot modify other user's template",
+                hint="자신이 생성한 템플릿만 수정할 수 있습니다."
+            )
+
+        # 4. DB 업데이트
+        updated_template = TemplateDB.update_prompt_system(template_id, request.prompt_system)
+        if not updated_template:
+            logger.error(f"[UPDATE_PROMPT_SYSTEM] DB update failed - template_id={template_id}")
+            return error_response(
+                code=ErrorCode.SERVER_INTERNAL_ERROR,
+                http_status=500,
+                message="Failed to update prompt_system"
+            )
+
+        # 5. 응답 생성
+        logger.info(f"[UPDATE_PROMPT_SYSTEM] Success - template_id={template_id}, user_id={current_user.id}")
+        response_data = UpdatePromptResponse(
+            id=updated_template.id,
+            title=updated_template.title,
+            prompt_system=updated_template.prompt_system,
+            prompt_user=updated_template.prompt_user,
+            updated_at=updated_template.updated_at
+        )
+        return success_response(response_data)
+
+    except Exception as e:
+        logger.error(f"[UPDATE_PROMPT_SYSTEM] Error - {str(e)}")
+        return error_response(
+            code=ErrorCode.SERVER_INTERNAL_ERROR,
+            http_status=500,
+            message="Failed to update system prompt"
+        )
+
+
+@router.put("/{template_id}/prompt-user", summary="Update template prompt_user")
+async def update_template_prompt_user(
+    template_id: int,
+    request: UpdatePromptUserRequest,
+    current_user: User = Depends(get_current_active_user)
+) -> dict:
+    """템플릿의 prompt_user를 수정합니다.
+
+    경로 파라미터(Path Parameters):
+        - template_id: 수정할 템플릿 ID
+
+    요청 본문(Request Body):
+        - prompt_user: 새로운 사용자 프롬프트 (선택사항, 빈 값 가능)
+
+    반환(Returns):
+        수정된 템플릿 정보 (id, title, prompt_system, prompt_user, updated_at)
+
+    에러 코드(Error Codes):
+        - TEMPLATE.NOT_FOUND: 템플릿을 찾을 수 없음
+        - TEMPLATE.FORBIDDEN: 권한 부족 (자신의 템플릿이 아님)
+        - AUTH.UNAUTHORIZED: 토큰 인증 실패
+        - SERVER.INTERNAL_ERROR: 서버 오류
+
+    권한 검증(Permission):
+        - 일반 사용자: 자신이 생성한 템플릿만 수정 가능
+        - 관리자(is_admin=True): 모든 사용자의 템플릿 수정 가능
+
+    예시(Examples):
+        요청(Request):
+        ```
+        PUT /api/templates/1/prompt-user
+        Content-Type: application/json
+
+        {
+          "prompt_user": "새로운 사용자 프롬프트"
+        }
+        ```
+
+        응답(Response, 200):
+        ```json
+        {
+          "success": true,
+          "message": "User prompt updated successfully",
+          "data": {
+            "id": 1,
+            "title": "재무보고서 템플릿",
+            "prompt_system": "기존 시스템 프롬프트",
+            "prompt_user": "새로운 사용자 프롬프트",
+            "updated_at": "2025-11-11T10:30:00"
+          }
+        }
+        ```
+    """
+    try:
+        # 1. 템플릿 조회 및 권한 검증
+        template = TemplateDB.get_template_by_id(template_id)
+        if not template:
+            logger.warning(f"[UPDATE_PROMPT_USER] Template not found - template_id={template_id}")
+            return error_response(
+                code=ErrorCode.TEMPLATE_NOT_FOUND,
+                http_status=404,
+                message="Template not found",
+                hint="템플릿 ID를 확인해주세요."
+            )
+
+        # 2. 권한 검증 (관리자 또는 소유자만 가능)
+        if not current_user.is_admin and template.user_id != current_user.id:
+            logger.warning(
+                f"[UPDATE_PROMPT_USER] Permission denied - user_id={current_user.id}, "
+                f"template_owner_id={template.user_id}"
+            )
+            return error_response(
+                code=ErrorCode.TEMPLATE_FORBIDDEN,
+                http_status=403,
+                message="Forbidden: Cannot modify other user's template",
+                hint="자신이 생성한 템플릿만 수정할 수 있습니다."
+            )
+
+        # 3. DB 업데이트
+        updated_template = TemplateDB.update_prompt_user(template_id, request.prompt_user)
+        if not updated_template:
+            logger.error(f"[UPDATE_PROMPT_USER] DB update failed - template_id={template_id}")
+            return error_response(
+                code=ErrorCode.SERVER_INTERNAL_ERROR,
+                http_status=500,
+                message="Failed to update prompt_user"
+            )
+
+        # 4. 응답 생성
+        logger.info(f"[UPDATE_PROMPT_USER] Success - template_id={template_id}, user_id={current_user.id}")
+        response_data = UpdatePromptResponse(
+            id=updated_template.id,
+            title=updated_template.title,
+            prompt_system=updated_template.prompt_system,
+            prompt_user=updated_template.prompt_user,
+            updated_at=updated_template.updated_at
+        )
+        return success_response(response_data)
+
+    except Exception as e:
+        logger.error(f"[UPDATE_PROMPT_USER] Error - {str(e)}")
+        return error_response(
+            code=ErrorCode.SERVER_INTERNAL_ERROR,
+            http_status=500,
+            message="Failed to update user prompt"
+        )
+
+
+@router.post("/{template_id}/regenerate-prompt-system", summary="Regenerate template prompt_system")
+async def regenerate_template_prompt_system(
+    template_id: int,
+    current_user: User = Depends(get_current_active_user)
+) -> dict:
+    """템플릿의 prompt_system을 재생성합니다.
+
+    경로 파라미터(Path Parameters):
+        - template_id: 재생성할 템플릿 ID
+
+    반환(Returns):
+        재생성된 템플릿 정보 (id, prompt_system, regenerated_at)
+
+    에러 코드(Error Codes):
+        - TEMPLATE.NOT_FOUND: 템플릿을 찾을 수 없음
+        - TEMPLATE.FORBIDDEN: 권한 부족 (자신의 템플릿이 아님)
+        - TEMPLATE.GENERATION_FAILED: Claude API 호출 실패
+        - AUTH.UNAUTHORIZED: 토큰 인증 실패
+        - SERVER.INTERNAL_ERROR: 서버 오류
+
+    권한 검증(Permission):
+        - 일반 사용자: 자신이 생성한 템플릿만 재생성 가능
+        - 관리자(is_admin=True): 모든 사용자의 템플릿 재생성 가능
+
+    재생성 로직:
+        1. 템플릿에 연결된 Placeholder 목록 조회
+        2. generate_placeholder_metadata()로 메타정보 생성 (Claude API)
+        3. create_system_prompt_with_metadata()로 System Prompt 생성
+        4. DB에 저장
+
+    예시(Examples):
+        요청(Request):
+        ```
+        POST /api/templates/1/regenerate-prompt-system
+        ```
+
+        응답(Response, 200):
+        ```json
+        {
+          "success": true,
+          "message": "System prompt regenerated successfully",
+          "data": {
+            "id": 1,
+            "prompt_system": "Claude API로 재생성된 시스템 프롬프트",
+            "regenerated_at": "2025-11-11T10:35:00"
+          }
+        }
+        ```
+    """
+    try:
+        # 1. 템플릿 조회 및 권한 검증
+        template = TemplateDB.get_template_by_id(template_id)
+        if not template:
+            logger.warning(f"[REGENERATE_PROMPT] Template not found - template_id={template_id}")
+            return error_response(
+                code=ErrorCode.TEMPLATE_NOT_FOUND,
+                http_status=404,
+                message="Template not found",
+                hint="템플릿 ID를 확인해주세요."
+            )
+
+        # 2. 권한 검증 (관리자 또는 소유자만 가능)
+        if not current_user.is_admin and template.user_id != current_user.id:
+            logger.warning(
+                f"[REGENERATE_PROMPT] Permission denied - user_id={current_user.id}, "
+                f"template_owner_id={template.user_id}"
+            )
+            return error_response(
+                code=ErrorCode.TEMPLATE_FORBIDDEN,
+                http_status=403,
+                message="Forbidden: Cannot modify other user's template",
+                hint="자신이 생성한 템플릿만 재생성할 수 있습니다."
+            )
+
+        # 3. 플레이스홀더 조회
+        try:
+            placeholders = PlaceholderDB.get_placeholders_by_template(template_id)
+            placeholder_keys = [p.placeholder_key for p in placeholders]
+            logger.info(
+                f"[REGENERATE_PROMPT] Placeholders loaded - template_id={template_id}, "
+                f"count={len(placeholder_keys)}"
+            )
+        except Exception as e:
+            logger.error(f"[REGENERATE_PROMPT] Failed to fetch placeholders - {str(e)}", exc_info=True)
+            return error_response(
+                code=ErrorCode.TEMPLATE_GENERATION_FAILED,
+                http_status=500,
+                message="Failed to load placeholders for regeneration"
+            )
+
+        # 4. Claude API로 메타정보 생성 (선택사항)
+        metadata_dicts = None
+        if placeholder_keys:
+            try:
+                metadata = generate_placeholder_metadata(placeholder_keys)
+                logger.info(
+                    f"[REGENERATE_PROMPT] Metadata generated - template_id={template_id}, "
+                    f"metadata_count={metadata.total_count if metadata else 0}"
+                )
+                # metadata를 dict 리스트로 변환
+                # 동적 매핑: placeholder_key를 "key" 필드로 매핑하여 prompts.py와 호환
+                metadata_dicts = [
+                    {**p.model_dump(), "key": p.placeholder_key}
+                    for p in metadata.placeholders
+                ] if metadata else None
+            except Exception as e:
+                logger.warning(f"[REGENERATE_PROMPT] Metadata generation failed (non-blocking) - {str(e)}")
+                # 메타정보 생성 실패는 비치명적 (metadata=None으로 계속 진행)
+
+        # 5. 메타정보를 포함한 System Prompt 생성
+        try:
+            new_prompt_system = create_system_prompt_with_metadata(placeholder_keys, metadata_dicts)
+            logger.info(
+                f"[REGENERATE_PROMPT] System prompt generated - template_id={template_id}, "
+                f"prompt_length={len(new_prompt_system)}"
+            )
+        except Exception as e:
+            logger.error(f"[REGENERATE_PROMPT] Failed to generate prompt - {str(e)}", exc_info=True)
+            return error_response(
+                code=ErrorCode.TEMPLATE_GENERATION_FAILED,
+                http_status=500,
+                message="Failed to regenerate system prompt"
+            )
+
+        # 6. DB 업데이트
+        try:
+            updated_template = TemplateDB.update_prompt_system(template_id, new_prompt_system)
+            if not updated_template:
+                logger.error(f"[REGENERATE_PROMPT] DB update failed - template_id={template_id}")
+                return error_response(
+                    code=ErrorCode.SERVER_INTERNAL_ERROR,
+                    http_status=500,
+                    message="Failed to save regenerated prompt"
+                )
+        except Exception as e:
+            logger.error(f"[REGENERATE_PROMPT] DB error - {str(e)}")
+            return error_response(
+                code=ErrorCode.SERVER_INTERNAL_ERROR,
+                http_status=500,
+                message="Failed to save regenerated prompt"
+            )
+
+        # 7. 응답 생성
+        logger.info(f"[REGENERATE_PROMPT] Success - template_id={template_id}, user_id={current_user.id}")
+        response_data = RegeneratePromptResponse(
+            id=updated_template.id,
+            prompt_system=updated_template.prompt_system,
+            regenerated_at=updated_template.updated_at
+        )
+        return success_response(response_data)
+
+    except Exception as e:
+        logger.error(f"[REGENERATE_PROMPT] Unexpected error - {str(e)}")
+        return error_response(
+            code=ErrorCode.SERVER_INTERNAL_ERROR,
+            http_status=500,
+            message="Failed to regenerate system prompt"
         )
