@@ -246,7 +246,11 @@ async def upload_template(
                 # prompt_user는 None으로 유지 (사용자가 나중에 커스텀 프롬프트를 등록하기 위해 예약)
                 prompt_user = None
                 # metadata를 dict 리스트로 변환 (PlaceholderMetadata 객체 → dict)
-                metadata_dicts = [p.model_dump() for p in metadata.placeholders] if metadata else None
+                # 동적 매핑: placeholder_key를 "key" 필드로 매핑하여 prompts.py와 호환
+                metadata_dicts = [
+                    {**p.model_dump(), "key": p.placeholder_key}
+                    for p in metadata.placeholders
+                ] if metadata else None
                 prompt_system = create_system_prompt_with_metadata(placeholder_list, metadata_dicts)
                 logger.info(f"[UPLOAD_TEMPLATE] System prompt created - length={len(prompt_system)}")
 
@@ -855,7 +859,11 @@ async def regenerate_template_prompt_system(
                     f"metadata_count={metadata.total_count if metadata else 0}"
                 )
                 # metadata를 dict 리스트로 변환
-                metadata_dicts = [p.model_dump() for p in metadata.placeholders] if metadata else None
+                # 동적 매핑: placeholder_key를 "key" 필드로 매핑하여 prompts.py와 호환
+                metadata_dicts = [
+                    {**p.model_dump(), "key": p.placeholder_key}
+                    for p in metadata.placeholders
+                ] if metadata else None
             except Exception as e:
                 logger.warning(f"[REGENERATE_PROMPT] Metadata generation failed (non-blocking) - {str(e)}")
                 # 메타정보 생성 실패는 비치명적 (metadata=None으로 계속 진행)
