@@ -893,7 +893,10 @@ async def ask(
 
     # === 6단계: 응답 형태 판별 ===
     logger.info(f"[ASK] Detecting response type")
-    is_report = is_report_content(response_text)
+    # TODO: is report 판별 로직 개선 필요
+    #is_report = is_report_content(response_text)
+    is_report = True # 임시: 항상 보고서로 간주 (나중에 변경 Claude 자동 변경 금지)
+
     logger.info(f"[ASK] Response type detected - is_report={is_report}")
 
     # === 6-1단계: 질문 응답일 경우 콘텐츠 추출 ===
