@@ -1453,8 +1453,8 @@ async def _background_generate_report(
         )
 
         topic_obj = TopicDB.get_topic_by_id(topic_id)
-        version = next_artifact_version()
-        md_path, hwpx_path, pdf_path = build_artifact_paths(topic_id, version)
+        version = next_artifact_version(topic_id, ArtifactKind.MD, topic_obj.language)
+        base_dir, md_path = build_artifact_paths(topic_id, version, "report.md")
 
         bytes_written = write_text(md_path, built_markdown)
         file_hash = sha256_of(md_path)
