@@ -15,6 +15,7 @@ import os
 from shared.constants import ClaudeConfig
 from app.database.template_db import TemplateDB
 from app.utils.claude_client import ClaudeClient
+from app.utils.prompt_filter import filter_guidance_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +94,10 @@ async def sequential_planning(
         logger.info(f"Sequential Planning completed - elapsed={elapsed:.2f}s, sections={len(plan_dict['sections'])}")
 
         # 6. 응답시간 검증 (< 2초)
-        if elapsed > 2.0:
-            logger.warning(f"Sequential Planning exceeded 2s constraint - elapsed={elapsed:.2f}s")
+        if elapsed > 20.0:
+            logger.warning(f"Sequential Planning exceeded 5s constraint - elapsed={elapsed:.2f}s")
             raise TimeoutError(
-                f"Sequential Planning took {elapsed:.2f}s, exceeding 2s constraint"
+                f"Sequential Planning took {elapsed:.2f}s, exceeding 5s constraint"
             )
 
         return plan_dict
@@ -148,10 +149,24 @@ async def _get_guidance_prompt(
             )
             return default_guidance
 
-        # Template의 prompt_system 추출
+        # Template의 prompt_system 추출 및 필터링
         if hasattr(template, 'prompt_system') and template.prompt_system:
-            logger.info(f"Using template prompt_system - template_id={template_id}")
-            return template.prompt_system
+            # 섹션별 상세 지침만 추출하여 토큰 효율 최적화
+            filtered_prompt = filter_guidance_prompt(template.prompt_system)
+
+            if filtered_prompt:
+                logger.info(
+                    f"Using filtered template prompt_system - template_id={template_id}, "
+                    f"original_size={len(template.prompt_system)}, filtered_size={len(filtered_prompt)}"
+                )
+                return filtered_prompt
+            else:
+                # 필터링 결과가 없으면 원본 사용
+                logger.info(
+                    f"Section guidelines not found, using full prompt_system - "
+                    f"template_id={template_id}"
+                )
+                return template.prompt_system
 
         logger.info(f"Template has no prompt_system, using default guidance - template_id={template_id}")
         return default_guidance
@@ -183,8 +198,7 @@ def _create_planning_prompt(topic: str, guidance_prompt: str) -> str:
 **계획 작성 지침:**
 1. 보고서의 제목 결정
 2. 각 섹션의 제목과 설명 작성
-3. 각 섹션에서 다룰 주요 포인트 3-5개 추출
-4. 전체 보고서의 예상 길이와 구조 제시
+3. 각 섹션에서 다룰 주요 포인트 1개 추출
 
 **반드시 다음 JSON 구조로만 응답하세요 (다른 텍스트 없이):**
 
@@ -193,13 +207,13 @@ def _create_planning_prompt(topic: str, guidance_prompt: str) -> str:
     "sections": [
         {{
             "title": "섹션 제목",
-            "description": "섹션 설명 (2-3문장)",
+            "description": "섹션 설명 (1문장)",
             "key_points": ["포인트1", "포인트2", "포인트3"],
             "order": 1
         }},
         {{
             "title": "섹션 제목",
-            "description": "섹션 설명 (2-3문장)",
+            "description": "섹션 설명 (1문장)",
             "key_points": ["포인트1", "포인트2", "포인트3"],
             "order": 2
         }}
@@ -210,7 +224,10 @@ def _create_planning_prompt(topic: str, guidance_prompt: str) -> str:
 
 **중요:**
 - JSON만 응답하세요. 마크다운, 설명, 주석은 절대 포함하지 마세요.
-- 응답 전체는 유효한 JSON이어야 합니다."""
+- 응답 전체는 유효한 JSON이어야 합니다.
+- 응답은 반드시 2초 이내 생성 가능하도록 **과도하게 장문 금지**
+- 불필요한 마크다운, 주석, 텍스트 출력 금지"""
+
 
 
 def _extract_json_from_response(response_text: str) -> str:

@@ -1079,12 +1079,13 @@ async def plan_report(
             )
         )
 
+    #TODO: 해당 오류 상황 발생시 다음과 같은 오류 발생 (AttributeError: type object 'ErrorCode' has no attribute 'REQUEST_TIMEOUT')
     except SequentialPlanningTimeout as e:
         logger.error(f"[PLAN] Timeout exceeded - error={str(e)}")
         return error_response(
             code=ErrorCode.REQUEST_TIMEOUT,
             http_status=504,
-            message="보고서 계획 생성이 2초를 초과했습니다.",
+            message="보고서 계획 생성이 시간이 초과했습니다.",
             hint="나중에 다시 시도해주세요."
         )
 
@@ -1115,7 +1116,7 @@ async def plan_report(
         )
 
 
-@router.post("/{topic_id}/generate", summary="Start background report generation", response_model=dict)
+@router.post("/{topic_id}/generate", summary="Start background report generation", response_model=dict, status_code=202)
 async def generate_report_background(
     topic_id: int,
     request: GenerateRequest,
@@ -1195,8 +1196,7 @@ async def generate_report_background(
                 status="generating",
                 message="Report generation started in background",
                 status_check_url=f"/api/topics/{topic_id}/status"
-            ),
-            status_code=202
+            )
         )
 
     except Exception as e:

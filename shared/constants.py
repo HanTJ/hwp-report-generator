@@ -167,6 +167,9 @@ class ErrorCode:
         NETWORK_ERROR = _props.get("ERROR.SYSTEM.NETWORK_ERROR")
         TIMEOUT = _props.get("ERROR.SYSTEM.TIMEOUT")
 
+    class REQUEST:
+        TIMEOUT = _props.get("ERROR.REQUEST.TIMEOUT")
+
 
 # ============================================================
 # 피드백 코드
