@@ -419,11 +419,30 @@ CLAUDE_API_KEY=your_api_key_here
 
 ## 8. API 엔드포인트별 사용 모델
 
-| 엔드포인트 | 메서드 | 모델 | 이유 |
-|-----------|--------|------|------|
+| 엔드포인트 | 메서드 | 기본 모델 | 이유 |
+|-----------|--------|---------|------|
 | `/api/topics/generate` | `chat_completion()` | Sonnet | 상세 보고서 |
 | `/api/topics/{id}/ask` | `chat_completion()` | Sonnet | 컨텍스트 기반 응답 |
-| `/api/topics/plan` | `chat_completion_fast()` | Haiku | 빠른 계획 생성 |
+| `/api/topics/plan` | `chat_completion_fast()` | **Haiku** | **빠른 계획 생성 (< 2초)** |
+
+### 8.1 plan 엔드포인트 상세
+
+**현재 위치:** [backend/app/routers/topics.py:1025-1116](backend/app/routers/topics.py#L1025-L1116)
+
+**수정 사항:**
+```python
+# Line 1051: sequential_planning 호출 내부에서 Claude API 사용
+# 변경 전: Claude API를 여러 번 호출하는 구조
+# 변경 후: ClaudeClient.chat_completion_fast() 사용
+
+# sequential_planning.py에서
+claude = ClaudeClient()
+response = claude.chat_completion_fast(messages, system_prompt)  # Haiku 사용
+```
+
+**응답시간 개선:**
+- 기존 (Sonnet): 5-10초
+- 변경 후 (Haiku): 1-3초 (< 2초 목표)
 
 ---
 
@@ -458,20 +477,33 @@ CLAUDE_API_KEY=your_api_key_here
 
 ### Step 1: 코드 작성
 
-- [ ] `backend/shared/constants.py` 수정
-- [ ] `backend/app/utils/claude_client.py` 수정
-- [ ] `.env.example` 업데이트
+- [ ] `backend/shared/constants.py` 수정 (모델 정의 추가)
+- [ ] `backend/app/utils/claude_client.py` 수정 (세 메서드 추가)
+  - [ ] `chat_completion()` - Sonnet (기본)
+  - [ ] `chat_completion_fast()` - Haiku (빠른)
+  - [ ] `chat_completion_reasoning()` - Opus (추론)
+  - [ ] `_call_claude()` - 공통 로직
+- [ ] `backend/app/utils/sequential_planning.py` 수정
+  - [ ] ClaudeClient 사용 부분을 `chat_completion_fast()` 사용으로 변경
+  - [ ] 응답시간 < 2초 목표 달성
+- [ ] `.env.example` 업데이트 (환경변수 설명 추가)
 
 ### Step 2: 테스트 작성
 
 - [ ] Unit 테스트 8개 (TC-INIT-001 ~ TC-COMPAT-001)
+  - [ ] ClaudeClient 초기화 테스트 (3개)
+  - [ ] 메서드별 호출 테스트 (3개)
+  - [ ] 토큰 사용량 기록 테스트 (1개)
+  - [ ] 호환성 테스트 (1개)
+- [ ] sequential_planning 통합 테스트 (plan 엔드포인트)
 - [ ] 기존 테스트 호환성 확인
 
 ### Step 3: 검증
 
-- [ ] 모든 테스트 통과
-- [ ] 로깅 확인
-- [ ] CLAUDE.md 업데이트
+- [ ] 모든 테스트 통과 (8/8 이상)
+- [ ] plan 엔드포인트 응답시간 < 2초 확인
+- [ ] 로깅 확인 (모델명 포함)
+- [ ] CLAUDE.md 업데이트 (v2.5 추가)
 
 ---
 

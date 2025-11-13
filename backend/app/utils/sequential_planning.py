@@ -11,10 +11,10 @@ import logging
 import time
 from typing import Dict, List, Optional, Any
 
-from anthropic import Anthropic
 import os
 from shared.constants import ClaudeConfig
 from app.database.template_db import TemplateDB
+from app.utils.claude_client import ClaudeClient
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +186,8 @@ def _create_planning_prompt(topic: str, guidance_prompt: str) -> str:
 3. 각 섹션에서 다룰 주요 포인트 3-5개 추출
 4. 전체 보고서의 예상 길이와 구조 제시
 
-**JSON 형식으로 다음 구조의 계획을 제공하세요:**
+**반드시 다음 JSON 구조로만 응답하세요 (다른 텍스트 없이):**
+
 {{
     "title": "보고서 제목",
     "sections": [
@@ -196,13 +197,53 @@ def _create_planning_prompt(topic: str, guidance_prompt: str) -> str:
             "key_points": ["포인트1", "포인트2", "포인트3"],
             "order": 1
         }},
-        ...
+        {{
+            "title": "섹션 제목",
+            "description": "섹션 설명 (2-3문장)",
+            "key_points": ["포인트1", "포인트2", "포인트3"],
+            "order": 2
+        }}
     ],
     "estimated_word_count": 5000,
     "estimated_sections_count": 5
 }}
 
-계획을 JSON으로만 제공하고, 추가 설명이나 마크다운 형식은 사용하지 마세요."""
+**중요:**
+- JSON만 응답하세요. 마크다운, 설명, 주석은 절대 포함하지 마세요.
+- 응답 전체는 유효한 JSON이어야 합니다."""
+
+
+def _extract_json_from_response(response_text: str) -> str:
+    """
+    Claude 응답에서 JSON 추출
+    마크다운 코드블록(```json ... ```)에 감싸져 있을 수 있음
+
+    Args:
+        response_text: Claude API 원본 응답
+
+    Returns:
+        정제된 JSON 문자열
+    """
+    text = response_text.strip()
+
+    # 마크다운 코드블록 패턴: ```json ... ``` 또는 ``` ... ```
+    if text.startswith("```"):
+        # 시작 마크다운 제거
+        lines = text.split("\n")
+
+        # 첫 줄에서 ``` 제거 (```json 또는 ```)
+        start_idx = 0
+        if lines[0].startswith("```"):
+            start_idx = 1
+
+        # 마지막 줄에서 ``` 제거
+        end_idx = len(lines)
+        if lines[-1].strip() == "```":
+            end_idx = len(lines) - 1
+
+        text = "\n".join(lines[start_idx:end_idx]).strip()
+
+    return text
 
 
 async def _call_sequential_planning(input_prompt: str) -> str:
@@ -219,38 +260,29 @@ async def _call_sequential_planning(input_prompt: str) -> str:
         SequentialPlanningError: API 호출 실패
     """
     try:
-        api_key = os.getenv("CLAUDE_API_KEY")
-        model = os.getenv("CLAUDE_MODEL", ClaudeConfig.MODEL)
+        logger.info(f"Calling Claude API for sequential planning - using fast model")
 
-        if not api_key:
-            raise SequentialPlanningError("CLAUDE_API_KEY environment variable not set")
+        # ClaudeClient 초기화 및 빠른 모델 사용
+        claude = ClaudeClient()
+        
+        # 메시지 구성
+        messages = [
+            {
+                "role": "user",
+                "content": input_prompt
+            }
+        ]
 
-        client = Anthropic(api_key=api_key)
-
-        logger.info(f"Calling Claude API for sequential planning - model={model}")
-
-        # Claude API 호출
-        response = client.messages.create(
-            model=model,
-            max_tokens=2000,
-            messages=[
-                {
-                    "role": "user",
-                    "content": input_prompt
-                }
-            ]
+        # 빠른 모델로 호출 (Haiku - 응답 속도 우선)
+        plan_text, input_tokens, output_tokens = claude.chat_completion_fast(
+            messages=messages,
+            system_prompt="You are an expert in creating structured report plans. Respond only with valid JSON."
         )
-
-        # 응답 추출
-        if not response.content or len(response.content) == 0:
-            raise SequentialPlanningError("Empty response from Claude API")
-
-        plan_text = response.content[0].text
 
         logger.info(
             f"Claude API response received - "
-            f"input_tokens={response.usage.input_tokens}, "
-            f"output_tokens={response.usage.output_tokens}"
+            f"input_tokens={input_tokens}, "
+            f"output_tokens={output_tokens}"
         )
 
         return plan_text
@@ -277,8 +309,18 @@ def _parse_plan_response(plan_text: str) -> Dict[str, Any]:
         SequentialPlanningError: JSON 파싱 실패
     """
     try:
+        # 응답 텍스트 로깅 (디버깅용)
+        logger.debug(f"Parsing plan response - length={len(plan_text)}, first_100_chars={plan_text[:100]}")
+
+        # 응답 정제
+        cleaned_text = _extract_json_from_response(plan_text)
+
+        if not cleaned_text.strip():
+            logger.error(f"Empty response after cleaning - original_length={len(plan_text)}")
+            raise SequentialPlanningError("Received empty response from Claude API")
+
         # JSON 파싱
-        plan_json = json.loads(plan_text)
+        plan_json = json.loads(cleaned_text)
 
         # Sections 추출
         sections = plan_json.get("sections", [])
@@ -292,7 +334,10 @@ def _parse_plan_response(plan_text: str) -> Dict[str, Any]:
         }
 
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse plan JSON - error={str(e)}")
+        logger.error(
+            f"Failed to parse plan JSON - error={str(e)}, "
+            f"response_preview={plan_text[:200] if plan_text else 'EMPTY'}"
+        )
         raise SequentialPlanningError(f"Failed to parse plan response as JSON: {str(e)}")
     except Exception as e:
         logger.error(f"Failed to parse plan response - error={str(e)}", exc_info=True)

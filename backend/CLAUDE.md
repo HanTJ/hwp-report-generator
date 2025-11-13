@@ -1174,6 +1174,77 @@ Revision → Update spec & resubmit
 
 ---
 
+## Claude Model Selection (v2.5)
+
+### Overview
+
+The ClaudeClient now supports **three Claude models** for different use cases:
+
+| Model | Name | Use Case | Response Time | Cost |
+|-------|------|----------|----------------|------|
+| **Sonnet** | `claude-sonnet-4-5-20250929` | Default, detailed reports | 3-10s | Standard |
+| **Haiku** | `claude-haiku-4-5-20251001` | Fast summaries, overviews | 1-3s | Low |
+| **Opus** | `claude-opus-4-1-20250805` | Complex analysis, reasoning | 5-15s | High |
+
+### Configuration
+
+Set these environment variables in `.env`:
+
+```bash
+# Default model (high quality)
+CLAUDE_MODEL=claude-sonnet-4-5-20250929
+
+# Fast model (quick response < 2 seconds)
+CLAUDE_FAST_MODEL=claude-haiku-4-5-20251001
+
+# Reasoning model (complex analysis)
+CLAUDE_REASONING_MODEL=claude-opus-4-1-20250805
+```
+
+### ClaudeClient Methods
+
+```python
+from app.utils.claude_client import ClaudeClient
+
+client = ClaudeClient()
+
+# 1. chat_completion() - Uses Sonnet (default)
+response, input_tokens, output_tokens = client.chat_completion(messages)
+
+# 2. chat_completion_fast() - Uses Haiku (fast responses)
+response, input_tokens, output_tokens = client.chat_completion_fast(messages)
+
+# 3. chat_completion_reasoning() - Uses Opus (complex analysis)
+response, input_tokens, output_tokens = client.chat_completion_reasoning(messages)
+```
+
+### Endpoint-to-Model Mapping
+
+| Endpoint | Method | Model | Reason |
+|----------|--------|-------|--------|
+| POST `/api/topics/generate` | `chat_completion()` | Sonnet | Detailed report generation |
+| POST `/api/topics/{id}/ask` | `chat_completion()` | Sonnet | Context-aware responses |
+| POST `/api/topics/plan` | `chat_completion_fast()` | **Haiku** | **Quick planning (< 2s)** |
+
+### Implementation Details
+
+- **Location:** [app/utils/claude_client.py](app/utils/claude_client.py)
+- **Shared Logic:** `_call_claude()` method eliminates code duplication
+- **Token Tracking:** All methods update `last_input_tokens`, `last_output_tokens`, `last_total_tokens`
+- **Error Handling:** Consistent exception handling across all methods
+
+### Testing
+
+All three methods are tested with:
+- ✅ 8+ unit tests covering initialization, method calls, and token tracking
+- ✅ 373+ passing tests (no breaking changes)
+- ✅ Token usage tracking verified
+- ✅ Custom system prompt support
+
+See [backend/tests/test_utils_claude_client.py](tests/test_utils_claude_client.py) for test cases.
+
+---
+
 ## References
 
 - [Google Python Style Guide - Docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)
@@ -1181,11 +1252,12 @@ Revision → Update spec & resubmit
 - [Napoleon - Sphinx extension for Google style docstrings](https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html)
 - [pytest Documentation](https://docs.pytest.org/)
 - [pytest-cov Documentation](https://pytest-cov.readthedocs.io/)
+- [Unit Spec - Claude Model Selection](doc/specs/20251112_claude_model_selection.md)
 
 ---
 
-**Last Updated:** November 11, 2025
-**Version:** 2.0.1
+**Last Updated:** November 13, 2025
+**Version:** 2.5.0
 **Effective Date:** Immediately
 
 **Recent Session Notes (2025-11-11):**
