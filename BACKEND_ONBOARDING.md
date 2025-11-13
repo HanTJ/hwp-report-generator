@@ -90,36 +90,153 @@ HWP Report Generator는 사용자가 주제를 입력하면 Claude API를 활용
 
 ## 아키텍처 개요
 
-### 계층 구조
+### 계층 구조 (v2.4)
 
 ```
-┌─────────────────────────────────────┐
-│     API Layer (FastAPI Routes)     │
-│   auth, topics, messages, artifacts │
-└─────────────────┬───────────────────┘
-                  │
-┌─────────────────▼───────────────────┐
-│     Business Logic Layer            │
-│  ClaudeClient, HWPHandler, Auth    │
-└─────────────────┬───────────────────┘
-                  │
-┌─────────────────▼───────────────────┐
-│     Data Access Layer (Database)    │
-│  user_db, topic_db, message_db, etc│
-└─────────────────┬───────────────────┘
-                  │
-┌─────────────────▼───────────────────┐
-│          SQLite Database            │
-│         hwp_reports.db              │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│            API Layer (FastAPI Routes)            │
+│  auth / topics / messages / artifacts / admin    │
+└────────────────────┬─────────────────────────────┘
+                     │
+┌────────────────────▼─────────────────────────────┐
+│        Business Logic Layer (Core Utils)         │
+│                                                  │
+│  ┌─ AI Integration ─┐  ┌─ File Processing ─┐  │
+│  │ • ClaudeClient   │  │ • HWPHandler      │  │
+│  │ • Prompts        │  │ • ArtifactManager │  │
+│  │ • Sequential     │  │ • MarkdownParser  │  │
+│  │   Planning       │  │ • MDHandler       │  │
+│  │ • Generation     │  │ • FileUtils       │  │
+│  │   Status         │  └───────────────────┘  │
+│  └──────────────────┘                          │
+│                                                  │
+│  ┌─ Security ─┐  ┌─ Response Standards ─┐     │
+│  │ • Auth     │  │ • ResponseHelper     │     │
+│  │ • JWT      │  │ • ErrorCode          │     │
+│  │ • Password │  │ • API Responses      │     │
+│  │   Hashing  │  └──────────────────────┘     │
+│  └────────────┘                                 │
+└────────────────────┬─────────────────────────────┘
+                     │
+┌────────────────────▼─────────────────────────────┐
+│         Data Access Layer (Database)             │
+│  user_db / topic_db / message_db / artifact_db   │
+│  ai_usage_db / transformation_db                 │
+└────────────────────┬─────────────────────────────┘
+                     │
+┌────────────────────▼─────────────────────────────┐
+│             SQLite Database                      │
+│          hwp_reports.db (11 tables)              │
+└──────────────────────────────────────────────────┘
 ```
 
-### 데이터 플로우 (v2)
+### 핵심 라우터 (6개)
 
-1. 사용자가 Topic 생성 또는 Ask 호출로 입력
-2. 컨텍스트 구성(이전 메시지, 선택한/최신 MD Artifact 내용 포함)
-3. Claude chat completion 호출 → Assistant 답변(MD)
-4. 메시지/AI 사용량/Artifact(MD) 기록 → 필요 시 MD→HWPX 변환 아티팩트 추가
+1. **auth** - 인증 (회원가입, 로그인, 비밀번호 변경)
+2. **topics** - 주제 관리 + /generate, /plan, /ask 엔드포인트 ⭐
+3. **messages** - 메시지 조회/생성
+4. **artifacts** - 아티팩트 조회/변환/다운로드
+5. **admin** - 관리자 기능 (사용자 관리, 통계)
+6. **reports** - 레거시 (Deprecated)
+
+### 핵심 유틸리티 (20+ 모듈)
+
+**AI 통합:**
+- `claude_client.py` - Claude API 통신
+- `prompts.py` - 시스템 프롬프트 중앙 관리
+- `sequential_planning.py` - v2.4 Sequential Planning (계획 수립)
+- `generation_status.py` - v2.4 백그라운드 생성 상태 추적
+
+**파일 처리:**
+- `hwp_handler.py` - HWPX 처리
+- `artifact_manager.py` - 파일 저장/관리 추상화
+- `md_handler.py` - Markdown 파일 I/O
+- `markdown_parser.py` - Markdown 파싱
+- `markdown_builder.py` - Markdown 생성
+- `file_utils.py` - 파일 유틸 (버전, 해시)
+
+**인증/보안:**
+- `auth.py` - JWT, bcrypt 비밀번호 처리
+- `response_helper.py` - 표준 API 응답 헬퍼
+
+### 데이터베이스 (11 테이블)
+
+- `users` - 사용자 계정
+- `topics` - 대화 주제
+- `messages` - 메시지 (user/assistant/system)
+- `artifacts` - 생성 파일 (MD, HWPX)
+- `ai_usage` - AI 사용량 추적
+- `transformations` - 파일 변환 이력
+- `reports`, `token_usage` - Deprecated (v1 호환성)
+
+### 데이터 플로우 (v2.4 확장)
+
+**기본 흐름:**
+```
+사용자 입력 → Topic 생성 → Claude AI 호출 → Markdown 생성
+   ↓         ↓              ↓
+메시지     Context 구성    AI 사용량 기록
+저장      (이전 메시지 +   Artifact(MD) 저장
+          최신 Artifact)    필요시 MD→HWPX
+```
+
+**v2.4 확장 흐름:**
+
+#### 1️⃣ POST /api/topics/generate - 백그라운드 생성
+
+```
+Request (< 1초 응답, 202 Accepted)
+   ↓
+asyncio.create_task() → 백그라운드 처리 시작
+   ↓
+GenerationStatus 추적:
+  • planning (계획 수립, Sequential Planning)
+  • generating (Claude AI 호출)
+  • parsing (Markdown 파싱)
+  • saving (DB 저장)
+  • complete (완료)
+   ↓
+DB 저장 (Topic, Message, Artifact, AiUsage)
+   ↓
+Client는 GET /api/topics/{id}/status로 진행 상황 폴링
+```
+
+#### 2️⃣ POST /api/topics/{id}/plan - 계획 수립
+
+```
+Template의 prompt_system 추출
+   ↓
+Claude Sequential Planning API 호출 (< 2초)
+   ↓
+마크다운 형식 계획 반환
+   ↓
+섹션 목록 파싱 및 반환
+```
+
+#### 3️⃣ POST /api/topics/{id}/ask - 메시지 체이닝
+
+```
+사용자 메시지 입력
+   ↓
+컨텍스트 구성 (이전 메시지 + 선택 Artifact)
+   ↓
+Claude chat completion 호출
+   ↓
+응답 형태 자동 판별:
+  • 보고서 (H2 섹션 + 충분한 내용) → Artifact 생성
+  • 질문 (추가 정보 요청) → Artifact 없음
+   ↓
+DB 저장 + 응답 반환
+```
+
+### 응답 시간 제약 (SLA)
+
+| 엔드포인트 | 제약 | 실제 구현 |
+|-----------|------|---------|
+| POST /generate | < 1초 | asyncio.create_task() 백그라운드 (202 Accepted) |
+| GET /status | < 500ms | 메모리 기반 상태 조회 |
+| POST /plan | < 2초 | Sequential Planning API 직접 호출 |
+| POST /ask | < 5초 | 컨텍스트 + Claude chat completion |
 
 ---
 
@@ -484,9 +601,106 @@ PATH_PROJECT_HOME=D:\\WorkSpace\\hwp-report\\hwp-report-generator
 - 향후 언어 번역 이력 추적 (KO → EN)
 - 변환 체인 추적 (MD → HWPX → PDF)
 
+#### templates - 보고서 템플릿 (v2.2 신규)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | INTEGER | PK, AUTO | 템플릿 고유 ID |
+| user_id | INTEGER | FK, NOT NULL | 템플릿 작성자 사용자 ID |
+| title | TEXT | NOT NULL | 템플릿 제목 |
+| description | TEXT | NULL | 템플릿 설명 |
+| filename | TEXT | NOT NULL | 파일명 |
+| file_path | TEXT | NOT NULL | 파일 경로 |
+| file_size | INTEGER | DEFAULT 0 | 파일 크기 (바이트) |
+| sha256 | TEXT | NOT NULL | 파일 해시 (무결성 검증) |
+| is_active | BOOLEAN | DEFAULT 1 | 활성화 여부 |
+| prompt_user | TEXT | NULL | 사용자 입력 프롬프트 (v2.2) |
+| prompt_system | TEXT | NULL | 동적 생성 시스템 프롬프트 (v2.2) |
+| created_at | TIMESTAMP | DEFAULT NOW | 생성 시각 |
+| updated_at | TIMESTAMP | DEFAULT NOW | 수정 시각 |
+
+**용도:**
+- HWPX 템플릿 저장
+- 동적 System Prompt 생성 (v2.2+)
+- Sequential Planning용 프롬프트 저장
+
+#### placeholders - 템플릿 플레이스홀더 추적 (v2.2 신규)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|------|------|------|------|
+| id | INTEGER | PK, AUTO | 플레이스홀더 고유 ID |
+| template_id | INTEGER | FK, NOT NULL | 템플릿 ID |
+| placeholder_key | TEXT | NOT NULL | 플레이스홀더 이름 (예: "SUMMARY") |
+| created_at | TIMESTAMP | DEFAULT NOW | 기록 시각 |
+
+**용도:**
+- 템플릿에 포함된 모든 플레이스홀더 추적
+- 템플릿 파싱 시 자동 추출
+- System Prompt 동적 생성 시 사용 가능한 플레이스홀더 확인
+
+### 데이터베이스 다이어그램 (v2.4)
+
+```
+┌────────────────┐                                   ┌──────────────────┐
+│      users     │                                   │    templates     │
+├────────────────┤                                   ├──────────────────┤
+│ id (PK)        │◄──────────┐                      │ id (PK)          │
+│ email          │           │                      │ user_id (FK)     │
+│ username       │           │                      │ title            │
+│ ...            │      ┌────┴─────────────┐        │ prompt_system ⭐ │
+└────────────────┘      │                  │        │ ...              │
+         ▲              │                  └───────►└──────────────────┘
+         │              │                                    │
+    ┌────┴─────────┐    │                                    ▼
+    │   topics     │    │                         ┌──────────────────┐
+    ├─────────────┤    │                         │  placeholders    │
+    │ id (PK)     │    │                         ├──────────────────┤
+    │ user_id(FK) │────┘                         │ id (PK)          │
+    │ ...         │                              │ template_id (FK) │
+    └──────┬──────┘                              │ placeholder_key  │
+           │                                      └──────────────────┘
+    ┌──────▼──────────────┐
+    │    messages        │
+    ├────────────────────┤
+    │ id (PK)            │
+    │ topic_id (FK)      │──┐
+    │ role               │  │
+    │ ...                │  │
+    └────────────────────┘  │
+           │                │
+           ├────────┬───────┤
+           │        │       │
+    ┌──────▼──┐  ┌──▼───────────┐
+    │ artifacts│  │  ai_usage    │
+    ├─────────┤  ├──────────────┤
+    │ id (PK) │  │ id (PK)      │
+    │ msg_id  │  │ message_id   │
+    │ ...     │  │ topic_id     │
+    └─────────┘  │ ...          │
+                 └──────────────┘
+```
+
 #### reports, token_usage - 레거시 (Deprecated)
 
 v1.0 호환성 유지를 위해 존재하며 향후 제거 예정입니다.
+
+### 테이블 통계 (v2.4)
+
+**총 11개 테이블:**
+
+| 카테고리 | 테이블 | 상태 | 설명 |
+|---------|--------|------|------|
+| **핵심** | users | ✅ Active | 사용자 계정 |
+| | topics | ✅ Active | 대화 주제 |
+| | messages | ✅ Active | 메시지 |
+| | artifacts | ✅ Active | 생성 파일 |
+| | ai_usage | ✅ Active | AI 사용량 |
+| **v2.2 신규** | templates | ✅ Active | 보고서 템플릿 |
+| | placeholders | ✅ Active | 템플릿 플레이스홀더 |
+| **추적** | transformations | ✅ Active | 파일 변환 이력 |
+| **Deprecated** | reports | ⚠️ Legacy | v1 호환성 |
+| | token_usage | ⚠️ Legacy | v1 호환성 |
+| | (예약) | - | - |
 
 스키마/인덱스는 `backend/app/database/connection.py` 초기화 로직을 참고하세요.
 
@@ -565,56 +779,143 @@ return error_response(
 
 ### 인증 API (`/api/auth`)
 
-- `POST /api/auth/register` - 회원가입
-- `POST /api/auth/login` - 로그인 (JWT 발급)
-- `GET /api/auth/me` - 내 정보 조회
-- `POST /api/auth/logout` - 로그아웃
-- `POST /api/auth/change-password` - 비밀번호 변경
+| 메서드 | 엔드포인트 | 설명 | 인증 |
+|--------|-----------|------|------|
+| POST | `/api/auth/register` | 회원가입 | 불필요 |
+| POST | `/api/auth/login` | 로그인 (JWT 발급) | 불필요 |
+| GET | `/api/auth/me` | 내 정보 조회 | JWT ✅ |
+| POST | `/api/auth/logout` | 로그아웃 | JWT ✅ |
+| POST | `/api/auth/change-password` | 비밀번호 변경 | JWT ✅ |
 
-### 주제 API (`/api/topics`) - v2.0
+### 주제 API (`/api/topics`) - v2.4
 
-- `POST /api/topics` - 토픽 생성
-- `POST /api/topics/generate` - 입력 한 번에 MD 산출 (토픽/메시지/아티팩트 동시 생성)
-- `GET /api/topics` - 내 토픽 목록 (페이징)
-- `GET /api/topics/{topic_id}` - 단건 조회
-- `PATCH /api/topics/{topic_id}` - 수정 (제목/상태)
-- `DELETE /api/topics/{topic_id}` - 삭제
-- `POST /api/topics/{topic_id}/ask` - 메시지 체이닝 (컨텍스트 기반 답변 + MD 아티팩트)
+| 메서드 | 엔드포인트 | 설명 | 인증 | 응답 |
+|--------|-----------|------|------|------|
+| POST | `/api/topics` | 토픽 생성 | JWT ✅ | Topic (id, title, created_at) |
+| GET | `/api/topics` | 토픽 목록 (페이징) | JWT ✅ | [Topic] |
+| GET | `/api/topics/{topic_id}` | 토픽 단건 조회 | JWT ✅ | Topic (상세) |
+| PATCH | `/api/topics/{topic_id}` | 토픽 수정 (제목/상태) | JWT ✅ | Topic (갱신됨) |
+| DELETE | `/api/topics/{topic_id}` | 토픽 삭제 | JWT ✅ | {success: true} |
+| **⭐ POST** | **`/api/topics/{topic_id}/plan`** | **계획 수립 (v2.4 신규)** | **JWT ✅** | **PlanResponse (마크다운 + 섹션)** |
+| **⭐ POST** | **`/api/topics/generate`** | **백그라운드 보고서 생성 (v2.4 신규)** | **JWT ✅** | **202 Accepted + GenerateResponse** |
+| GET | `/api/topics/{topic_id}/status` | 생성 상태 조회 (v2.4 신규) | JWT ✅ | StatusResponse (현재 진행도) |
+| GET | `/api/topics/{topic_id}/status/stream` | 생성 상태 SSE (v2.4 신규) | JWT ✅ | Server-Sent Events |
+| POST | `/api/topics/{topic_id}/ask` | 메시지 체이닝 (컨텍스트 기반) | JWT ✅ | Message + Artifact(MD) |
+
+#### v2.4 신규 엔드포인트 상세
+
+**1. POST /api/topics/{topic_id}/plan - 계획 수립**
+```json
+// Request
+{
+  "template_id": 1,  // 선택: Template 사용 시
+  "custom_prompt": "보고서 계획을 세워줘"  // 선택: 커스텀 프롬프트
+}
+
+// Response (202 OK)
+{
+  "success": true,
+  "data": {
+    "plan": "# 보고서 계획\n\n## 섹션 1\n...",
+    "sections": [
+      {"title": "요약", "description": "핵심 내용 요약"},
+      {"title": "배경", "description": "배경 및 맥락"}
+    ]
+  }
+}
+```
+
+**2. POST /api/topics/generate - 백그라운드 보고서 생성**
+```json
+// Request
+{
+  "topic_id": 1,
+  "input_prompt": "금융 보고서를 생성해줘",
+  "template_id": 1,  // 선택
+  "use_planning": true  // 선택: 계획 수립 거쳐서 생성 (기본값 true)
+}
+
+// Response (202 Accepted)
+{
+  "success": true,
+  "data": {
+    "generation_id": "uuid",
+    "status": "pending",
+    "statusUrl": "/api/topics/{topic_id}/status"
+  }
+}
+```
+
+**3. GET /api/topics/{topic_id}/status - 진행 상태 조회**
+```json
+// Response (200 OK)
+{
+  "success": true,
+  "data": {
+    "generation_id": "uuid",
+    "status": "generating",  // pending/planning/generating/parsing/saving/complete
+    "progress": 50,          // 0-100%
+    "currentStep": "Claude AI 호출 중...",
+    "topicId": 1,
+    "createdAt": "2025-11-13T...",
+    "completedAt": null
+  }
+}
+```
+
+**4. GET /api/topics/{topic_id}/status/stream - 실시간 SSE**
+```
+event: status_update
+data: {"status": "generating", "progress": 30, "currentStep": "..."}
+
+event: complete
+data: {"status": "complete", "progress": 100, "artifactId": 123}
+```
 
 ### 메시지 API (`/api/topics/{topic_id}/messages`) - v2.0
 
-- `POST /api/topics/{topic_id}/messages` - 메시지 생성
-- `GET /api/topics/{topic_id}/messages` - 메시지 목록
-- `GET /api/topics/{topic_id}/messages/{message_id}` - 메시지 단건
+| 메서드 | 엔드포인트 | 설명 | 인증 |
+|--------|-----------|------|------|
+| POST | `/api/topics/{topic_id}/messages` | 메시지 생성 | JWT ✅ |
+| GET | `/api/topics/{topic_id}/messages` | 메시지 목록 | JWT ✅ |
+| GET | `/api/topics/{topic_id}/messages/{message_id}` | 메시지 단건 | JWT ✅ |
 
 ### 아티팩트 API (`/api/artifacts`) - v2.0
 
-- `GET /api/artifacts/{artifact_id}` - 메타 조회
-- `GET /api/artifacts/{artifact_id}/content` - 내용 조회 (MD만)
-- `GET /api/artifacts/{artifact_id}/download` - 파일 다운로드 (MD/HWPX)
-- `POST /api/artifacts/{artifact_id}/convert` - MD → HWPX 변환
-- `GET /api/artifacts/messages/{message_id}/hwpx/download` - 메시지 기반 HWPX 다운로드 (필요 시 자동 변환)
+| 메서드 | 엔드포인트 | 설명 | 인증 |
+|--------|-----------|------|------|
+| GET | `/api/artifacts/{artifact_id}` | 아티팩트 메타 조회 | JWT ✅ |
+| GET | `/api/artifacts/{artifact_id}/content` | 내용 조회 (MD만) | JWT ✅ |
+| GET | `/api/artifacts/{artifact_id}/download` | 파일 다운로드 (MD/HWPX) | JWT ✅ |
+| POST | `/api/artifacts/{artifact_id}/convert` | MD → HWPX 변환 | JWT ✅ |
+| GET | `/api/artifacts/messages/{message_id}/hwpx/download` | 메시지 기반 HWPX (자동 변환) | JWT ✅ |
 
 ### 관리자 API (`/api/admin`)
 
-- `GET /api/admin/users` - 사용자 목록
-- `POST /api/admin/users/{user_id}/approve` - 사용자 승인
-- `POST /api/admin/users/{user_id}/reject` - 사용자 거부
-- `POST /api/admin/users/{user_id}/reset-password` - 비밀번호 초기화
-- `GET /api/admin/token-usage` - 전체 토큰 사용량
-- `GET /api/admin/token-usage/{user_id}` - 사용자별 토큰 사용량
+| 메서드 | 엔드포인트 | 설명 | 인증 |
+|--------|-----------|------|------|
+| GET | `/api/admin/users` | 사용자 목록 | Admin ✅ |
+| POST | `/api/admin/users/{user_id}/approve` | 사용자 승인 | Admin ✅ |
+| POST | `/api/admin/users/{user_id}/reject` | 사용자 거부 | Admin ✅ |
+| POST | `/api/admin/users/{user_id}/reset-password` | 비밀번호 초기화 | Admin ✅ |
+| GET | `/api/admin/token-usage` | 전체 토큰 사용량 | Admin ✅ |
+| GET | `/api/admin/token-usage/{user_id}` | 사용자별 토큰 사용량 | Admin ✅ |
 
 ### 레거시 보고서 API (`/api/reports`) - Deprecated
 
-- `POST /api/reports/generate` - HWPX 생성 (단일 요청)
-- `GET /api/reports/my-reports` - 내 보고서 목록
-- `GET /api/reports/download/{report_id}` - 보고서 다운로드
+| 메서드 | 엔드포인트 | 설명 | 상태 |
+|--------|-----------|------|------|
+| POST | `/api/reports/generate` | HWPX 생성 (단일 요청) | ⚠️ Deprecated |
+| GET | `/api/reports/my-reports` | 내 보고서 목록 | ⚠️ Deprecated |
+| GET | `/api/reports/download/{report_id}` | 보고서 다운로드 | ⚠️ Deprecated |
 
-⚠️ **Deprecated: 신규 개발 시 사용하지 마세요. v2.0 Topics/Messages/Artifacts API를 사용하세요.**
+⚠️ **Deprecated: 신규 개발 시 사용하지 마세요. v2.4 Topics/Messages/Artifacts API를 사용하세요.**
 
-### 권한
+### 인증 및 권한
 
-모든 v2 API는 기본적으로 JWT 인증이 필요합니다. `get_current_active_user`/`get_current_admin_user` 의존성으로 확인합니다.
+- **JWT 기반 인증**: 모든 v2 API는 `Authorization: Bearer <token>` 헤더 필수
+- **의존성**: `get_current_active_user()` (일반 사용자), `get_current_admin_user()` (관리자)
+- **응답 형식**: 모든 API는 표준화된 `ApiResponse` 형식 사용
 
 ---
 
@@ -1248,8 +1549,43 @@ type .env  # Windows
 
 ---
 
+---
+
+## 문서 업데이트 내역 (2025-11-13)
+
+### ✅ 완료된 업데이트 항목
+
+**1. 아키텍처 개요 (v2.4)**
+- ✅ 계층 구조 확대 (AI 통합 + 파일 처리 + 보안 + 응답 표준)
+- ✅ 6개 라우터 명시
+- ✅ 20+ 유틸리티 모듈 분류 (AI/파일/보안)
+- ✅ 11개 데이터베이스 테이블
+- ✅ v2.4 확장 흐름 (백그라운드 생성, 계획 수립, 메시지 체이닝)
+- ✅ SLA 명시 (응답 시간 제약)
+
+**2. 핵심 API 설계 (v2.4 신규)**
+- ✅ 모든 API를 테이블 형식으로 명확화
+- ✅ v2.4 신규 엔드포인트:
+  - `POST /api/topics/{topic_id}/plan` - 계획 수립
+  - `POST /api/topics/generate` - 백그라운드 생성 (202 Accepted)
+  - `GET /api/topics/{topic_id}/status` - 진행 상태 조회
+  - `GET /api/topics/{topic_id}/status/stream` - SSE 실시간 추적
+- ✅ Request/Response 예시 (JSON 형식)
+- ✅ 인증 및 권한 정보 통합
+
+**3. 데이터베이스 스키마 (v2.4)**
+- ✅ `templates` 테이블 추가 (v2.2 신규)
+  - `prompt_system` 컬럼으로 동적 프롬프트 저장
+- ✅ `placeholders` 테이블 추가 (v2.2 신규)
+  - 템플릿 플레이스홀더 추적
+- ✅ 데이터베이스 다이어그램 (v2.4 확장)
+- ✅ 테이블 통계 (11개 테이블 분류)
+
+---
+
 **마지막 업데이트:** 2025-11-13
 **버전:** 2.4
 **담당자:** Backend Development Team
+**상태:** ✅ 모든 v2.4 정보 최신화 완료
 
 ---
