@@ -63,72 +63,57 @@ export const useUsers = () => {
      * @param userId - 승인할 사용자 ID
      * @returns 성공 메시지
      */
-    const approveUser = useCallback(
-        async (userId: number) => {
-            try {
-                const result = await adminApi.approveUser(userId)
+    const approveUser = useCallback(async (userId: number) => {
+        try {
+            const result = await adminApi.approveUser(userId)
 
-                // 로컬 상태 업데이트 (즉시 반영)
-                setUsers((prevUsers) =>
-                    prevUsers.map((user) => (user.id === userId ? {...user, is_active: true} : user))
-                )
+            // 로컬 상태 업데이트 (즉시 반영)
+            setUsers((prevUsers) => prevUsers.map((user) => (user.id === userId ? {...user, is_active: true} : user)))
 
-                return result
-            } catch (err) {
-                console.error('Failed to approve user:', err)
-                throw err
-            }
-        },
-        []
-    )
+            return result
+        } catch (err) {
+            console.error('Failed to approve user:', err)
+            throw err
+        }
+    }, [])
 
     /**
      * 사용자 거부 (is_active를 false로 변경)
      * @param userId - 거부할 사용자 ID
      * @returns 성공 메시지
      */
-    const rejectUser = useCallback(
-        async (userId: number) => {
-            try {
-                const result = await adminApi.rejectUser(userId)
+    const rejectUser = useCallback(async (userId: number) => {
+        try {
+            const result = await adminApi.rejectUser(userId)
 
-                // 로컬 상태 업데이트 (즉시 반영)
-                setUsers((prevUsers) =>
-                    prevUsers.map((user) => (user.id === userId ? {...user, is_active: false} : user))
-                )
+            // 로컬 상태 업데이트 (즉시 반영)
+            setUsers((prevUsers) => prevUsers.map((user) => (user.id === userId ? {...user, is_active: false} : user)))
 
-                return result
-            } catch (err) {
-                console.error('Failed to reject user:', err)
-                throw err
-            }
-        },
-        []
-    )
+            return result
+        } catch (err) {
+            console.error('Failed to reject user:', err)
+            throw err
+        }
+    }, [])
 
     /**
      * 비밀번호 초기화
      * @param userId - 비밀번호 초기화할 사용자 ID
      * @returns 임시 비밀번호 정보
      */
-    const resetPassword = useCallback(
-        async (userId: number) => {
-            try {
-                const result = await adminApi.resetPassword(userId)
+    const resetPassword = useCallback(async (userId: number) => {
+        try {
+            const result = await adminApi.resetPassword(userId)
 
-                // 로컬 상태 업데이트 (password_reset_required를 true로)
-                setUsers((prevUsers) =>
-                    prevUsers.map((user) => (user.id === userId ? {...user, password_reset_required: true} : user))
-                )
+            // 로컬 상태 업데이트 (password_reset_required를 true로)
+            setUsers((prevUsers) => prevUsers.map((user) => (user.id === userId ? {...user, password_reset_required: true} : user)))
 
-                return result
-            } catch (err) {
-                console.error('Failed to reset password:', err)
-                throw err
-            }
-        },
-        []
-    )
+            return result
+        } catch (err) {
+            console.error('Failed to reset password:', err)
+            throw err
+        }
+    }, [])
 
     /**
      * Hook에서 반환하는 값들
@@ -136,7 +121,9 @@ export const useUsers = () => {
      * - isLoading: 로딩 중인지
      * - error: 에러 객체 (에러 없으면 null)
      * - refetch: 수동 새로고침 함수
-     * - approveUser, rejectUser, resetPassword: 변경 작업 함수들
+     * - approveUser: 사용자 승인 함수
+     * - rejectUser: 사용자 거부 함수
+     * - resetPassword: 비밀번호 초기화 함수
      */
     return {
         users,

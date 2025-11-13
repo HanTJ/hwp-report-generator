@@ -4,19 +4,21 @@ import {messageApi} from '../services/messageApi'
 import {useTopicStore} from '../stores/useTopicStore'
 import {useArtifactStore} from '../stores/useArtifactStore'
 import {useMessageStore} from '../stores/useMessageStore'
-import type {Message} from '../utils/messageHelpers'
+import type {MessageModel} from '../models/MessageModel'
+import type {MessageUI} from '../models/ui/MessageUI'
 import type {Artifact} from '../types/artifact'
 
 /**
  * useChatActions.ts
  *
  * 메시지 전송 및 삭제 커스텀 훅
+ * - MessageModel 기반으로 리팩토링
  */
 
 interface UseChatActionsOptions {
     selectedTopicId: number | null
     setSelectedTopicId: (id: number | null) => void
-    setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void
+    setMessages: (topicId: number, messages: MessageModel[]) => void
     refreshMessages: (topicId: number) => Promise<void>
 }
 
@@ -26,24 +28,10 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
 
     /**
      * 메시지 전송 핸들러
+     * - MessageModel 기반으로 동작
+     * - 임시 메시지를 UI에 추가하지 않고, API 완료 후 refreshMessages로 불러옴
      */
     const handleSendMessage = async (message: string, files: File[], webSearchEnabled: boolean) => {
-        // 사용자 메시지 임시 추가
-        const tempUserMessage: Message = {
-            id: 'temp-' + Date.now(),
-            messageId: 0,
-            type: 'user',
-            content: message,
-            timestamp: new Date()
-        }
-
-        // 새 대화인 경우 이전 메시지를 무시하고 새로 시작
-        if (selectedTopicId === null) {
-            setMessages([tempUserMessage])
-        } else {
-            setMessages((prev) => [...prev, tempUserMessage])
-        }
-
         useMessageStore.getState().setIsGeneratingMessage(true)
 
         try {
@@ -101,16 +89,6 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
         } catch (error: any) {
             console.error('Error sending message:', error)
             antdMessage.error('메시지 전송에 실패했습니다.')
-
-            // 에러 메시지 추가
-            const errorMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                messageId: 0,
-                type: 'assistant',
-                content: '메시지 전송 중 오류가 발생했습니다. 다시 시도해주세요.',
-                timestamp: new Date()
-            }
-            setMessages((prev) => [...prev, errorMessage])
         } finally {
             useMessageStore.getState().setIsGeneratingMessage(false)
         }
@@ -118,12 +96,13 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
 
     /**
      * 메시지 삭제 핸들러
+     * - MessageModel 기반으로 동작
      */
     const handleDeleteMessage = async (
         messageId: number,
         setSelectedReport: (report: any) => void,
         selectedReport: any,
-        currentMessages: Message[]
+        currentMessages: MessageUI[]
     ) => {
         if (!selectedTopicId) {
             antdMessage.error('주제가 선택되지 않았습니다.')
@@ -138,9 +117,6 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
 
             await messageApi.deleteMessage(selectedTopicId, messageId)
 
-            // 메시지 삭제 성공 시 UI 업데이트
-            setMessages((prev) => prev.filter((msg) => msg.messageId !== messageId))
-
             // 미리보기 중인 보고서가 삭제된 메시지의 것이면 닫기
             if (selectedReport && selectedReport.messageId === messageId) {
                 setSelectedReport(null)
@@ -153,7 +129,8 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
 
                 // 새 대화로 이동
                 setSelectedTopicId(null)
-                setMessages([])
+                // clearMessages를 사용하는 것이 더 적절
+                useMessageStore.getState().clearMessages(selectedTopicId)
 
                 antdMessage.success('마지막 메시지가 삭제되어 대화가 종료되었습니다.')
             } else {

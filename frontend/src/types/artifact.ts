@@ -4,7 +4,7 @@
  * 아티팩트(산출물) 관련 TypeScript 타입 정의
  */
 
-export type ArtifactKind = 'md' | 'hwpx' | 'pdf'
+export type ArtifactKind = 'md' | 'hwpx'
 
 // 아티팩트
 export interface Artifact {
@@ -19,6 +19,7 @@ export interface Artifact {
     file_size: number
     sha256: string | null
     created_at: string
+    content?: string
 }
 
 // 아티팩트 목록 응답

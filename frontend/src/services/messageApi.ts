@@ -1,13 +1,36 @@
 import api from './api'
 import {API_ENDPOINTS} from '../constants/'
-import type {CreateMessageRequest, Message, MessageListResponse} from '../types/message'
 import type {ApiResponse} from '../types/api'
+import type {MessageRole} from '../models/MessageModel'
 
 /**
  * messageApi.ts
  *
  * 메시지 관련 API 함수 모음
  */
+
+// 서버 응답 DTO
+export interface MessageResponse {
+    id: number
+    topic_id: number
+    role: MessageRole
+    content: string
+    seq_no: number
+    created_at: string
+}
+
+// 메시지 목록 응답
+export interface MessageListResponse {
+    messages: MessageResponse[]
+    total: number
+    topic_id: number
+}
+
+// 새 메시지 생성 요청 (토픽 내)
+export interface CreateMessageRequest {
+    role: MessageRole
+    content: string
+}
 
 export const messageApi = {
     /**
@@ -43,8 +66,8 @@ export const messageApi = {
      * @param data 메시지 role과 content
      * @returns 생성된 메시지 (user 메시지만 반환, AI 응답은 별도 조회 필요)
      */
-    createMessage: async (topicId: number, data: CreateMessageRequest): Promise<Message> => {
-        const response = await api.post<ApiResponse<Message>>(API_ENDPOINTS.CREATE_MESSAGE(topicId), data)
+    createMessage: async (topicId: number, data: CreateMessageRequest): Promise<MessageResponse> => {
+        const response = await api.post<ApiResponse<MessageResponse>>(API_ENDPOINTS.CREATE_MESSAGE(topicId), data)
 
         if (!response.data.success || !response.data.data) {
             console.log('createMessage > failed >', response.data)

@@ -1,3 +1,10 @@
+import {useState} from 'react'
+import {Modal, Form, Input, Upload, Button, message} from 'antd'
+import {FileOutlined, CloseOutlined} from '@ant-design/icons'
+import type {UploadFile, RcFile} from 'antd/es/upload'
+import {templateApi} from '../../services/templateApi'
+import styles from './TemplateUploadModal.module.css'
+
 /**
  * TemplateUploadModal.tsx
  *
@@ -13,13 +20,6 @@
  * - 파일 크기: 10MB 이하
  * - 필수 입력: 파일, 제목
  */
-
-import React, {useState} from 'react'
-import {Modal, Form, Input, Upload, Button, message} from 'antd'
-import {UploadOutlined, FileOutlined, CloseOutlined} from '@ant-design/icons'
-import type {UploadFile, RcFile} from 'antd/es/upload'
-import {templateApi} from '../../services/templateApi'
-import styles from './TemplateUploadModal.module.css'
 
 interface TemplateUploadModalProps {
     open: boolean

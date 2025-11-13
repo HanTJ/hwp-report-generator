@@ -1,3 +1,8 @@
+import axios from 'axios'
+import type {AxiosInstance, InternalAxiosRequestConfig} from 'axios'
+import {API_BASE_URL} from '../constants/'
+import {storage} from '../utils/storage'
+
 /**
  * api.ts
  *
@@ -22,10 +27,17 @@
  * const response = await api.post('/login', { email, password });
  */
 
-import axios from 'axios'
-import type {AxiosInstance, InternalAxiosRequestConfig} from 'axios'
-import {API_BASE_URL} from '../constants/'
-import {storage} from '../utils/storage'
+/**
+ * Axios 인스턴스 생성
+ * - baseURL: 모든 요청의 기본 URL (예: http://localhost:8000)
+ * - headers: 모든 요청에 포함될 기본 헤더
+ */
+const api: AxiosInstance = axios.create({
+    baseURL: API_BASE_URL, // 환경변수 또는 기본값
+    headers: {
+        'Content-Type': 'application/json' // JSON 형식으로 데이터 전송
+    }
+})
 
 /**
  * JWT 인증이 필요 없는 Public 엔드포인트 목록
@@ -42,18 +54,6 @@ const isPublicEndpoint = (url?: string): boolean => {
     if (!url) return false
     return PUBLIC_ENDPOINTS.some((endpoint) => url.includes(endpoint))
 }
-
-/**
- * Axios 인스턴스 생성
- * - baseURL: 모든 요청의 기본 URL (예: http://localhost:8000)
- * - headers: 모든 요청에 포함될 기본 헤더
- */
-const api: AxiosInstance = axios.create({
-    baseURL: API_BASE_URL, // 환경변수 또는 기본값
-    headers: {
-        'Content-Type': 'application/json' // JSON 형식으로 데이터 전송
-    }
-})
 
 /**
  * 요청 인터셉터 (Request Interceptor)

@@ -1,4 +1,4 @@
-import React, {useState, useRef, type KeyboardEvent, useEffect} from 'react'
+import React, {useState, useRef, useEffect, forwardRef, useImperativeHandle, type KeyboardEvent} from 'react'
 import {PaperClipOutlined, SendOutlined, GlobalOutlined, CloseOutlined, ControlOutlined, FileTextOutlined} from '@ant-design/icons'
 import styles from './ChatInput.module.css'
 import SettingsDropdown from './SettingsDropdown'
@@ -10,25 +10,24 @@ interface ChatInputProps {
     reportsDropdown?: React.ReactNode
 }
 
-{
-    /*
-  웹사이트 추천 목록 (아이콘은 임시로 이모지 사용)
-  const WEBSITE_SUGGESTIONS = [
-    { name: '한국은행', url: 'https://www.bok.or.kr', icon: '🏦' },
-    { name: '금융감독원', url: 'https://www.fss.or.kr', icon: '📊' },
-    { name: '통계청', url: 'https://kostat.go.kr', icon: '📈' },
-    { name: '네이버', url: 'https://www.naver.com', icon: '🔍' },
-  ];
-*/
+export interface ChatInputHandle {
+    focus: () => void
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({onSend, disabled = false, onReportsClick, reportsDropdown}) => {
+const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({onSend, disabled = false, onReportsClick, reportsDropdown}, ref) => {
     const [message, setMessage] = useState('')
     const [files, setFiles] = useState<File[]>([])
     const [webSearchEnabled, setWebSearchEnabled] = useState(false)
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+    // 외부에서 포커스를 줄 수 있도록 노출
+    useImperativeHandle(ref, () => ({
+        focus: () => {
+            textareaRef.current?.focus()
+        }
+    }))
     const dropdownRef = useRef<HTMLDivElement>(null)
 
     /*
@@ -213,6 +212,8 @@ const ChatInput: React.FC<ChatInputProps> = ({onSend, disabled = false, onReport
             </div>
         </div>
     )
-}
+})
+
+ChatInput.displayName = 'ChatInput'
 
 export default ChatInput

@@ -1,13 +1,13 @@
+import api from './api'
+import {API_ENDPOINTS} from '../constants/'
+import type {TopicCreate, TopicUpdate, Topic, TopicListResponse, AskRequest, AskResponse, PlanRequest, PlanResponse} from '../types/topic'
+import type {ApiResponse} from '../types/api'
+
 /**
  * topicApi.ts
  *
  * 토픽(대화 스레드) 관련 API 함수 모음
  */
-
-import api from './api'
-import {API_ENDPOINTS} from '../constants/'
-import type {TopicCreate, TopicUpdate, Topic, TopicListResponse, AskRequest, AskResponse} from '../types/topic'
-import type {ApiResponse} from '../types/api'
 
 // Generate Topic 응답 타입
 interface GenerateTopicResponse {
@@ -37,7 +37,7 @@ export const topicApi = {
     },
 
     /**
-     * 새 토픽 생성 (AI 응답 없이)
+     * 새 토픽 생성 (미사용)
      * POST /api/topics
      * @param data 토픽 생성 데이터
      * @returns 생성된 토픽
@@ -161,6 +161,28 @@ export const topicApi = {
         }
 
         console.log('askTopic > success >', response.data)
+
+        return response.data.data
+    },
+
+    /**
+     * 보고서 작성 계획 생성
+     * POST /api/topics/plan
+     * @param data Plan 요청 데이터 (template_id, custom_prompt)
+     * @returns 보고서 작성 계획 (plan, sections)
+     */
+    generateTopicPlan: async (data: PlanRequest): Promise<PlanResponse> => {
+        console.log('generateTopicPlan > request data >', data.template_id, data.topic)
+
+        const response = await api.post<ApiResponse<PlanResponse>>(API_ENDPOINTS.TOPIC_PLAN, data)
+
+        if (!response.data.success || !response.data.data) {
+            console.log('generateTopicPlan > failed >', response.data)
+
+            throw new Error(response.data.error?.message || '보고서 계획 생성에 실패했습니다.')
+        }
+
+        console.log('generateTopicPlan > success >', response.data)
 
         return response.data.data
     }

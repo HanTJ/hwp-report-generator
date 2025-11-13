@@ -138,6 +138,8 @@ export const artifactApi = {
         params.append('page', page.toString())
         params.append('page_size', pageSize.toString())
 
+        console.log('listArtifactsByTopic > params >', params.toString())
+
         const response = await api.get<ApiResponse<ArtifactListResponse>>(`${API_ENDPOINTS.LIST_ARTIFACTS_BY_TOPIC(topicId)}?${params.toString()}`)
 
         if (!response.data.success || !response.data.data) {

@@ -2,24 +2,11 @@ import React, {useState} from 'react'
 import {FileTextOutlined, DownloadOutlined, DeleteOutlined} from '@ant-design/icons'
 import {useAuth} from '../../hooks/useAuth'
 import DeleteChatMessageModal from './DeleteChatMessageModal'
+import type {MessageUI} from '../../models/ui/MessageUI'
 import styles from './ChatMessage.module.css'
 
-interface Message {
-    id: string
-    messageId: number // 백엔드 메시지 ID
-    type: 'user' | 'assistant'
-    content: string
-    reportData?: {
-        filename: string
-        reportId: number
-        messageId: number // 다운로드/미리보기용 메시지 ID
-        content: string
-    }
-    timestamp: Date
-}
-
 interface ChatMessageProps {
-    message: Message
+    message: MessageUI
     onReportClick: (reportData: {filename: string; content: string; messageId: number; reportId: number}) => void
     onDownload: (reportData: {filename: string; content: string; messageId: number; reportId: number}) => void
     onDelete?: (messageId: number) => void
@@ -45,7 +32,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
     }
 
     const handleConfirmDelete = () => {
-        onDelete?.(message.messageId)
+        if (!message.id) return
+        onDelete?.(message.id)
         setShowDeleteModal(false)
     }
 
@@ -55,9 +43,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
 
     return (
         <>
-            <div className={`${styles.chatMessage} ${styles[message.type]}`}>
+            <div className={`${styles.chatMessage} ${styles[message.role]}`}>
                 <div className={styles.messageAvatar}>
-                    {message.type === 'user' ? (
+                    {message.role === 'user' ? (
                         <div className={styles.userAvatar}>U</div>
                     ) : (
                         <div className={styles.assistantAvatar}>
@@ -76,7 +64,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
                 <div className={styles.messageContentWrapper}>
                     <div className={styles.messageHeader}>
                         <span className={styles.messageSender}>
-                            {message.type === 'user' ? <span>{user?.username || '사용자'} </span> : 'Assistant'}
+                            {message.role === 'user' ? <span>{user?.username || '사용자'} </span> : 'Assistant'}
                         </span>
                         <span className={styles.messageTime}>{formatTime(message.timestamp)}</span>
                     </div>
@@ -109,7 +97,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
                                         onReportClick({
                                             filename: message.reportData!.filename,
                                             content: message.reportData!.content,
-                                            messageId: message.reportData!.messageId,
+                                            messageId: message.id,
                                             reportId: message.reportData!.reportId
                                         })
                                     }>
@@ -128,7 +116,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
                                         onDownload({
                                             filename: message.reportData!.filename,
                                             content: message.reportData!.content,
-                                            messageId: message.reportData!.messageId,
+                                            messageId: message.id,
                                             reportId: message.reportData!.reportId
                                         })
                                     }}

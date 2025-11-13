@@ -1,11 +1,4 @@
-/**
- * AdminTemplateManagement.tsx
- *
- * 관리자 템플릿 관리 컴포넌트
- * - 전체 사용자의 템플릿 목록 조회
- */
-
-import React, {useState, useEffect} from 'react'
+import {useState, useEffect} from 'react'
 import {Card, Table, Button, message, Space} from 'antd'
 import {ReloadOutlined, EyeOutlined} from '@ant-design/icons'
 import type {ColumnsType} from 'antd/es/table'
@@ -14,7 +7,14 @@ import type {AdminTemplateItem} from '../../types/template'
 import TemplateDetailModal from '../template/TemplateDetailModal'
 import {formatDate, formatFileSize} from '../../utils/formatters'
 
-const AdminTemplateManagement: React.FC = () => {
+/**
+ * AdminTemplateManagement.tsx
+ *
+ * 관리자 템플릿 관리 컴포넌트
+ * - 전체 사용자의 템플릿 목록 조회
+ */
+
+const AdminTemplateManagement = () => {
     const [templates, setTemplates] = useState<AdminTemplateItem[]>([])
     const [loading, setLoading] = useState(false)
     const [detailModalOpen, setDetailModalOpen] = useState(false)

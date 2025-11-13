@@ -1,11 +1,11 @@
-/**
- * GeneratingIndicator.tsx
- * 
- * 보고서 생성 중 표시 컴포넌트
- */
-
 import React from 'react'
 import styles from './GeneratingIndicator.module.css'
+
+/**
+ * GeneratingIndicator.tsx
+ *
+ * 보고서 생성 중 표시 컴포넌트
+ */
 
 export const GeneratingIndicator: React.FC = () => {
     return (
@@ -15,7 +15,6 @@ export const GeneratingIndicator: React.FC = () => {
                 <span></span>
                 <span></span>
             </div>
-            <span>보고서 생성 중...</span>
         </div>
     )
 }

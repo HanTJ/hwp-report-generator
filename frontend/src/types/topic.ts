@@ -77,3 +77,21 @@ export interface AskResponse {
         latency_ms: number
     }
 }
+
+// Plan API Request
+export interface PlanRequest {
+    template_id?: number
+    topic?: string
+}
+
+// Plan API Response
+export interface Section {
+    title: string
+    description: string
+}
+
+export interface PlanResponse {
+    topic_id: number
+    plan: string
+    sections: Section[]
+}

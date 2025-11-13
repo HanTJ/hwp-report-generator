@@ -1,4 +1,4 @@
-import React, {useState} from 'react'
+import {useState} from 'react'
 import {Card, Table, Switch, Button, Space, message, Tag, Modal} from 'antd'
 import {ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, KeyOutlined} from '@ant-design/icons'
 import type {ColumnsType} from 'antd/es/table'
@@ -11,7 +11,7 @@ import type {UserData} from '../types/user'
 import {formatDate} from '../utils/formatters'
 import styles from './AdminPage.module.css'
 
-const AdminPage: React.FC = () => {
+const AdminPage = () => {
     const {users, isLoading, refetch, approveUser, rejectUser, resetPassword} = useUsers()
     const [resettingUserId, setResettingUserId] = useState<number | null>(null)
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
@@ -149,7 +149,7 @@ const AdminPage: React.FC = () => {
                     )}
 
                     {activeMenu === 'dashboard' && (
-                        <Card title="대시보드" bordered={false}>
+                        <Card title="대시보드">
                             <p>대시보드 기능은 준비 중입니다.</p>
                         </Card>
                     )}
@@ -159,13 +159,13 @@ const AdminPage: React.FC = () => {
                     {activeMenu === 'templates' && <AdminTemplateManagement />}
 
                     {activeMenu === 'reports' && (
-                        <Card title="보고서 관리" bordered={false}>
+                        <Card title="보고서 관리">
                             <p>보고서 관리 기능은 준비 중입니다.</p>
                         </Card>
                     )}
 
                     {activeMenu === 'settings' && (
-                        <Card title="시스템 설정" bordered={false}>
+                        <Card title="시스템 설정">
                             <p>시스템 설정 기능은 준비 중입니다.</p>
                         </Card>
                     )}
