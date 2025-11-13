@@ -1206,8 +1206,50 @@ type .env  # Windows
 
 ---
 
-**마지막 업데이트:** 2025-11-04
-**버전:** 2.1
+---
+
+## v2.4 주요 신규 기능
+
+### Sequential Planning (순차 계획 수립)
+
+**신규 엔드포인트:** `POST /api/topics/{id}/plan`
+
+- Template의 prompt_system을 활용하여 Claude Sequential Planning으로 보고서 계획 생성
+- 응답 시간: < 2초 (제약 조건)
+- 응답: 마크다운 형식 계획 + 섹션 목록
+
+**관련 파일:**
+- `app/utils/sequential_planning.py` (219줄)
+- `app/models/topic.py` (PlanRequest, PlanResponse, PlanSection 모델)
+
+### 백그라운드 보고서 생성 + 실시간 진행 추적
+
+**신규 엔드포인트:**
+- `POST /api/topics/generate` - 백그라운드 생성 (< 1초 응답, 202 Accepted)
+- `GET /api/topics/{id}/status` - 진행 상태 폴링 (< 500ms)
+- `GET /api/topics/{id}/status/stream` - SSE 실시간 완료 알림
+
+**특징:**
+- asyncio.create_task()로 백그라운드에서 처리
+- 메모리 기반 상태 관리: `GenerationStatus` 추적
+- 진행도: planning → generating → parsing → saving → complete
+
+**관련 파일:**
+- `app/utils/generation_status.py` (298줄, 97% 커버리지)
+- `app/routers/topics.py` (신규 엔드포인트 로직)
+
+### Pydantic 모델 추가
+
+- `PlanRequest`, `PlanResponse`, `PlanSection` (계획 수립)
+- `GenerateRequest`, `GenerateResponse` (백그라운드 생성)
+- `StatusResponse` (진행 상태)
+
+**테스트:** 35개 unit tests (100% 통과)
+
+---
+
+**마지막 업데이트:** 2025-11-13
+**버전:** 2.4
 **담당자:** Backend Development Team
 
 ---

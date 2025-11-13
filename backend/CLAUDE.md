@@ -1,14 +1,413 @@
 # Backend Development Guidelines
 
-This document provides development guidelines for **Claude Code** when working on the **HWP Report Generator backend**.
+This document provides comprehensive development guidelines and architecture documentation for **Claude Code** when working on the **HWP Report Generator backend** (v2.4).
 
 ---
 
 ## Table of Contents
 
-1. [Code Style and Documentation](#code-style-and-documentation)
-2. [Testing Guidelines](#testing-guidelines)
-3. [References](#references)
+1. [System Architecture](#system-architecture)
+   - High-Level Architecture (v2.4)
+   - Core Technology Stack
+2. [Backend Components](#backend-components)
+   - API Routers (6 modules)
+   - Data Models (9 Pydantic models)
+   - Database Layer (11 modules)
+   - Business Logic Utilities (20+ modules)
+3. [Core Workflows](#core-workflows)
+   - Workflow 1: Template Upload (9 steps)
+   - Workflow 2: Generate Topic Report (9 steps)
+   - Workflow 3: Message Chaining /ask (12 steps)
+   - Workflow 4: Sequential Planning (NEW in v2.4)
+   - Workflow 5: Background Report Generation (NEW in v2.4)
+4. [Code Style and Documentation](#code-style-and-documentation)
+   - DocString Rules
+   - File Management Guidelines
+5. [Testing Guidelines](#testing-guidelines)
+   - Test Environment Setup
+   - Quick Start
+   - Claude Code Testing Checklist
+6. [Unit Spec Workflow](#unit-spec-workflow)
+   - Workflow Steps
+   - Example Workflow
+7. [Common Issues & Solutions](#common-issues--solutions)
+   - Issue 1: Claude API Rate Limiting
+   - Issue 2: Artifact File Not Found
+   - Issue 3: Message Seq_no Ordering
+   - Issue 4: Template Placeholder Validation
+   - Issue 5: System Prompt Context Overflow
+   - Issue 6: Database Lock
+   - Issue 7: Markdown Parsing Failure
+
+---
+
+## System Architecture
+
+### High-Level Architecture (v2.4)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│         HWP Report Generator - v2.4 Complete System            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Frontend (React + TypeScript)                                  │
+│  ├── Dashboard                                                  │
+│  ├── Template Management                                        │
+│  ├── Report Generator Interface                                 │
+│  └── Conversation Interface (/ask)                              │
+│  └─────────────────────┬──────────────────────────────────────┘│
+│                        │ REST API (FastAPI)                    │
+│  ┌─────────────────────▼──────────────────────────────────────┐│
+│  │ Backend Services (Python 3.12)                             ││
+│  │                                                             ││
+│  │  ┌──────────────────────────────────────────────────────┐ ││
+│  │  │ API Layer (6 Routers)                                │ ││
+│  │  │ • auth.py (JWT authentication)                       │ ││
+│  │  │ • templates.py (HWPX file handling)                  │ ││
+│  │  │ • topics.py (Report generation & /ask)              │ ││
+│  │  │ • messages.py (Message CRUD)                         │ ││
+│  │  │ • artifacts.py (MD/HWPX download & conversion)      │ ││
+│  │  │ • admin.py (Admin-only operations)                  │ ││
+│  │  └──────────────────────────────────────────────────────┘ ││
+│  │                        ↓                                   ││
+│  │  ┌──────────────────────────────────────────────────────┐ ││
+│  │  │ Business Logic Layer (20+ Utilities)                 │ ││
+│  │  │ • prompts.py (System prompt management)              │ ││
+│  │  │ • claude_client.py (LLM API integration)             │ ││
+│  │  │ • templates_manager.py (HWPX parsing)               │ ││
+│  │  │ • markdown_parser.py (MD → structured data)         │ ││
+│  │  │ • sequential_planning.py (Step-by-step planning)    │ ││
+│  │  │ • generation_status.py (Background task tracking)   │ ││
+│  │  │ • And 14+ supporting utilities                       │ ││
+│  │  └──────────────────────────────────────────────────────┘ ││
+│  │                        ↓                                   ││
+│  │  ┌──────────────────────────────────────────────────────┐ ││
+│  │  │ Data Access Layer (11 Database CRUD modules)        │ ││
+│  │  │ • template_db.py (Template management)              │ ││
+│  │  │ • topic_db.py (Report topics)                        │ ││
+│  │  │ • message_db.py (Message history)                   │ ││
+│  │  │ • artifact_db.py (File storage metadata)            │ ││
+│  │  │ • ai_usage_db.py (Token usage tracking)             │ ││
+│  │  │ • user_db.py (User management)                       │ ││
+│  │  │ And 5+ additional database modules                   │ ││
+│  │  └──────────────────────────────────────────────────────┘ ││
+│  │                        ↓                                   ││
+│  │  ┌──────────────────────────────────────────────────────┐ ││
+│  │  │ SQLite Database (11 tables, normalized schema)      │ ││
+│  │  │ • users, templates, placeholders                    │ ││
+│  │  │ • topics, messages, artifacts                       │ ││
+│  │  │ • ai_usage, transformations                         │ ││
+│  │  │ • And 3+ supporting/legacy tables                   │ ││
+│  │  └──────────────────────────────────────────────────────┘ ││
+│  └──────────────────────────────────────────────────────────┘│
+│                                                                │
+│  External Services                                            │
+│  • Anthropic Claude API (claude-sonnet-4-5-20250929)         │
+│  • (Future: PDF conversion, web search)                       │
+│                                                                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Core Technology Stack
+
+| Component | Technology | Version | Purpose |
+|-----------|-----------|---------|---------|
+| **Framework** | FastAPI | 0.104.1 | High-performance async web framework |
+| **Runtime** | Python | 3.12 | Latest Python version |
+| **Database** | SQLite | 3.x | Lightweight relational database |
+| **AI/LLM** | Anthropic Claude API | 0.71.0 | Report content generation |
+| **Model** | Claude Sonnet 4.5 | 20250929 | Latest Claude model |
+| **Authentication** | JWT + bcrypt | 3.3.0 + 4.1.2 | Secure user authentication |
+| **File Processing** | olefile + zipfile | 0.47 + stdlib | HWPX template handling |
+| **Data Validation** | Pydantic | 2.5.0+ | Type-safe request/response |
+
+---
+
+## Backend Components
+
+### A. API Routers (6 modules, 30+ endpoints)
+
+| Router | Endpoints | Purpose | Status |
+|--------|-----------|---------|--------|
+| **auth.py** | POST /login, /register, /logout, /change-password | JWT authentication, user management | ✅ Complete |
+| **templates.py** | POST /templates, GET /templates, GET /templates/{id} | HWPX template upload and management | ✅ Complete |
+| **topics.py** | POST /generate, POST /{id}/ask, POST /{id}/plan, GET /{id}/status | Report generation, message chaining, sequential planning, progress tracking | ✅ Complete |
+| **messages.py** | GET /topics/{id}/messages, GET /topics/{id}/messages/{id} | Message history and retrieval | ✅ Complete |
+| **artifacts.py** | GET /artifacts/{id}, POST /convert, GET /download | Artifact download and format conversion | ✅ Complete |
+| **admin.py** | GET /users, GET /templates, POST /users/{id}/approve | Admin operations and system management | ✅ Complete |
+
+### B. Data Models (Pydantic, 9 core models)
+
+| Model | Purpose | Key Fields | Notes |
+|-------|---------|-----------|-------|
+| **template.py** | Template definition | id, title, filename, prompt_user, prompt_system | Stores HWPX metadata |
+| **topic.py** | Report topic/thread | id, user_id, input_prompt, template_id | Conversation context |
+| **message.py** | Chat message | id, topic_id, role, seq_no, content | Ordered message history |
+| **artifact.py** | Generated file metadata | id, kind, version, file_path, sha256 | MD/HWPX/PDF storage |
+| **ai_usage.py** | Token usage tracking | input_tokens, output_tokens, latency_ms | Claude API metrics |
+| **user.py** | User account | id, email, username, hashed_password, is_admin | Authentication |
+| **transformation.py** | File conversion tracking | from_artifact_id, to_artifact_id, operation | MD→HWPX lineage |
+| **token_usage.py** | Legacy token tracking | (deprecated) | Maintained for compatibility |
+| **report.py** | Legacy report format | (deprecated) | Maintained for compatibility |
+
+### C. Database Layer (11 modules, 11 tables, 100% normalized)
+
+| Module | Table | Purpose | Transactions |
+|--------|-------|---------|--------------|
+| **template_db.py** | templates, placeholders | Template storage with placeholder tracking | ✅ Yes |
+| **topic_db.py** | topics | Report topics/threads | ✅ Yes |
+| **message_db.py** | messages | Message history with seq_no ordering | ✅ Yes |
+| **artifact_db.py** | artifacts | File metadata (MD, HWPX, PDF) | ✅ Yes |
+| **ai_usage_db.py** | ai_usage | Claude API usage metrics | ✅ Yes |
+| **user_db.py** | users | User accounts and permissions | ✅ Yes |
+| **transformation_db.py** | transformations | Artifact conversion lineage | ✅ Yes |
+| **connection.py** | (schema init) | DB initialization and connection pooling | ✅ Yes |
+| **token_usage_db.py** | token_usage | Legacy token tracking (deprecated) | ⚠️ Compatibility |
+| **report_db.py** | reports | Legacy report format (deprecated) | ⚠️ Compatibility |
+
+### D. Business Logic Utilities (20+ modules, 500+ lines total)
+
+#### Core Processing (8 modules)
+| Module | Functions | Purpose | LOC |
+|--------|-----------|---------|-----|
+| **claude_client.py** | chat_completion() | LLM API integration with error handling | 150 |
+| **prompts.py** | create_dynamic_system_prompt() | System prompt generation from templates | 200 |
+| **markdown_parser.py** | parse_markdown_to_content() | MD → structured data conversion | 180 |
+| **markdown_builder.py** | build_report_md() | Structured data → MD conversion | 120 |
+| **templates_manager.py** | extract_placeholders(), validate_hwpx() | HWPX file parsing and validation | 140 |
+| **hwp_handler.py** | (HWPX generation) | HWPX XML manipulation | 250 |
+| **sequential_planning.py** | generate_plan() | Step-by-step report planning | 219 |
+| **generation_status.py** | track_generation() | Background task status management | 298 |
+
+#### Support Utilities (12 modules)
+| Module | Purpose | Key Features |
+|--------|---------|--------------|
+| **artifact_manager.py** | Artifact file I/O abstraction | Path generation, storage, hashing |
+| **md_handler.py** | Markdown file operations | Save/read/parse MD files |
+| **file_utils.py** | File system utilities | SHA256, path management, encoding |
+| **auth.py** | JWT token and password management | Token creation/verification, bcrypt |
+| **response_helper.py** | Standard API response formatting | success_response(), error_response() |
+| **exceptions.py** | Custom exception classes | InvalidTemplateError, etc. |
+| **placeholder_metadata_generator.py** | Placeholder metadata creation | (Enhanced with JSON schema) |
+| **claude_metadata_generator.py** | Claude-specific metadata | Model information generation |
+| **meta_info_generator.py** | Placeholder info generation | (Core metadata utility) |
+| **response_detector.py** | Claude response classification | Question vs. Report detection |
+| **prompt_filter.py** | Prompt content filtering | Input sanitization |
+
+---
+
+## Core Workflows
+
+### Workflow 1: Template Upload (9 steps)
+
+```
+Step 1: File Validation
+  ✓ Check HWPX format (ZIP with required directories)
+  ✓ Verify not corrupted
+
+Step 2: Placeholder Extraction
+  ✓ Extract from HWPX document content
+  ✓ Validate format ({{KEY}} pattern)
+  ✓ Check for duplicates → Error if found
+  ✓ Check for required placeholders ({{TITLE}} required)
+
+Step 3: Metadata Generation
+  ✓ Generate prompt_user (comma-separated placeholder names)
+  ✓ Generate prompt_system (dynamic instructions for Claude)
+
+Step 4: SHA256 Hash Calculation
+  ✓ Compute file hash for integrity verification
+
+Step 5: Template Record Creation
+  ✓ INSERT into templates table
+  ✓ Store: title, filename, file_path, prompt_user, prompt_system, sha256
+
+Step 6: Placeholder Records Creation
+  ✓ INSERT into placeholders table for each placeholder
+  ✓ Link: template_id, placeholder_key
+
+Step 7: Transaction Commit
+  ✓ Commit all inserts as single transaction
+  ✓ Rollback if any error occurs
+
+Step 8: File Storage
+  ✓ Copy HWPX to artifacts/templates/ directory
+  ✓ Use SHA256 as filename for deduplication
+
+Step 9: Response
+  ✓ Return: template_id, title, prompts, placeholder list
+```
+
+### Workflow 2: Generate Topic Report (POST /generate, 9 steps)
+
+```
+Step 1: Input Validation
+  ✓ Check input_prompt (required, min 3 chars)
+  ✓ Check user authentication
+
+Step 2: System Prompt Selection (Priority order)
+  Option 1: If template_id provided
+    → Load Template from DB
+    → Extract placeholders
+    → Call create_dynamic_system_prompt() → Custom prompt
+  Option 2: Default
+    → Use FINANCIAL_REPORT_SYSTEM_PROMPT constant
+
+Step 3: Claude API Call
+  ✓ Format message: "Please create a report about: {input_prompt}"
+  ✓ Call claude_client.chat_completion(messages, system_prompt)
+  ✓ Handle errors: API failures, timeouts, rate limits
+
+Step 4: Markdown Parsing
+  ✓ Parse Claude response (Markdown)
+  ✓ Extract sections: title, summary, background, main_content, conclusion
+  ✓ Call parse_markdown_to_content()
+
+Step 5: Topic Creation
+  ✓ INSERT into topics table
+  ✓ Generate auto title from content if needed
+
+Step 6: Messages Recording
+  ✓ INSERT user message into messages table (seq_no: 0)
+  ✓ INSERT assistant message into messages table (seq_no: 1)
+
+Step 7: Artifact (MD) Saving
+  ✓ Call build_report_md() to convert parsed data to Markdown
+  ✓ Use ArtifactManager.store_artifact() to save
+  ✓ Calculate SHA256 hash
+  ✓ INSERT into artifacts table (kind: MD, version: 1)
+
+Step 8: AI Usage Tracking
+  ✓ INSERT into ai_usage table
+  ✓ Record: input_tokens, output_tokens, latency_ms
+
+Step 9: Response
+  ✓ Return: topic_id, artifact_id, generated_title, ai_usage metrics
+  ✓ HTTP 201 (Created)
+```
+
+### Workflow 3: Message Chaining (/ask, 12 steps)
+
+```
+Step 1: Permission Validation
+  ✓ Verify topic_id exists
+  ✓ Verify user owns this topic
+  ✓ Check authentication (JWT)
+
+Step 2: User Message Storage
+  ✓ Determine seq_no (max existing + 1)
+  ✓ INSERT into messages table (role: user)
+
+Step 3: Reference Document Selection
+  ✓ If artifact_id provided → validate ownership
+  ✓ Else → Get latest MD artifact from topic
+
+Step 4: Context Construction
+  ✓ Retrieve all messages for topic
+  ✓ Filter by artifact_id if specified
+  ✓ Limit to recent max_messages (default: 10)
+  ✓ Sort by seq_no
+
+Step 5: Document Content Injection (Optional)
+  ✓ If include_artifact_content=true
+    → Read artifact file from disk
+    → Create system context message: "Current report:\n\n{content}"
+    → Add to context messages
+
+Step 6: Context Size Validation
+  ✓ Calculate total characters in context
+  ✓ Validate ≤ MAX_CONTEXT_CHARS (to prevent token overflow)
+  ✓ Return error if exceeded
+
+Step 7: System Prompt Selection (Priority)
+  Priority 1: template_id (if specified in request)
+  Priority 2: topic.template_id (from topic record)
+  Priority 3: Default FINANCIAL_REPORT_SYSTEM_PROMPT
+
+  If template_id selected:
+    → Load template placeholders
+    → Generate dynamic system prompt
+
+Step 8: Claude API Call
+  ✓ Build message array:
+      [topic_context_msg] + [historical_msgs] + [new_user_msg]
+  ✓ Call claude_client.chat_completion(messages, system_prompt)
+
+Step 9: Assistant Response Storage
+  ✓ Determine seq_no (max existing + 1)
+  ✓ INSERT into messages table (role: assistant)
+
+Step 10: Markdown Artifact Creation
+  ✓ Parse Claude response to structured data
+  ✓ Build Markdown from parsed data
+  ✓ Save artifact (kind: MD, version++)
+  ✓ Calculate SHA256
+
+Step 11: AI Usage Recording
+  ✓ INSERT into ai_usage table
+  ✓ Record usage metrics
+
+Step 12: Response
+  ✓ Return: topic_id, user_message, assistant_message, artifacts[], usage
+  ✓ artifacts[] may contain MD and/or HWPX
+  ✓ HTTP 200 OK
+```
+
+### Workflow 4: Sequential Planning (POST /plan, NEW in v2.4)
+
+```
+Step 1: Load Topic Context
+  ✓ Verify topic_id and ownership
+
+Step 2: Get Template Instructions (if applicable)
+  ✓ Load template prompt_system
+  ✓ Extract planning-focused instructions
+
+Step 3: Sequential Planning API Call
+  ✓ Use sequential_planning.py to generate step-by-step plan
+  ✓ Response: Markdown with numbered steps and sections
+
+Step 4: Parse Planning Output
+  ✓ Extract section list from plan
+  ✓ Structure: [{"title": "...", "content": "..."}]
+
+Step 5: Response
+  ✓ Return: plan (Markdown), sections (list)
+  ✓ Response time: < 2 seconds
+  ✓ HTTP 200 OK
+```
+
+### Workflow 5: Background Report Generation (NEW in v2.4)
+
+```
+Step 1: Initiate Generation (< 1 second)
+  ✓ Validate input
+  ✓ Create task_id
+  ✓ Launch asyncio.create_task(long_operation)
+  ✓ Store generation_status in memory
+  ✓ Return HTTP 202 (Accepted) immediately
+
+Step 2: Background Processing (Async)
+  ✓ Execute full 9-step generation workflow
+  ✓ Update status at each milestone:
+      - "planning" (0%)
+      - "generating" (25%)
+      - "parsing" (50%)
+      - "saving" (75%)
+      - "complete" (100%)
+  ✓ Handle errors → "failed" status with message
+
+Step 3: Status Polling (GET /status)
+  ✓ Retrieve current status from memory
+  ✓ Return: status, progress %, message
+  ✓ Response time: < 500ms
+
+Step 4: Real-time Notifications (GET /status/stream - SSE)
+  ✓ Open Server-Sent Events stream
+  ✓ Send status updates as they occur
+  ✓ Final: Send artifact IDs and results
+  ✓ Close connection when complete
+```
 
 ---
 
@@ -1242,6 +1641,430 @@ All three methods are tested with:
 - ✅ Custom system prompt support
 
 See [backend/tests/test_utils_claude_client.py](tests/test_utils_claude_client.py) for test cases.
+
+---
+
+## Common Issues & Solutions
+
+### Issue 1: Claude API Rate Limiting or Timeout
+
+**Symptom:**
+```
+anthropic.RateLimitError: 429 Rate limit exceeded
+OR
+anthropic.APITimeoutError: Request to Claude API timed out
+```
+
+**Root Causes:**
+- Too many requests sent within rate limit window
+- Network connectivity issues
+- Large input context exceeding timeouts
+- Claude API service degradation
+
+**Solutions:**
+```python
+# 1. Implement exponential backoff (already in claude_client.py)
+# 2. Check context size before API call
+context_size = sum(len(m.content) for m in messages)
+if context_size > 50000:  # tokens estimate
+    return error_response(
+        code=ErrorCode.VALIDATION_CONTEXT_TOO_LARGE,
+        message="Context too large for API call"
+    )
+
+# 3. Verify API key is valid
+# .env should have: CLAUDE_API_KEY=sk-ant-...
+
+# 4. Check network connectivity
+import socket
+try:
+    socket.create_connection(("api.anthropic.com", 443), timeout=3)
+except socket.error:
+    # No network connectivity
+```
+
+**Prevention:**
+- Limit max_messages in /ask endpoint (default: 10)
+- Monitor API usage with AiUsageDB
+- Implement rate limit queue if needed
+
+---
+
+### Issue 2: Artifact File Not Found (404 on Download)
+
+**Symptom:**
+```
+{
+  "success": false,
+  "error": {
+    "code": "ARTIFACT.NOT_FOUND",
+    "message": "Artifact file not found",
+    "httpStatus": 404
+  }
+}
+```
+
+**Root Causes:**
+- Artifact record exists but file was deleted/moved
+- Incorrect file_path stored in database
+- File system permissions issue
+- Artifact reference to wrong artifact_id
+
+**Solutions:**
+```python
+# 1. Verify artifact exists and is readable
+import os
+artifact = ArtifactDB.get_artifact_by_id(artifact_id)
+if not os.path.exists(artifact.file_path):
+    logger.error(f"Artifact file missing: {artifact.file_path}")
+    # Option A: Regenerate from original data
+    # Option B: Return 410 Gone (intentionally deleted)
+    # Option C: Return 503 Unavailable (temporary issue)
+
+# 2. Check file permissions
+os.access(artifact.file_path, os.R_OK)
+
+# 3. Verify artifact_id ownership
+user_topic = TopicDB.get_topic_by_id(artifact.topic_id)
+if user_topic.user_id != current_user.id:
+    return error_response(code=ErrorCode.PERMISSION_DENIED)
+
+# 4. Regenerate artifact if needed
+if not os.path.exists(artifact.file_path):
+    # Retrieve original message and regenerate
+    message = MessageDB.get_message_by_id(artifact.message_id)
+    # Regenerate artifact...
+```
+
+**Prevention:**
+- Use ArtifactManager for all file operations (centralized control)
+- Implement file integrity checks with SHA256
+- Schedule periodic artifact health checks
+- Keep backup strategy for critical artifacts
+
+---
+
+### Issue 3: Message Seq_no Ordering Issues
+
+**Symptom:**
+```
+# Messages returned out of order in /ask response
+# seq_no gaps: 0, 1, 3, 5 (missing 2, 4)
+```
+
+**Root Causes:**
+- Race condition in concurrent message creation
+- Failed insert rollback didn't decrement seq_no counter
+- Manual database edits bypassed seq_no validation
+- Transaction isolation level too low
+
+**Solutions:**
+```python
+# 1. Use transaction for atomic seq_no increment
+def create_message(self, topic_id: int, role: str, content: str):
+    """Create message with atomic seq_no assignment."""
+    with self.get_db_connection() as conn:
+        try:
+            # Get max seq_no for topic
+            max_seq = conn.execute(
+                "SELECT MAX(seq_no) FROM messages WHERE topic_id = ?",
+                (topic_id,)
+            ).fetchone()[0] or -1
+
+            new_seq_no = max_seq + 1
+
+            # Insert with explicit seq_no
+            cursor = conn.execute(
+                """INSERT INTO messages
+                   (topic_id, role, content, seq_no, created_at)
+                   VALUES (?, ?, ?, ?, datetime('now'))""",
+                (topic_id, role, content, new_seq_no)
+            )
+
+            conn.commit()  # Atomic commit
+            return cursor.lastrowid
+        except Exception as e:
+            conn.rollback()
+            raise
+
+# 2. Verify seq_no continuity before returning
+messages = MessageDB.get_messages_by_topic(topic_id)
+expected_seq = list(range(len(messages)))
+actual_seq = [m.seq_no for m in messages]
+if expected_seq != actual_seq:
+    logger.error(f"seq_no gap detected: {actual_seq}")
+    # Rebuild seq_no if needed
+```
+
+**Prevention:**
+- Always use transactions for seq_no updates
+- Add UNIQUE constraint: UNIQUE(topic_id, seq_no)
+- Validate seq_no continuity in tests
+- Log all seq_no updates for audit trail
+
+---
+
+### Issue 4: Template Placeholder Validation Failures
+
+**Symptom:**
+```
+POST /api/templates returns 400
+{
+  "error": "Invalid template: duplicate placeholder {{TITLE}}"
+}
+```
+
+**Root Causes:**
+- Duplicate placeholders in HWPX document
+- Invalid placeholder format (not {{KEY}})
+- Missing required placeholders ({{TITLE}})
+- HWPX file corrupted/invalid
+
+**Solutions:**
+```python
+# See templates_manager.py for complete validation
+def validate_hwpx(filepath: str) -> tuple[bool, list[str], str]:
+    """
+    Validate HWPX and extract placeholders.
+
+    Returns:
+        (is_valid, placeholders, error_message)
+    """
+    try:
+        # 1. Validate ZIP format
+        if not zipfile.is_zipfile(filepath):
+            return False, [], "Not a valid HWPX file (not ZIP)"
+
+        # 2. Extract placeholders
+        with zipfile.ZipFile(filepath, 'r') as zf:
+            # Read document.xml or similar
+            content = zf.read('content/document.xml').decode('utf-8')
+
+        # 3. Find all {{...}} patterns
+        import re
+        placeholders = re.findall(r'\{\{([A-Z_]+)\}\}', content)
+
+        # 4. Validate no duplicates
+        if len(placeholders) != len(set(placeholders)):
+            duplicates = [p for p in set(placeholders) if placeholders.count(p) > 1]
+            return False, [], f"Duplicate placeholders: {duplicates}"
+
+        # 5. Validate required ones
+        if "TITLE" not in placeholders:
+            return False, [], "Missing required placeholder: {{TITLE}}"
+
+        return True, placeholders, ""
+    except Exception as e:
+        return False, [], str(e)
+```
+
+**Prevention:**
+- Validate HWPX file before uploading (client-side)
+- Provide clear error messages with placeholder list
+- Show template preview with placeholders highlighted
+- Implement template validation schema
+
+---
+
+### Issue 5: System Prompt Context Overflow
+
+**Symptom:**
+```
+# Claude API returns error about token limit exceeded
+# Or responses are truncated/incomplete
+```
+
+**Root Causes:**
+- System prompt too long (> 3000 tokens)
+- Context messages too long (> 10000 tokens)
+- Combined message array exceeds model limit (100k tokens)
+- Document content included makes context too large
+
+**Solutions:**
+```python
+# 1. Monitor and truncate system prompt
+MAX_SYSTEM_PROMPT_LENGTH = 3000  # chars
+
+system_prompt = create_dynamic_system_prompt(placeholders)
+if len(system_prompt) > MAX_SYSTEM_PROMPT_LENGTH:
+    logger.warning(f"System prompt too long: {len(system_prompt)} chars")
+    # Truncate or simplify
+    system_prompt = system_prompt[:MAX_SYSTEM_PROMPT_LENGTH]
+
+# 2. Validate total context size
+def validate_context_size(messages: list[dict]) -> bool:
+    """Estimate token count before API call."""
+    # Rough estimate: 1 token ≈ 4 chars
+    total_chars = sum(len(m.get('content', '')) for m in messages)
+    total_tokens = total_chars // 4
+
+    MAX_CONTEXT_TOKENS = 80000  # Leave room for response
+    if total_tokens > MAX_CONTEXT_TOKENS:
+        logger.error(f"Context too large: {total_tokens} tokens")
+        return False
+    return True
+
+# 3. Implement context windowing
+def get_recent_messages(topic_id: int, max_messages: int = 10) -> list:
+    """Get only recent messages to limit context."""
+    all_messages = MessageDB.get_messages_by_topic(topic_id)
+    # Sort by seq_no descending and take most recent
+    return sorted(all_messages, key=lambda m: m.seq_no)[-max_messages:]
+
+# 4. Optionally exclude artifact content
+if not include_artifact_content:
+    # Don't add "Current report: ..." message
+    pass
+```
+
+**Prevention:**
+- Set reasonable MAX_CONTEXT_CHARS (50000 chars = ~12500 tokens)
+- Return error before API call if exceeded
+- Log context size for monitoring
+- Implement progressive context reduction (summarize old messages)
+
+---
+
+### Issue 6: Database Lock (sqlite3.OperationalError: database is locked)
+
+**Symptom:**
+```
+sqlite3.OperationalError: database is locked
+During concurrent POST /generate requests
+```
+
+**Root Causes:**
+- SQLite doesn't handle concurrent writes well
+- Connection not closed properly (no context manager)
+- Long-running transaction blocking others
+- Multiple connections to same database
+
+**Solutions:**
+```python
+# 1. ALWAYS use context manager for connections
+from app.database.connection import get_db_connection
+
+# ❌ DON'T do this:
+conn = sqlite3.connect(DATABASE_PATH)
+cursor = conn.execute(...)
+# What if exception occurs? conn never closes!
+
+# ✅ DO this:
+def create_topic(self, data: TopicCreate) -> Topic:
+    """Create topic using context manager."""
+    with self.get_db_connection() as conn:  # Auto closes!
+        try:
+            cursor = conn.execute(
+                "INSERT INTO topics (...) VALUES (...)",
+                (...)
+            )
+            conn.commit()
+            return Topic(id=cursor.lastrowid, ...)
+        except Exception as e:
+            conn.rollback()
+            raise
+
+# 2. Keep transactions short
+# ❌ DON'T: Process 1000 messages inside transaction
+# ✅ DO: Batch operations, short transactions
+
+# 3. Add retry logic with exponential backoff
+def execute_with_retry(func, max_retries=3, delay=0.1):
+    """Execute function with database lock retry."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except sqlite3.OperationalError as e:
+            if "database is locked" not in str(e):
+                raise
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(delay * (2 ** attempt))  # Exponential backoff
+
+# 4. Set connection timeout
+conn = sqlite3.connect(DATABASE_PATH, timeout=10.0)  # 10 second timeout
+```
+
+**Prevention:**
+- Use connection pooling if high concurrency expected
+- Always close connections (use context managers)
+- Keep transactions minimal
+- Monitor for concurrent write patterns
+- Consider PostgreSQL for production (better concurrency)
+
+---
+
+### Issue 7: Markdown Parsing Failure (Invalid Sections)
+
+**Symptom:**
+```
+# Claude response is parsed but sections are empty
+# Or: KeyError in parse_markdown_to_content()
+```
+
+**Root Causes:**
+- Claude response doesn't follow expected markdown structure
+- H2 headers don't match classification keywords
+- Markdown is malformed (missing newlines, etc.)
+- Response classified as "question" not "report"
+
+**Solutions:**
+```python
+# 1. Validate markdown structure before parsing
+from app.utils.markdown_parser import parse_markdown_to_content
+
+try:
+    content = parse_markdown_to_content(response)
+except ValueError as e:
+    logger.error(f"Markdown parse failed: {e}")
+    # Option A: Return error to user
+    # Option B: Use response_detector to check if it's a question
+    # Option C: Fallback to raw response as-is
+
+# 2. Use response_detector to classify response
+from app.utils.response_detector import detect_response_type
+
+response_type = detect_response_type(response)
+if response_type == "question":
+    # This is a follow-up question, not a report
+    return {
+        "message": response,
+        "artifact": None,  # No artifact for questions
+        "type": "question"
+    }
+elif response_type == "report":
+    # Standard report → create artifact
+    content = parse_markdown_to_content(response)
+    # ... create artifact ...
+
+# 3. Implement fallback parsing
+def parse_with_fallback(md_text: str) -> dict:
+    """Parse markdown with graceful fallback."""
+    try:
+        return parse_markdown_to_content(md_text)
+    except Exception as e:
+        logger.warning(f"Standard parse failed, using fallback: {e}")
+        # Simple fallback: split by ## headers
+        return fallback_parse_markdown(md_text)
+
+def fallback_parse_markdown(md_text: str) -> dict:
+    """Minimal markdown parser for edge cases."""
+    result = {}
+    sections = md_text.split('##')[1:]  # Split by H2
+    for section in sections:
+        lines = section.strip().split('\n')
+        title = lines[0].strip()
+        content = '\n'.join(lines[1:]).strip()
+        result[title.lower()] = content
+    return result
+```
+
+**Prevention:**
+- Test Claude with various input prompts
+- Validate system prompt directs proper markdown format
+- Add markdown validation to test suite
+- Log all parse failures for analysis
+- Consider using structured output mode (if available)
 
 ---
 
