@@ -1272,3 +1272,258 @@ class TestTemplateIdTracking:
         assert retrieved.template_id is None
         assert retrieved.input_prompt == "Legacy topic"
 
+
+@pytest.mark.api
+class TestBackgroundGenerationNonBlocking:
+    """백그라운드 보고서 생성 Event Loop Non-Blocking 테스트"""
+
+    def setup_method(self):
+        """각 테스트 전에 생성 상태 초기화"""
+        from app.utils.generation_status import clear_all_statuses
+        clear_all_statuses()
+
+    def test_tc_001_event_loop_non_blocking(self, client, auth_headers, create_test_user):
+        """TC-001: Event Loop Non-Blocking - Status 응답이 100ms 이내"""
+        # 사전: 토픽 생성
+        topic = TopicDB.create_topic(
+            user_id=create_test_user.id,
+            topic_data=TopicCreate(
+                input_prompt="Test blocking",
+                language="ko"
+            )
+        )
+
+        # Mock: Claude API 응답 (충분한 콘텐츠)
+        mock_markdown = """# 보고서 요약
+요약 섹션의 상세한 내용입니다. 최소 50자 이상의 콘텐츠를 포함하고 있습니다. 충분한 길이를 확보했습니다.
+
+## 배경
+배경 섹션의 상세한 내용입니다. 충분한 정보를 포함하고 있으며, 비즈니스 맥락을 설명합니다.
+
+## 주요 내용
+주요 내용 섹션입니다. 상세한 분석과 핵심 포인트를 제시합니다. 이 섹션은 매우 중요합니다.
+
+## 결론
+결론 섹션의 상세한 내용입니다. 최종 권고사항과 실행 계획을 포함합니다."""
+
+        with patch('app.utils.claude_client.ClaudeClient.generate_report') as mock_claude:
+            mock_claude.return_value = mock_markdown
+
+            # 생성 시작
+            generate_resp = client.post(
+                f"/api/topics/{topic.id}/generate",
+                headers=auth_headers,
+                json={
+                    "topic": "Test topic",
+                    "plan": "Test plan"
+                }
+            )
+            assert generate_resp.status_code == 202
+
+            # 즉시 status 확인 (응답 시간 측정)
+            import time
+            start = time.time()
+            status_resp = client.get(
+                f"/api/topics/{topic.id}/status",
+                headers=auth_headers
+            )
+            elapsed = time.time() - start
+
+            # 검증: 응답 < 100ms, 상태 = generating
+            assert status_resp.status_code == 200
+            assert elapsed < 0.1, f"Status response took {elapsed:.3f}s, expected < 0.1s"
+            data = status_resp.json()["data"]
+            assert data["status"] == "generating"
+
+    def test_tc_002_task_exception_handling(self, client, auth_headers, create_test_user):
+        """TC-002: Task 예외 처리 - Claude API 실패 시 상태 업데이트"""
+        # 사전: 토픽 생성
+        topic = TopicDB.create_topic(
+            user_id=create_test_user.id,
+            topic_data=TopicCreate(
+                input_prompt="Test exception",
+                language="ko"
+            )
+        )
+
+        with patch('app.utils.claude_client.ClaudeClient.generate_report') as mock_claude:
+            mock_claude.side_effect = RuntimeError("Claude API timeout")
+
+            # 생성 시작
+            generate_resp = client.post(
+                f"/api/topics/{topic.id}/generate",
+                headers=auth_headers,
+                json={
+                    "topic": "Test topic",
+                    "plan": "Test plan"
+                }
+            )
+            assert generate_resp.status_code == 202
+
+            # Task 완료 대기 (약 1.5초 - 예외 발생이 빠름)
+            import time
+            time.sleep(1.5)
+
+            # 상태 확인
+            status_resp = client.get(
+                f"/api/topics/{topic.id}/status",
+                headers=auth_headers
+            )
+
+            assert status_resp.status_code == 200
+            data = status_resp.json()["data"]
+            # Task 예외 처리 확인
+            assert data["status"] == "failed"
+            assert "Claude API timeout" in data["error_message"]
+
+    def test_tc_003_concurrent_generation(self, client, auth_headers, create_test_user):
+        """TC-003: 동시 다중 생성 - 3개 Topic 동시 생성"""
+        # 사전: 3개 토픽 생성
+        topics = [
+            TopicDB.create_topic(
+                user_id=create_test_user.id,
+                topic_data=TopicCreate(
+                    input_prompt=f"Test topic {i}",
+                    language="ko"
+                )
+            )
+            for i in range(3)
+        ]
+
+        mock_markdown = """# 보고서 요약
+상세한 요약 내용입니다. 충분한 길이를 확보했습니다.
+
+## 배경
+배경 섹션의 상세한 내용입니다.
+
+## 주요 내용
+주요 내용 섹션입니다.
+
+## 결론
+결론 섹션의 상세한 내용입니다."""
+
+        with patch('app.utils.claude_client.ClaudeClient.generate_report') as mock_claude:
+            mock_claude.return_value = mock_markdown
+
+            # 동시 생성 시작
+            generate_results = [
+                client.post(
+                    f"/api/topics/{t.id}/generate",
+                    headers=auth_headers,
+                    json={"topic": f"Test {t.id}", "plan": "Plan"}
+                )
+                for t in topics
+            ]
+
+            # 모두 202 Accepted
+            for resp in generate_results:
+                assert resp.status_code == 202
+
+            # 상태 동시 조회
+            status_results = [
+                client.get(
+                    f"/api/topics/{t.id}/status",
+                    headers=auth_headers
+                )
+                for t in topics
+            ]
+
+            # 모두 "generating" 상태
+            for status_resp in status_results:
+                assert status_resp.status_code == 200
+                assert status_resp.json()["data"]["status"] == "generating"
+
+    def test_tc_004_error_logging(self, client, auth_headers, create_test_user, caplog):
+        """TC-004: 로그 검증 - 예외 발생 시 ERROR 레벨 로그"""
+        import logging
+
+        # 사전: 토픽 생성
+        topic = TopicDB.create_topic(
+            user_id=create_test_user.id,
+            topic_data=TopicCreate(
+                input_prompt="Test logging",
+                language="ko"
+            )
+        )
+
+        with patch('app.utils.claude_client.ClaudeClient.generate_report') as mock_claude:
+            mock_claude.side_effect = ValueError("Invalid input")
+
+            with caplog.at_level(logging.ERROR):
+                # 생성 시작
+                client.post(
+                    f"/api/topics/{topic.id}/generate",
+                    headers=auth_headers,
+                    json={
+                        "topic": "Test topic",
+                        "plan": "Test plan"
+                    }
+                )
+
+                # Task 완료 대기
+                import time
+                time.sleep(0.5)
+
+                # 로그 확인: [BACKGROUND] Report generation failed 포함
+                assert any(
+                    "[BACKGROUND] Report generation failed" in record.message
+                    and "Invalid input" in record.message
+                    for record in caplog.records
+                    if record.levelname == "ERROR"
+                ), "Expected ERROR log with '[BACKGROUND] Report generation failed' not found"
+
+    def test_tc_005_status_response_time(self, client, auth_headers, create_test_user):
+        """TC-005: Status 엔드포인트 응답 시간 - 10회 연속 조회 < 100ms"""
+        # 사전: 토픽 생성
+        topic = TopicDB.create_topic(
+            user_id=create_test_user.id,
+            topic_data=TopicCreate(
+                input_prompt="Test response time",
+                language="ko"
+            )
+        )
+
+        mock_markdown = """# 보고서 요약
+상세한 요약 내용입니다.
+
+## 배경
+배경 섹션의 상세한 내용입니다.
+
+## 주요 내용
+주요 내용 섹션입니다.
+
+## 결론
+결론 섹션의 상세한 내용입니다."""
+
+        with patch('app.utils.claude_client.ClaudeClient.generate_report') as mock_claude:
+            mock_claude.return_value = mock_markdown
+
+            # 생성 시작
+            client.post(
+                f"/api/topics/{topic.id}/generate",
+                headers=auth_headers,
+                json={
+                    "topic": "Test topic",
+                    "plan": "Test plan"
+                }
+            )
+
+            # 응답 시간 측정 (10회 반복)
+            import time
+            response_times = []
+
+            for _ in range(10):
+                start = time.time()
+                resp = client.get(
+                    f"/api/topics/{topic.id}/status",
+                    headers=auth_headers
+                )
+                elapsed = time.time() - start
+                response_times.append(elapsed)
+
+                assert resp.status_code == 200
+
+            # 최대 응답 시간 확인
+            max_time = max(response_times)
+            assert max_time < 0.1, f"Max response time {max_time:.3f}s, expected < 0.1s"
+

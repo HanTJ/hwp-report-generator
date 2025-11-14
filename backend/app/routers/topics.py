@@ -1176,8 +1176,8 @@ async def generate_report_background(
         init_generation_status(topic_id)
         logger.info(f"[GENERATE] Status initialized - topic_id={topic_id}")
 
-        # 백그라운드 task 생성
-        asyncio.create_task(
+        # 백그라운드 task 생성 (예외 처리 포함)
+        task = asyncio.create_task(
             _background_generate_report(
                 topic_id=topic_id,
                 topic=request.topic,
@@ -1186,6 +1186,17 @@ async def generate_report_background(
                 user_id=current_user.id
             )
         )
+
+        # ✅ Task 예외 처리: 실패 시 로그 기록
+        def handle_task_result(t: asyncio.Task):
+            try:
+                t.result()
+            except asyncio.CancelledError:
+                logger.warning(f"[BACKGROUND] Task cancelled - topic_id={topic_id}")
+            except Exception as e:
+                logger.error(f"[BACKGROUND] Task failed with unhandled exception - topic_id={topic_id}, error={str(e)}", exc_info=True)
+
+        task.add_done_callback(handle_task_result)
 
         elapsed = time.time() - start_time
         logger.info(f"[GENERATE] Task created - topic_id={topic_id}, elapsed={elapsed:.2f}s")
@@ -1385,7 +1396,9 @@ async def _background_generate_report(
     template_id: Optional[int],
     user_id: str
 ):
-    """백그라운드에서 실제 보고서 생성 (기존 generate 로직 통합)
+    """백그라운드에서 실제 보고서 생성 (기존 generate 로깅 통합)
+
+    모든 동기 작업은 asyncio.to_thread()로 감싸져 event loop을 블로킹하지 않습니다.
 
     Args:
         topic_id: 토픽 ID
@@ -1404,7 +1417,7 @@ async def _background_generate_report(
             current_step="Preparing content..."
         )
 
-        # === Step 2: Claude API 호출 ===
+        # === Step 2: Claude API 호출 (non-blocking) ===
         logger.info(f"[BACKGROUND] Calling Claude API - topic_id={topic_id}")
         update_progress(
             topic_id,
@@ -1412,11 +1425,11 @@ async def _background_generate_report(
             current_step="Calling Claude API..."
         )
 
-        # 기존 generate 엔드포인트의 로직 활용
         claude = ClaudeClient()
 
         # System prompt 선택
-        system_prompt = get_system_prompt(
+        system_prompt = await asyncio.to_thread(
+            get_system_prompt,
             template_id=template_id,
             user_id=int(user_id) if isinstance(user_id, str) else user_id
         )
@@ -1425,7 +1438,11 @@ async def _background_generate_report(
         user_prompt = f"주제: {topic}\n\n계획:\n{plan}\n\n위의 계획을 바탕으로 상세한 보고서를 작성해주세요."
 
         start_time = time.time()
-        markdown = claude.generate_report(topic=topic)
+        # ✅ Non-blocking: Claude API 호출을 스레드 풀에서 실행
+        markdown = await asyncio.to_thread(
+            claude.generate_report,
+            topic=topic
+        )
         latency_ms = int((time.time() - start_time) * 1000)
 
         input_tokens = claude.last_input_tokens
@@ -1441,8 +1458,15 @@ async def _background_generate_report(
             current_step="Processing markdown..."
         )
 
-        parsed_content = parse_markdown_to_content(markdown)
-        built_markdown = build_report_md(parsed_content)
+        # ✅ Non-blocking: 파싱을 스레드 풀에서 실행
+        parsed_content = await asyncio.to_thread(
+            parse_markdown_to_content,
+            markdown
+        )
+        built_markdown = await asyncio.to_thread(
+            build_report_md,
+            parsed_content
+        )
 
         # === Step 4: 파일 저장 ===
         logger.info(f"[BACKGROUND] Saving files - topic_id={topic_id}")
@@ -1452,12 +1476,24 @@ async def _background_generate_report(
             current_step="Saving to storage..."
         )
 
-        topic_obj = TopicDB.get_topic_by_id(topic_id)
+        # ✅ Non-blocking: DB 조회를 스레드 풀에서 실행
+        topic_obj = await asyncio.to_thread(
+            TopicDB.get_topic_by_id,
+            topic_id
+        )
         version = next_artifact_version(topic_id, ArtifactKind.MD, topic_obj.language)
         base_dir, md_path = build_artifact_paths(topic_id, version, "report.md")
 
-        bytes_written = write_text(md_path, built_markdown)
-        file_hash = sha256_of(md_path)
+        # ✅ Non-blocking: 파일 I/O를 스레드 풀에서 실행
+        bytes_written = await asyncio.to_thread(
+            write_text,
+            md_path,
+            built_markdown
+        )
+        file_hash = await asyncio.to_thread(
+            sha256_of,
+            md_path
+        )
 
         logger.info(f"[BACKGROUND] Files saved - topic_id={topic_id}, size={bytes_written}")
 
@@ -1469,12 +1505,16 @@ async def _background_generate_report(
             current_step="Saving metadata..."
         )
 
-        assistant_msg = MessageDB.create_message(
+        # ✅ Non-blocking: 메시지 생성을 스레드 풀에서 실행
+        assistant_msg = await asyncio.to_thread(
+            MessageDB.create_message,
             topic_id,
             MessageCreate(role=MessageRole.ASSISTANT, content=built_markdown)
         )
 
-        artifact = ArtifactDB.create_artifact(
+        # ✅ Non-blocking: Artifact 생성을 스레드 풀에서 실행
+        artifact = await asyncio.to_thread(
+            ArtifactDB.create_artifact,
             topic_id,
             assistant_msg.id,
             ArtifactCreate(
@@ -1488,9 +1528,10 @@ async def _background_generate_report(
             )
         )
 
-        # AI 사용량 저장
+        # AI 사용량 저장 (non-critical, 실패 무시)
         try:
-            AiUsageDB.create_ai_usage(
+            await asyncio.to_thread(
+                AiUsageDB.create_ai_usage,
                 topic_id,
                 assistant_msg.id,
                 AiUsageCreate(
