@@ -609,13 +609,13 @@ async def delete_topic(
         )
 
 
-@router.post("/{topic_id}/ask", summary="Ask question in conversation")
+@router.post("/{topic_id}/ask", summary="Ask question in conversation - Artifact state machine")
 async def ask(
     topic_id: int,
     body: AskRequest,
     current_user: User = Depends(get_current_active_user)
 ):
-    """대화(Conversation) 맵핑에서 질문을 수행합니다.
+    """대화(Conversation) 맵핑에서 질문을 수행합니다. - Artifact 상태 머신 패턴 적용
 
     매개변수(Args):
         - topic_id: 질문이 속한 주제의 ID
@@ -623,7 +623,7 @@ async def ask(
         - current_user: 인증된 사용자 정보
 
     반환(Returns):
-        사용자 메시지(user_message), AI 응답(assistant_message),  
+        사용자 메시지(user_message), AI 응답(assistant_message),
         생성된 아티팩트(artifact), 토큰 사용 정보(usage)를 포함한 표준 ApiResponse 객체를 반환합니다.
 
     에러 코드(Error Codes):
@@ -641,7 +641,7 @@ async def ask(
     # === 1단계: 권한 및 검증 ===
     logger.info(f"[ASK] Start - topic_id={topic_id}, user_id={current_user.id}")
 
-    topic = TopicDB.get_topic_by_id(topic_id)
+    topic = await asyncio.to_thread(TopicDB.get_topic_by_id, topic_id)
     if not topic:
         logger.warning(f"[ASK] Topic not found - topic_id={topic_id}")
         return error_response(
@@ -679,7 +679,8 @@ async def ask(
 
     # === 2단계: 사용자 메시지 저장 ===
     logger.info(f"[ASK] Saving user message - topic_id={topic_id}, length={len(content)}")
-    user_msg = MessageDB.create_message(
+    user_msg = await asyncio.to_thread(
+        MessageDB.create_message,
         topic_id,
         MessageCreate(role=MessageRole.USER, content=content)
     )
@@ -689,7 +690,10 @@ async def ask(
     reference_artifact = None
     if body.artifact_id is not None:
         logger.info(f"[ASK] Loading specified artifact - artifact_id={body.artifact_id}")
-        reference_artifact = ArtifactDB.get_artifact_by_id(body.artifact_id)
+        reference_artifact = await asyncio.to_thread(
+            ArtifactDB.get_artifact_by_id,
+            body.artifact_id
+        )
 
         if not reference_artifact:
             logger.warning(f"[ASK] Artifact not found - artifact_id={body.artifact_id}")
@@ -717,7 +721,8 @@ async def ask(
             )
     else:
         logger.info(f"[ASK] Loading latest MD artifact - topic_id={topic_id}")
-        reference_artifact = ArtifactDB.get_latest_artifact_by_kind(
+        reference_artifact = await asyncio.to_thread(
+            ArtifactDB.get_latest_artifact_by_kind,
             topic_id, ArtifactKind.MD, topic.language
         )
         if reference_artifact:
@@ -728,7 +733,10 @@ async def ask(
     # === 4단계: 컨텍스트 구성 ===
     logger.info(f"[ASK] Building context - topic_id={topic_id}")
 
-    all_messages = MessageDB.get_messages_by_topic(topic_id)
+    all_messages = await asyncio.to_thread(
+        MessageDB.get_messages_by_topic,
+        topic_id
+    )
     logger.info(f"[ASK] Total messages in topic: {len(all_messages)}")
 
     # User 메시지 필터링
@@ -736,7 +744,10 @@ async def ask(
 
     # ✨ NEW: artifact_id가 **명시적으로** 지정된 경우에만, 해당 message 이전 것만 포함
     if body.artifact_id is not None and reference_artifact:
-        ref_msg = MessageDB.get_message_by_id(reference_artifact.message_id)
+        ref_msg = await asyncio.to_thread(
+            MessageDB.get_message_by_id,
+            reference_artifact.message_id
+        )
         if ref_msg:
             # reference message의 seq_no까지만 포함
             user_messages = [m for m in user_messages if m.seq_no <= ref_msg.seq_no]
@@ -751,7 +762,10 @@ async def ask(
     # Assistant 메시지 필터링 (참조 문서 생성 메시지만)
     assistant_messages = []
     if reference_artifact:
-        ref_msg = MessageDB.get_message_by_id(reference_artifact.message_id)
+        ref_msg = await asyncio.to_thread(
+            MessageDB.get_message_by_id,
+            reference_artifact.message_id
+        )
         if ref_msg:
             assistant_messages = [ref_msg]
             logger.info(f"[ASK] Including reference assistant message - message_id={ref_msg.id}")
@@ -840,11 +854,12 @@ async def ask(
             hint="max_messages를 줄이거나 include_artifact_content를 false로 설정해주세요."
         )
 
-    # === 4단계: System Prompt 선택 (우선순위: template > default) ===
+    # === 5단계: System Prompt 선택 (우선순위: template > default) ===
     logger.info(f"[ASK] Selecting system prompt - template_id={body.template_id}")
 
     try:
-        system_prompt = get_system_prompt(
+        system_prompt = await asyncio.to_thread(
+            get_system_prompt,
             custom_prompt=None,
             template_id=body.template_id,
             user_id=current_user.id
@@ -866,7 +881,7 @@ async def ask(
             details={"error": str(e)}
         )
 
-    # === 5단계: Claude 호출 ===
+    # === 6단계: Claude 호출 ===
     logger.info(f"[ASK] Calling Claude API - messages={len(claude_messages)}")
 
     try:
@@ -892,7 +907,7 @@ async def ask(
             hint="잠시 후 다시 시도해주세요."
         )
 
-    # === 6단계: 응답 형태 판별 ===
+    # === 7단계: 응답 형태 판별 ===
     logger.info(f"[ASK] Detecting response type")
     # TODO: is report 판별 로직 개선 필요
     #is_report = is_report_content(response_text)
@@ -900,7 +915,7 @@ async def ask(
 
     logger.info(f"[ASK] Response type detected - is_report={is_report}")
 
-    # === 6-1단계: 질문 응답일 경우 콘텐츠 추출 ===
+    # === 7-1단계: 질문 응답일 경우 콘텐츠 추출 ===
     message_content = response_text
     if not is_report:
         logger.info(f"[ASK] Question response detected - extracting pure content")
@@ -912,49 +927,57 @@ async def ask(
         else:
             logger.warning(f"[ASK] Question response but extraction returned empty, using original")
 
-    # === 6-2단계: Assistant 메시지 저장 (항상 저장) ===
+    # === 7-2단계: Assistant 메시지 저장 (항상 저장) ===
     logger.info(f"[ASK] Saving assistant message - topic_id={topic_id}, length={len(message_content)}")
 
-    asst_msg = MessageDB.create_message(
+    asst_msg = await asyncio.to_thread(
+        MessageDB.create_message,
         topic_id,
         MessageCreate(role=MessageRole.ASSISTANT, content=message_content)
     )
 
     logger.info(f"[ASK] Assistant message saved - message_id={asst_msg.id}, seq_no={asst_msg.seq_no}")
 
-    # === 7단계: 조건부 MD 파일 저장 ===
+    # === 8단계: 조건부 MD 파일 저장 (Artifact 상태 머신 패턴) ===
     artifact = None
 
     if is_report:
-        logger.info(f"[ASK] Saving MD artifact (report content)")
+        logger.info(f"[ASK] Saving MD artifact (report content - Artifact state machine)")
 
         try:
-            # Markdown 파싱 및 제목 추출
+            # Step 1: Markdown 파싱 및 제목 추출
             logger.info(f"[ASK] Parsing markdown content")
-            result = parse_markdown_to_content(response_text)
+            result = await asyncio.to_thread(parse_markdown_to_content, response_text)
             generated_title = result.get("title") or "보고서"
             logger.info(f"[ASK] Parsed successfully - title={generated_title}")
 
-            # 마크다운 빌드
-            md_text = build_report_md(result)
+            # Step 2: 마크다운 빌드
+            md_text = await asyncio.to_thread(build_report_md, result)
             logger.info(f"[ASK] Built markdown - length={len(md_text)}")
 
-            # 버전 계산
-            version = next_artifact_version(topic_id, ArtifactKind.MD, topic.language)
+            # Step 3: 버전 계산
+            version = await asyncio.to_thread(
+                next_artifact_version,
+                topic_id, ArtifactKind.MD, topic.language
+            )
             logger.info(f"[ASK] Artifact version - version={version}")
 
-            # 파일 경로 생성
-            base_dir, md_path = build_artifact_paths(topic_id, version, "report.md")
+            # Step 4: 파일 경로 생성
+            base_dir, md_path = await asyncio.to_thread(
+                build_artifact_paths,
+                topic_id, version, "report.md"
+            )
             logger.info(f"[ASK] Artifact path - path={md_path}")
 
-            # 파일 저장 (파싱된 마크다운만)
-            bytes_written = write_text(md_path, md_text)
-            file_hash = sha256_of(md_path)
+            # Step 5: 파일 저장 (파싱된 마크다운만)
+            bytes_written = await asyncio.to_thread(write_text, md_path, md_text)
+            file_hash = await asyncio.to_thread(sha256_of, md_path)
 
             logger.info(f"[ASK] File written - size={bytes_written}, hash={file_hash[:16]}...")
 
-            # Artifact DB 레코드 생성
-            artifact = ArtifactDB.create_artifact(
+            # ✅ Step 6: Artifact DB 레코드 생성 (status="completed" + 모든 파일 정보 포함)
+            artifact = await asyncio.to_thread(
+                ArtifactDB.create_artifact,
                 topic_id,
                 asst_msg.id,
                 ArtifactCreate(
@@ -962,13 +985,16 @@ async def ask(
                     locale=topic.language,
                     version=version,
                     filename=md_path.name,
-                    file_path=str(md_path),
+                    file_path=str(md_path),  # ✅ 완료 상태로 파일 정보 완전히 populated
                     file_size=bytes_written,
-                    sha256=file_hash
+                    sha256=file_hash,
+                    status="completed",  # ✅ 명시적으로 completed 상태
+                    progress_percent=100,  # ✅ 100% 완료
+                    completed_at=datetime.utcnow().isoformat()  # ✅ 완료 시간 기록
                 )
             )
 
-            logger.info(f"[ASK] Artifact created - artifact_id={artifact.id}, version={artifact.version}")
+            logger.info(f"[ASK] Artifact created - artifact_id={artifact.id}, version={artifact.version}, status={artifact.status}")
 
         except Exception as e:
             logger.error(f"[ASK] Failed to save artifact - error={str(e)}")
@@ -981,11 +1007,12 @@ async def ask(
     else:
         logger.info(f"[ASK] No artifact created (question/conversation response)")
 
-    # === 8단계: AI 사용량 저장 ===
+    # === 9단계: AI 사용량 저장 ===
     logger.info(f"[ASK] Saving AI usage - message_id={asst_msg.id}")
 
     try:
-        AiUsageDB.create_ai_usage(
+        await asyncio.to_thread(
+            AiUsageDB.create_ai_usage,
             topic_id,
             asst_msg.id,
             AiUsageCreate(
@@ -1002,7 +1029,7 @@ async def ask(
         logger.error(f"[ASK] Failed to save AI usage - error={str(e)}")
         # 사용량 저장 실패는 치명적이지 않으므로 계속 진행
 
-    # === 9단계: 성공 응답 반환 ===
+    # === 10단계: 성공 응답 반환 ===
     logger.info(f"[ASK] Success - topic_id={topic_id}, has_artifact={artifact is not None}")
 
     return success_response({
