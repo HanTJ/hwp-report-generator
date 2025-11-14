@@ -1,12 +1,12 @@
 import type {MessageUI} from '../models/ui/MessageUI'
 import {AssistantOutlineCard} from './chat/AssistantOutlineCard'
 import {OutlineActionButtons} from './chat/OutlineActionButtons'
-import {useState} from 'react'
 
 interface OutlineMessageProps {
     message: MessageUI // outline 모드의 MessageUI
     onGenerateReport: () => void
     onContinue?: () => void
+    showButtons?: boolean
 }
 
 /**
@@ -17,16 +17,12 @@ interface OutlineMessageProps {
  * - Assistant message: AI가 생성한 outline (content에 저장됨)
  * - Action buttons: "예/아니오" 버튼 (최신 assistant 메시지에만 표시)
  */
-export const OutlineMessage = ({message, onGenerateReport, onContinue}: OutlineMessageProps) => {
-    const [showButtons, setShowButtons] = useState(true)
-
+export const OutlineMessage = ({message, onGenerateReport, onContinue, showButtons = true}: OutlineMessageProps) => {
     const handleGenerateReport = () => {
-        setShowButtons(false)
         onGenerateReport()
     }
 
     const handleContinue = () => {
-        setShowButtons(false)
         onContinue?.()
     }
 

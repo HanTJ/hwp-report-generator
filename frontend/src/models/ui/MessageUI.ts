@@ -5,13 +5,13 @@ import type {MessageModel} from '../MessageModel'
  * - MessageModel에 UI 관련 속성 추가
  */
 export interface MessageUI extends MessageModel {
-    clientId: number // ⚠️ UI 렌더링용 고유 ID (React key로 사용)
+    clientId: number // UI 렌더링용 고유 ID (React key로 사용)
     timestamp: Date
-    isOutline?: boolean // Outline 모드 여부 (개요 표시용)
+    isOutline?: boolean // Outline 모드 여부 (개요 버튼 표시용)
     reportData?: {
         // md 아티팩트 내용
-        reportId?: number
-        filename?: string
-        content?: string
+        reportId: number
+        filename: string
+        content: string
     }
 }

@@ -29,12 +29,12 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
     /**
      * 메시지 전송 핸들러
      * - MessageModel 기반으로 동작
-     * - 임시 메시지를 UI에 추가하지 않고, API 완료 후 refreshMessages로 불러옴
      */
     const handleSendMessage = async (message: string, files: File[], webSearchEnabled: boolean) => {
         useMessageStore.getState().setIsGeneratingMessage(true)
 
         try {
+            console.log('Sending message:', {message, files, webSearchEnabled, selectedTopicId})
             let currentTopicId = selectedTopicId
 
             // 첫 메시지: 토픽 생성 + AI 보고서 자동 생성

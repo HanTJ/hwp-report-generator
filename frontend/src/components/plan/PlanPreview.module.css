@@ -1,0 +1,121 @@
+.planPreviewSidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 28rem;
+    height: 100vh;
+    background-color: var(--white);
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    animation: slideIn var(--transition-slow) ease-out;
+    z-index: var(--z-dropdown);
+    box-shadow: var(--shadow-lg);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.previewHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.previewTitle {
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+.previewActions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.previewActionBtn {
+    width: var(--spacing-xl);
+    height: var(--spacing-xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-base) ease;
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+.previewActionBtn:hover {
+    background-color: var(--background-color);
+    color: var(--text-primary);
+}
+
+.previewActionBtn.generate {
+    width: 6rem;
+    color: var(--primary-color);
+}
+
+.previewActionBtn.generate:hover {
+    background-color: #e8f0fe;
+    color: var(--primary-active);
+}
+
+.previewActionBtn.close {
+    color: var(--text-secondary);
+}
+
+.previewActionBtn.close:hover {
+    background-color: var(--background-color);
+    color: var(--text-primary);
+}
+
+.previewContent {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.editableTextarea {
+    flex: 1;
+    width: 100%;
+    padding: var(--spacing-lg);
+    border: none;
+    background-color: #fafafa;
+    font-family: 'Courier New', monospace;
+    font-size: var(--font-size-sm);
+    line-height: 1.8;
+    color: var(--text-primary);
+    resize: none;
+    outline: none;
+}
+
+.editableTextarea:focus {
+    background-color: var(--white);
+}
+
+.editableTextarea::placeholder {
+    color: var(--text-disabled);
+}
+
+@media (max-width: 768px) {
+    .planPreviewSidebar {
+        width: 100%;
+        top: 0;
+        height: 100vh;
+    }
+}

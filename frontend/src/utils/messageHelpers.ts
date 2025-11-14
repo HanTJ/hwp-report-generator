@@ -43,7 +43,7 @@ export const enrichMessageWithArtifact = async (message: MessageModel, artifacts
     if (message.role === 'assistant') {
         // 이 메시지에 연결된 artifacts 필터링
         const messageArtifacts = artifacts.filter((art) => art.message_id === message.id)
-
+        console.log('messageArtifacts:', messageArtifacts)
         // MD artifact 찾아서 content 로드
         const mdArtifact = messageArtifacts.find((art) => art.kind === 'md')
 

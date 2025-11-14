@@ -58,11 +58,11 @@ export const mapMessageModelToUI = (model: MessageModel, clientId: number): Mess
         clientId,
         timestamp: new Date(model.createdAt),
         isOutline: false, // 기본값
-        reportData: mdArtifact
+        reportData: mdArtifact && mdArtifact.content
             ? {
                   reportId: mdArtifact.id,
                   filename: mdArtifact.filename,
-                  content: mdArtifact.content
+                  content: mdArtifact.content as string // find 조건에서 이미 content 존재 확인
               }
             : undefined
     }

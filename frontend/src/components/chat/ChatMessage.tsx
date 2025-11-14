@@ -14,7 +14,7 @@ interface ChatMessageProps {
     isDeleting?: boolean
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDownload, onDelete, isGenerating = false, isDeleting = false}) => {
+const ChatMessage = ({message, onReportClick, onDownload, onDelete, isGenerating = false, isDeleting = false}: ChatMessageProps) => {
     const {user} = useAuth()
     const [isHovered, setIsHovered] = useState(false)
     const [showDeleteModal, setShowDeleteModal] = useState(false)

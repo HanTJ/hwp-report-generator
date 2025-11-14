@@ -60,6 +60,7 @@ interface TopicStore {
         userMessage: string,
         addMessages: (topicId: number, messages: MessageModel[]) => void
     ) => Promise<void>
+    updatePlan: (newPlan: string) => void
     clearPlan: () => void
 
     // Actions - 보고서 생성
@@ -342,6 +343,20 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                 }
                 addMessages(tempTopicId, [errorMsgModel])
             }
+        },
+
+        // 계획 업데이트
+        updatePlan: (newPlan) => {
+            set((state) => {
+                if (!state.plan) return state
+
+                return {
+                    plan: {
+                        ...state.plan,
+                        plan: newPlan
+                    }
+                }
+            })
         },
 
         // 계획 초기화

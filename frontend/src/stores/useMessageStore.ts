@@ -218,6 +218,7 @@ export const useMessageStore = create<MessageStore>((set, get) => {
             try {
                 // 1. 서버에서 메시지 + Artifact 조회
                 const messagesResponse = await messageApi.listMessages(topicId)
+                console.log('mergeNewMessages: fetched messages', messagesResponse.messages)
                 const messageModels = mapMessageResponsesToModels(messagesResponse.messages)
 
                 const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
