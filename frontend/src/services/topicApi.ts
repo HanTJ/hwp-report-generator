@@ -150,7 +150,7 @@ export const topicApi = {
      */
     askTopic: async (topicId: number, data: AskRequest): Promise<AskResponse> => {
         // 요청 데이터 확인
-        console.log('askTopic > request data > topicId: ${topicId}', data)
+        console.log('askTopic > request >', topicId, data)
 
         const response = await api.post<ApiResponse<AskResponse>>(API_ENDPOINTS.ASK_TOPIC(topicId), data)
 
@@ -172,7 +172,7 @@ export const topicApi = {
      * @returns 보고서 작성 계획 (plan, sections)
      */
     generateTopicPlan: async (data: PlanRequest): Promise<PlanResponse> => {
-        console.log('generateTopicPlan > request data >', data.template_id, data.topic)
+        console.log('generateTopicPlan > request data >', data)
 
         const response = await api.post<ApiResponse<PlanResponse>>(API_ENDPOINTS.TOPIC_PLAN, data)
 
@@ -194,20 +194,25 @@ export const topicApi = {
      * @param data 생성 요청 데이터 (topic, plan, template_id)
      * @returns 생성 상태 정보 (202 Accepted)
      */
-    generateTopicBackground: async (topicId: number, data: {topic: string; plan: string; template_id?: number}): Promise<{
+    generateTopicBackground: async (
+        topicId: number,
+        data: {topic: string; plan: string; template_id?: number}
+    ): Promise<{
         topic_id: number
         status: string
         message: string
         status_check_url: string
     }> => {
-        console.log('generateTopicBackground > request >', topicId, data.topic)
+        console.log('generateTopicBackground > request >', topicId, data)
 
-        const response = await api.post<ApiResponse<{
-            topic_id: number
-            status: string
-            message: string
-            status_check_url: string
-        }>>(API_ENDPOINTS.GENERATE_TOPIC_BACKGROUND(topicId), data)
+        const response = await api.post<
+            ApiResponse<{
+                topic_id: number
+                status: string
+                message: string
+                status_check_url: string
+            }>
+        >(API_ENDPOINTS.GENERATE_TOPIC_BACKGROUND(topicId), data)
 
         if (!response.data.success || !response.data.data) {
             console.log('generateTopicBackground > failed >', response.data)
@@ -224,7 +229,9 @@ export const topicApi = {
      * @param topicId 토픽 ID
      * @returns 생성 상태 정보
      */
-    getGenerationStatus: async (topicId: number): Promise<{
+    getGenerationStatus: async (
+        topicId: number
+    ): Promise<{
         topic_id: number
         status: 'generating' | 'completed' | 'failed'
         progress_percent: number
@@ -234,16 +241,18 @@ export const topicApi = {
         completed_at?: string
         error_message?: string
     }> => {
-        const response = await api.get<ApiResponse<{
-            topic_id: number
-            status: 'generating' | 'completed' | 'failed'
-            progress_percent: number
-            current_step?: string
-            artifact_id?: number
-            started_at?: string
-            completed_at?: string
-            error_message?: string
-        }>>(API_ENDPOINTS.GET_GENERATION_STATUS(topicId))
+        const response = await api.get<
+            ApiResponse<{
+                topic_id: number
+                status: 'generating' | 'completed' | 'failed'
+                progress_percent: number
+                current_step?: string
+                artifact_id?: number
+                started_at?: string
+                completed_at?: string
+                error_message?: string
+            }>
+        >(API_ENDPOINTS.GET_GENERATION_STATUS(topicId))
 
         if (!response.data.success || !response.data.data) {
             console.log('getGenerationStatus > failed >', response.data)

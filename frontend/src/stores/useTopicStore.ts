@@ -382,7 +382,6 @@ export const useTopicStore = create<TopicStore>((set, get) => {
             }
 
             const realTopicId = plan.topic_id
-            console.log('generateReportFromPlan > realTopicId:', realTopicId)
 
             try {
                 // ChatInput 비활성화 (새 메시지 전송 방지)
@@ -428,21 +427,18 @@ export const useTopicStore = create<TopicStore>((set, get) => {
 
                                 // 1. 기존 계획 모드 메시지 (topicId=0) 가져오기
                                 const planMessages = messageStore.getMessages(0)
-                                console.log('🔍 [1] planMessages (topicId=0):', planMessages)
 
                                 // 2. 서버에서 메시지 + Artifact 조회
                                 const messagesResponse = await messageApi.listMessages(realTopicId)
                                 const messageModels = mapMessageResponsesToModels(messagesResponse.messages)
                                 const artifactsResponse = await artifactApi.listArtifactsByTopic(realTopicId)
                                 const serverMessages = await enrichMessagesWithArtifacts(messageModels, artifactsResponse.artifacts)
-                                console.log('🔍 [2] serverMessages:', serverMessages)
 
                                 // 3. 계획 메시지의 topicId 업데이트 (0 → realTopicId)
                                 const updatedPlanMessages = planMessages.map((msg) => ({
                                     ...msg,
                                     topicId: realTopicId
                                 }))
-                                console.log('🔍 [3] updatedPlanMessages:', updatedPlanMessages)
 
                                 // 4. 중복 제거: ID 기반으로 중복 체크
                                 const planMessageIds = new Set(updatedPlanMessages.filter((m) => m.id).map((m) => m.id))
@@ -450,20 +446,16 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                                     if (!m.id) return true // ID 없으면 추가
                                     return !planMessageIds.has(m.id) // 중복 체크
                                 })
-                                console.log('🔍 [4] newServerMessages (중복 제거 후):', newServerMessages)
 
                                 // 5. 계획 메시지 + 서버 메시지 병합
                                 const mergedMessages = [...updatedPlanMessages, ...newServerMessages]
                                 messageStore.setMessages(realTopicId, mergedMessages)
-                                console.log('🔍 [5] mergedMessages 설정 완료:', mergedMessages.length, '개')
 
                                 // 6. 계획 모드 메시지 정리 (topicId=0 삭제)
                                 messageStore.clearMessages(0)
-                                console.log('🔍 [6] clearMessages(0) 완료')
 
                                 // 7. selectedTopicId 전환
                                 set({selectedTopicId: realTopicId})
-                                console.log('🔍 [7] selectedTopicId 전환 완료:', realTopicId)
 
                                 setIsLoadingMessages(false)
                             } else if (status.status === 'failed') {

@@ -142,16 +142,6 @@ const MainPage = () => {
     // 선택된 주제가 변경되면 메시지 자동 조회
     useEffect(() => {
         if (selectedTopicId !== null) {
-            // ✅ Zustand를 Single Source of Truth로 사용
-            // - 계획 모드: 보고서 생성 전, Zustand에만 메시지 존재 (topicId=0)
-            // - 보고서 생성 완료: generateReportFromPlan에서 Backend 메시지 + Artifact를 Zustand에 추가
-            // - 따라서 fetchMessages 호출 불필요 (Zustand 상태만 사용)
-
-            // 🔍 디버깅: Zustand messages 상태 확인
-            console.log('📊 [MainPage] selectedTopicId:', selectedTopicId)
-            console.log('📊 [MainPage] messages:', messages)
-            console.log('📊 [MainPage] messagesByTopic (all):', Object.fromEntries(useMessageStore.getState().messagesByTopic))
-
             // ⚠️ 사이드바에서 기존 토픽 클릭 시에만 Backend에서 메시지 조회
             // Zustand에서 직접 확인하여 React 렌더링 지연 문제 방지
             if (selectedTopicId !== null && selectedTopicId > 0) {
@@ -375,7 +365,9 @@ const MainPage = () => {
                             <ReportPreview report={selectedReport} onClose={handleClosePreview} onDownload={() => handleDownload(selectedReport)} />
                         )}
 
-                        {planPreviewOpen && <PlanPreview plan={editablePlan} onClose={handleClosePlanPreview} onGenerate={handleGenerateFromEditedPlan} />}
+                        {planPreviewOpen && (
+                            <PlanPreview plan={editablePlan} onClose={handleClosePlanPreview} onGenerate={handleGenerateFromEditedPlan} />
+                        )}
                     </>
                 )}
             </div>

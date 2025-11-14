@@ -29,12 +29,13 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
     /**
      * 메시지 전송 핸들러
      * - MessageModel 기반으로 동작
+     * TODO: 첫 메시지 토픽생성은 Plan을 사용하면서 LEGACY, 그 이후 메시지 전송 로직 수정 필요
      */
     const handleSendMessage = async (message: string, files: File[], webSearchEnabled: boolean) => {
         useMessageStore.getState().setIsGeneratingMessage(true)
 
         try {
-            console.log('Sending message:', {message, files, webSearchEnabled, selectedTopicId})
+            console.log('handleSendMessage >', {message, files, webSearchEnabled, selectedTopicId})
             let currentTopicId = selectedTopicId
 
             // 첫 메시지: 토픽 생성 + AI 보고서 자동 생성
@@ -53,7 +54,7 @@ export const useChatActions = ({selectedTopicId, setSelectedTopicId, setMessages
                     console.error('Failed to fetch topic after creation:', error)
                 }
             } else {
-                // 2번째 메시지부터: 메시지 체이닝 (ask API)
+                // 보고서 생성 이후 메시지 체이닝 (ask API)
                 let selectedArtifactId = getSelectedArtifactId(currentTopicId)
 
                 // 참조 보고서 선택: 선택된 아티팩트가 없으면 자동으로 최신 선택 (MD 파일만)
