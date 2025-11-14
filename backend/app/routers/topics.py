@@ -1242,9 +1242,9 @@ async def get_generation_status_endpoint(
     topic_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """보고서 생성 상태 조회 (폴링용)
+    """보고서 생성 상태 조회 (폴링용) - Artifact 기반 상태 추적
 
-    현재 보고서 생성의 진행 상태를 조회합니다.
+    현재 보고서 생성의 진행 상태를 Artifact 테이블에서 조회합니다.
 
     응답시간 제약: < 500ms
 
@@ -1257,7 +1257,7 @@ async def get_generation_status_endpoint(
     """
     try:
         # Topic 조회 및 권한 확인
-        topic = TopicDB.get_topic_by_id(topic_id)
+        topic = await asyncio.to_thread(TopicDB.get_topic_by_id, topic_id)
         if not topic:
             logger.warning(f"[STATUS] Topic not found - topic_id={topic_id}")
             return error_response(
@@ -1274,31 +1274,36 @@ async def get_generation_status_endpoint(
                 message="이 토픽에 접근할 권한이 없습니다."
             )
 
-        # 생성 상태 조회
-        status = get_generation_status(topic_id)
+        # ✅ Artifact 테이블에서 최신 HWPX artifact 조회
+        logger.info(f"[STATUS] Querying artifact - topic_id={topic_id}")
+        artifact = await asyncio.to_thread(
+            ArtifactDB.get_latest_artifact_by_kind,
+            topic_id,
+            ArtifactKind.HWPX
+        )
 
-        if status is None:
-            logger.debug(f"[STATUS] No generation status found - topic_id={topic_id}")
+        if artifact is None:
+            logger.debug(f"[STATUS] No artifact found - topic_id={topic_id}")
             return error_response(
                 code=ErrorCode.NOT_FOUND,
                 http_status=404,
                 message=f"토픽 {topic_id}의 생성 상태를 찾을 수 없습니다."
             )
 
-        # StatusResponse 모델로 변환
+        # ✅ StatusResponse 모델로 변환 (Artifact 데이터 매핑)
         response_data = StatusResponse(
             topic_id=topic_id,
-            status=status.get("status"),
-            progress_percent=status.get("progress_percent", 0),
-            current_step=status.get("current_step"),
-            started_at=status.get("started_at"),
-            estimated_completion=status.get("estimated_completion"),
-            artifact_id=status.get("artifact_id"),
-            completed_at=status.get("completed_at"),
-            error_message=status.get("error_message")
+            artifact_id=artifact.id,
+            status=artifact.status,
+            progress_percent=artifact.progress_percent,
+            current_step=None,  # current_step은 legacy field, Artifact에는 없음
+            started_at=artifact.started_at,
+            completed_at=artifact.completed_at,
+            file_path=artifact.file_path,  # ✅ 작업 중에는 NULL, 완료 시 populated
+            error_message=artifact.error_message
         )
 
-        logger.debug(f"[STATUS] Retrieved - topic_id={topic_id}, status={status.get('status')}")
+        logger.debug(f"[STATUS] Retrieved - topic_id={topic_id}, artifact_id={artifact.id}, status={artifact.status}, progress={artifact.progress_percent}%")
 
         return success_response(response_data)
 
@@ -1317,7 +1322,7 @@ async def stream_generation_status(
     topic_id: int,
     current_user: User = Depends(get_current_active_user)
 ):
-    """보고서 생성 완료 알림 (SSE 스트림)
+    """보고서 생성 완료 알림 (SSE 스트림) - Artifact 기반 폴링
 
     클라이언트가 연결을 유지하면서 대기하다가 보고서 생성이 완료되면
     서버에서 이벤트를 푸시합니다.
@@ -1330,7 +1335,7 @@ async def stream_generation_status(
         SSE 스트림 응답 (text/event-stream)
     """
     # Topic 조회 및 권한 확인
-    topic = TopicDB.get_topic_by_id(topic_id)
+    topic = await asyncio.to_thread(TopicDB.get_topic_by_id, topic_id)
     if not topic:
         logger.warning(f"[STREAM] Topic not found - topic_id={topic_id}")
         return error_response(
@@ -1350,46 +1355,56 @@ async def stream_generation_status(
     logger.info(f"[STREAM] Started - topic_id={topic_id}, user_id={current_user.id}")
 
     async def event_generator():
-        """SSE 이벤트 생성기"""
+        """✅ SSE 이벤트 생성기 (Artifact 테이블 폴링)"""
         max_wait_time = 3600  # 1시간 타임아웃
         start_time = time.time()
-        last_status = None
+        last_artifact = None
         check_interval = 0.5  # 0.5초마다 상태 확인
 
         try:
             while time.time() - start_time < max_wait_time:
-                current_status = get_generation_status(topic_id)
+                # ✅ Artifact 테이블에서 최신 HWPX artifact 조회
+                artifact = await asyncio.to_thread(
+                    ArtifactDB.get_latest_artifact_by_kind,
+                    topic_id,
+                    ArtifactKind.HWPX
+                )
 
-                # 상태가 없는 경우 (아직 시작되지 않음)
-                if current_status is None:
+                # Artifact가 없는 경우 (아직 생성되지 않음)
+                if artifact is None:
                     await asyncio.sleep(check_interval)
                     continue
 
-                # 상태가 변경되었으면 이벤트 발송
-                if current_status != last_status:
+                # ✅ Artifact 상태가 변경되었으면 이벤트 발송
+                if last_artifact is None or (
+                    artifact.status != last_artifact.status or
+                    artifact.progress_percent != last_artifact.progress_percent
+                ):
                     # Status update 이벤트
                     event_data = {
-                        "event": "status_update" if current_status.get("status") == "generating" else "completion",
-                        "status": current_status.get("status"),
-                        "progress_percent": current_status.get("progress_percent", 0)
+                        "event": "status_update" if artifact.status == "generating" else "completion",
+                        "artifact_id": artifact.id,
+                        "status": artifact.status,
+                        "progress_percent": artifact.progress_percent
                     }
                     yield f"data: {json.dumps(event_data)}\n\n"
 
-                    logger.debug(f"[STREAM] Event sent - topic_id={topic_id}, event={event_data['event']}")
+                    logger.debug(f"[STREAM] Event sent - topic_id={topic_id}, artifact_id={artifact.id}, event={event_data['event']}, progress={artifact.progress_percent}%")
 
-                    last_status = current_status.copy()
+                    last_artifact = artifact
 
                     # 완료 또는 실패 시 종료
-                    if current_status.get("status") in ["completed", "failed"]:
+                    if artifact.status in ["completed", "failed"]:
                         # 최종 completion 이벤트
                         final_event = {
                             "event": "completion",
-                            "status": current_status.get("status"),
-                            "artifact_id": current_status.get("artifact_id"),
-                            "error_message": current_status.get("error_message")
+                            "artifact_id": artifact.id,
+                            "status": artifact.status,
+                            "file_path": artifact.file_path,
+                            "error_message": artifact.error_message
                         }
                         yield f"data: {json.dumps(final_event)}\n\n"
-                        logger.info(f"[STREAM] Final event sent - topic_id={topic_id}, status={current_status.get('status')}")
+                        logger.info(f"[STREAM] Final event sent - topic_id={topic_id}, artifact_id={artifact.id}, status={artifact.status}")
                         break
 
                 # 상태 확인 대기
