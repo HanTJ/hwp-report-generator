@@ -220,23 +220,29 @@ class StatusResponse(BaseModel):
 
     보고서 생성의 현재 진행 상태를 반환합니다.
 
+    Artifact 기반 상태 추적 (v2.5+ Option A):
+    - 작업 시작 시: status="scheduled", file_path=NULL, progress=0
+    - 작업 중: status="generating", file_path=NULL, progress=0-99
+    - 완료 시: status="completed", file_path="s3://...", progress=100
+    - 실패 시: status="failed", error_message="...", progress=0-99
+
     Attributes:
         topic_id: 토픽 ID
-        status: 생성 상태 ("generating", "completed", "failed")
+        artifact_id: 생성된 artifact ID
+        status: 생성 상태 ("scheduled", "generating", "completed", "failed")
         progress_percent: 진행률 (0-100)
         current_step: 현재 진행 단계 (generating 중일 때만)
         started_at: 생성 시작 시간
-        estimated_completion: 예상 완료 시간
-        artifact_id: 생성된 artifact ID (completed일 때만)
         completed_at: 완료 시간 (completed일 때만)
+        file_path: 파일 경로 (completed일 때만, 작업 중에는 NULL)
         error_message: 에러 메시지 (failed일 때만)
     """
     topic_id: int
+    artifact_id: int
     status: str
     progress_percent: int
     current_step: Optional[str] = None
     started_at: Optional[str] = None
-    estimated_completion: Optional[str] = None
-    artifact_id: Optional[int] = None
     completed_at: Optional[str] = None
+    file_path: Optional[str] = None  # NULL during work, populated at completion
     error_message: Optional[str] = None
