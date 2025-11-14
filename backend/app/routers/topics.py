@@ -1150,7 +1150,9 @@ async def generate_report_background(
     """보고서 생성 시작 (백그라운드 asyncio task + Artifact 상태 관리)
 
     사용자가 승인한 계획을 바탕으로 보고서 생성을 백그라운드에서 시작합니다.
-    Artifact를 즉시 생성하여 Frontend에서 진행 상황을 모니터링할 수 있습니다.
+    Artifact을 즉시 생성하여 Frontend에서 진행 상황을 모니터링할 수 있습니다.
+    
+    ✅ 변경사항: MD 파일로 즉시 생성 (HWPX 변환은 별도 엔드포인트)
 
     응답시간 제약: 반드시 1초 이내
 
@@ -1190,6 +1192,7 @@ async def generate_report_background(
             )
 
         # ✅ NEW: Artifact 즉시 생성 (status="scheduled", file_path=NULL)
+        # ✅ CHANGED: kind를 HWPX에서 MD로 변경 (더 빠른 생성)
         logger.info(f"[GENERATE] Creating artifact - topic_id={topic_id}")
         
         artifact = await asyncio.to_thread(
@@ -1197,10 +1200,10 @@ async def generate_report_background(
             topic_id,
             None,  # message_id (background task이므로 None)
             ArtifactCreate(
-                kind=ArtifactKind.HWPX,
+                kind=ArtifactKind.MD,  # ✅ MD 파일로 즉시 생성
                 locale="ko",
                 version=1,
-                filename="report.hwpx",
+                filename="report.md",  # ✅ MD 파일명
                 file_path=None,  # ✅ NULL during work
                 file_size=0,
                 status="scheduled",  # ✅ Scheduled state
@@ -1265,6 +1268,8 @@ async def get_generation_status_endpoint(
     """보고서 생성 상태 조회 (폴링용) - Artifact 기반 상태 추적
 
     현재 보고서 생성의 진행 상태를 Artifact 테이블에서 조회합니다.
+    
+    ✅ 변경사항: MD artifact 상태 조회 (HWPX 대신)
 
     응답시간 제약: < 500ms
 
@@ -1294,12 +1299,12 @@ async def get_generation_status_endpoint(
                 message="이 토픽에 접근할 권한이 없습니다."
             )
 
-        # ✅ Artifact 테이블에서 최신 HWPX artifact 조회
+        # ✅ CHANGED: Artifact 테이블에서 최신 MD artifact 조회 (HWPX 대신)
         logger.info(f"[STATUS] Querying artifact - topic_id={topic_id}")
         artifact = await asyncio.to_thread(
             ArtifactDB.get_latest_artifact_by_kind,
             topic_id,
-            ArtifactKind.HWPX
+            ArtifactKind.MD  # ✅ MD artifact로 변경
         )
 
         if artifact is None:
@@ -1343,6 +1348,8 @@ async def stream_generation_status(
     current_user: User = Depends(get_current_active_user)
 ):
     """보고서 생성 완료 알림 (SSE 스트림) - Artifact 기반 폴링
+    
+    ✅ 변경사항: MD artifact 상태 폴링 (HWPX 대신)
 
     클라이언트가 연결을 유지하면서 대기하다가 보고서 생성이 완료되면
     서버에서 이벤트를 푸시합니다.
@@ -1383,11 +1390,11 @@ async def stream_generation_status(
 
         try:
             while time.time() - start_time < max_wait_time:
-                # ✅ Artifact 테이블에서 최신 HWPX artifact 조회
+                # ✅ CHANGED: Artifact 테이블에서 최신 MD artifact 조회 (HWPX 대신)
                 artifact = await asyncio.to_thread(
                     ArtifactDB.get_latest_artifact_by_kind,
                     topic_id,
-                    ArtifactKind.HWPX
+                    ArtifactKind.MD  # ✅ MD artifact로 변경
                 )
 
                 # Artifact가 없는 경우 (아직 생성되지 않음)
@@ -1452,7 +1459,7 @@ async def _background_generate_report(
     """백그라운드에서 실제 보고서 생성 (Artifact 상태 관리)
 
     모든 동기 작업은 asyncio.to_thread()로 감싸져 event loop을 블로킹하지 않습니다.
-    Artifact 상태를 점진적으로 업데이트합니다.
+    Artifact 상태를 점진적으로 업데이트합니다. MD 파일을 생성하고 저장합니다.
 
     Args:
         topic_id: 토픽 ID
@@ -1527,8 +1534,8 @@ async def _background_generate_report(
             parsed_content
         )
 
-        # === Step 4: 파일 저장 ===
-        logger.info(f"[BACKGROUND] Saving files - topic_id={topic_id}")
+        # === Step 4: MD 파일 저장 ===
+        logger.info(f"[BACKGROUND] Saving MD file - topic_id={topic_id}")
         await asyncio.to_thread(
             ArtifactDB.update_artifact_status,
             artifact_id=artifact_id,
@@ -1541,23 +1548,23 @@ async def _background_generate_report(
             TopicDB.get_topic_by_id,
             topic_id
         )
-        version = next_artifact_version(topic_id, ArtifactKind.HWPX, topic_obj.language)
-        base_dir, hwpx_path = build_artifact_paths(topic_id, version, "report.hwpx")
+        version = next_artifact_version(topic_id, ArtifactKind.MD, topic_obj.language)
+        base_dir, md_path = build_artifact_paths(topic_id, version, "report.md")
 
         # ✅ Non-blocking: 파일 I/O를 스레드 끝에서 실행
         bytes_written = await asyncio.to_thread(
             write_text,
-            hwpx_path,
+            md_path,
             built_markdown
         )
         file_hash = await asyncio.to_thread(
             sha256_of,
-            hwpx_path
+            md_path
         )
 
-        logger.info(f"[BACKGROUND] Files saved - topic_id={topic_id}, size={bytes_written}")
+        logger.info(f"[BACKGROUND] MD file saved - topic_id={topic_id}, size={bytes_written}")
 
-        # === Step 5: DB 저장 ===
+        # === Step 5: DB 저장 (메시지 + Artifact 업데이트) ===
         logger.info(f"[BACKGROUND] Saving to database - topic_id={topic_id}")
         await asyncio.to_thread(
             ArtifactDB.update_artifact_status,
@@ -1582,7 +1589,7 @@ async def _background_generate_report(
             artifact_id=artifact_id,
             status="completed",
             progress_percent=100,
-            file_path=str(hwpx_path),  # ✅ 완료 시 파일 정보 추가
+            file_path=str(md_path),  # ✅ MD 파일 경로 저장
             file_size=bytes_written,
             sha256=file_hash,
             completed_at=completed_at
