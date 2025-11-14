@@ -1191,14 +1191,27 @@ async def generate_report_background(
                 message="이 토픽에 접근할 권한이 없습니다."
             )
 
-        # ✅ NEW: Artifact 즉시 생성 (status="scheduled", file_path=NULL)
+        # ✅ Step 1: User message 먼저 생성 (Artifact에 message_id 연결 필요)
+        logger.info(f"[GENERATE] Creating user message - topic_id={topic_id}")
+        
+        user_msg = await asyncio.to_thread(
+            MessageDB.create_message,
+            topic_id,
+            MessageCreate(
+                role=MessageRole.USER,
+                content=f"주제: {request.topic}\n\n계획:\n{request.plan}"
+            )
+        )
+        logger.info(f"[GENERATE] User message created - message_id={user_msg.id}, seq_no={user_msg.seq_no}")
+
+        # ✅ Step 2: Artifact 즉시 생성 (status="scheduled", file_path=NULL)
         # ✅ CHANGED: kind를 HWPX에서 MD로 변경 (더 빠른 생성)
         logger.info(f"[GENERATE] Creating artifact - topic_id={topic_id}")
         
         artifact = await asyncio.to_thread(
             ArtifactDB.create_artifact,
             topic_id,
-            None,  # message_id (background task이므로 None)
+            user_msg.id,  # ✅ User message ID 연결
             ArtifactCreate(
                 kind=ArtifactKind.MD,  # ✅ MD 파일로 즉시 생성
                 locale="ko",
@@ -1214,7 +1227,7 @@ async def generate_report_background(
         
         logger.info(f"[GENERATE] Artifact created - topic_id={topic_id}, artifact_id={artifact.id}")
 
-        # 백그라운드 task 생성 (예외 처리 포함)
+        # ✅ Step 3: 백그라운드 task 생성 (예외 처리 포함)
         task = asyncio.create_task(
             _background_generate_report(
                 topic_id=topic_id,
