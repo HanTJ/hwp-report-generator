@@ -185,5 +185,71 @@ export const topicApi = {
         console.log('generateTopicPlan > success >', response.data)
 
         return response.data.data
+    },
+
+    /**
+     * 백그라운드 보고서 생성 (v2.4+)
+     * POST /api/topics/:topicId/generate
+     * @param topicId 토픽 ID
+     * @param data 생성 요청 데이터 (topic, plan, template_id)
+     * @returns 생성 상태 정보 (202 Accepted)
+     */
+    generateTopicBackground: async (topicId: number, data: {topic: string; plan: string; template_id?: number}): Promise<{
+        topic_id: number
+        status: string
+        message: string
+        status_check_url: string
+    }> => {
+        console.log('generateTopicBackground > request >', topicId, data.topic)
+
+        const response = await api.post<ApiResponse<{
+            topic_id: number
+            status: string
+            message: string
+            status_check_url: string
+        }>>(API_ENDPOINTS.GENERATE_TOPIC_BACKGROUND(topicId), data)
+
+        if (!response.data.success || !response.data.data) {
+            console.log('generateTopicBackground > failed >', response.data)
+            throw new Error(response.data.error?.message || '보고서 생성 요청에 실패했습니다.')
+        }
+
+        console.log('generateTopicBackground > success >', response.data)
+        return response.data.data
+    },
+
+    /**
+     * 보고서 생성 상태 조회 (v2.4+)
+     * GET /api/topics/:topicId/status
+     * @param topicId 토픽 ID
+     * @returns 생성 상태 정보
+     */
+    getGenerationStatus: async (topicId: number): Promise<{
+        topic_id: number
+        status: 'generating' | 'completed' | 'failed'
+        progress_percent: number
+        current_step?: string
+        artifact_id?: number
+        started_at?: string
+        completed_at?: string
+        error_message?: string
+    }> => {
+        const response = await api.get<ApiResponse<{
+            topic_id: number
+            status: 'generating' | 'completed' | 'failed'
+            progress_percent: number
+            current_step?: string
+            artifact_id?: number
+            started_at?: string
+            completed_at?: string
+            error_message?: string
+        }>>(API_ENDPOINTS.GET_GENERATION_STATUS(topicId))
+
+        if (!response.data.success || !response.data.data) {
+            console.log('getGenerationStatus > failed >', response.data)
+            throw new Error(response.data.error?.message || '상태 조회에 실패했습니다.')
+        }
+
+        return response.data.data
     }
 }

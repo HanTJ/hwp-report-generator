@@ -89,7 +89,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
                                   ))}
                         </p>
 
-                        {message.reportData && (
+                        {message.reportData && message.id && (
                             <div className={styles.reportAttachment}>
                                 <div
                                     className={styles.reportFile}
@@ -97,7 +97,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
                                         onReportClick({
                                             filename: message.reportData!.filename,
                                             content: message.reportData!.content,
-                                            messageId: message.id,
+                                            messageId: message.id!,
                                             reportId: message.reportData!.reportId
                                         })
                                     }>
@@ -116,7 +116,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({message, onReportClick, onDown
                                         onDownload({
                                             filename: message.reportData!.filename,
                                             content: message.reportData!.content,
-                                            messageId: message.id,
+                                            messageId: message.id!,
                                             reportId: message.reportData!.reportId
                                         })
                                     }}

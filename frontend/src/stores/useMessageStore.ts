@@ -38,8 +38,10 @@ interface MessageStore {
     setIsLoadingMessages: (loading: boolean) => void
 
     // API Actions
-    fetchMessages: (topicId: number) => Promise<void>
+    loadMessages: (topicId: number) => Promise<void>
     refreshMessages: (topicId: number) => Promise<void>
+    mergeNewMessages: (topicId: number) => Promise<void>
+    fetchMessages: (topicId: number) => Promise<void> // Deprecated: use loadMessages instead
 }
 
 export const useMessageStore = create<MessageStore>((set, get) => {
@@ -141,7 +143,48 @@ export const useMessageStore = create<MessageStore>((set, get) => {
         },
 
         /**
-         * 메시지 리스트 재조회 (AI 응답 후)
+         * 토픽 전환 시 메시지 로드 (전체 교체)
+         * 사이드바 클릭, 토픽 리스트에서 선택 시 사용
+         */
+        loadMessages: async (topicId: number) => {
+            set({isLoadingMessages: true})
+            try {
+                // 임시 topicId(음수)인 경우 백엔드 호출하지 않음
+                if (topicId < 0) {
+                    set({isLoadingMessages: false})
+                    return
+                }
+
+                // 1. 메시지 리스트 조회
+                const messagesResponse = await messageApi.listMessages(topicId)
+                const messageModels = mapMessageResponsesToModels(messagesResponse.messages)
+
+                // 2. 아티팩트 리스트 조회 및 연결
+                try {
+                    const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
+
+                    if (artifactsResponse.artifacts.length > 0) {
+                        const messagesWithArtifacts = await enrichMessagesWithArtifacts(messageModels, artifactsResponse.artifacts)
+                        get().setMessages(topicId, messagesWithArtifacts)
+                    } else {
+                        get().setMessages(topicId, messageModels)
+                    }
+                } catch (error) {
+                    console.error('Failed to load artifacts:', error)
+                    // 아티팩트 로드 실패 시에도 메시지는 표시
+                    get().setMessages(topicId, messageModels)
+                }
+            } catch (error: any) {
+                console.error('Failed to load messages:', error)
+                antdMessage.error('메시지를 불러오는데 실패했습니다.')
+            } finally {
+                set({isLoadingMessages: false})
+            }
+        },
+
+        /**
+         * 메시지 리스트 재조회 (AI 응답 후, 삭제 후)
+         * 전체 교체 방식
          */
         refreshMessages: async (topicId: number) => {
             try {
@@ -164,6 +207,47 @@ export const useMessageStore = create<MessageStore>((set, get) => {
                 console.error('Failed to reload messages:', error)
                 antdMessage.error('메시지를 불러오는데 실패했습니다.')
                 throw error
+            }
+        },
+
+        /**
+         * 서버에서 새 메시지를 가져와 기존 메시지와 병합 (중복 제거)
+         * generateReportFromPlan 후 사용 - 계획 메시지 유지하면서 서버 메시지 추가
+         */
+        mergeNewMessages: async (topicId: number) => {
+            try {
+                // 1. 서버에서 메시지 + Artifact 조회
+                const messagesResponse = await messageApi.listMessages(topicId)
+                const messageModels = mapMessageResponsesToModels(messagesResponse.messages)
+
+                const artifactsResponse = await artifactApi.listArtifactsByTopic(topicId)
+                const serverMessages = await enrichMessagesWithArtifacts(messageModels, artifactsResponse.artifacts)
+
+                // 2. 기존 메시지 가져오기 (계획 메시지 포함)
+                const existingMessages = get().getMessages(topicId)
+
+                // 3. 중복 제거: ID가 있는 메시지는 ID 기반으로 중복 체크
+                const existingIds = new Set(existingMessages.filter((m) => m.id).map((m) => m.id))
+
+                const newMessages = serverMessages.filter((m) => {
+                    // ID가 없으면 무조건 추가 (임시 메시지)
+                    if (!m.id) return true
+                    // ID가 있으면 중복 체크
+                    return !existingIds.has(m.id)
+                })
+
+                // 4. 병합 (기존 + 새 메시지)
+                get().setMessages(topicId, [...existingMessages, ...newMessages])
+
+                console.log('✅ mergeNewMessages 완료:', {
+                    topicId,
+                    existing: existingMessages.length,
+                    new: newMessages.length,
+                    total: existingMessages.length + newMessages.length
+                })
+            } catch (error) {
+                console.error('Failed to merge messages:', error)
+                // 에러 시에도 기존 메시지 유지 (아무 작업 안 함)
             }
         }
     }

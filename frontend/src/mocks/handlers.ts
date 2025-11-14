@@ -4,42 +4,24 @@ import {http, HttpResponse, delay} from 'msw'
  * MSW Mock API 핸들러
  *
  * 🔵 Mock 처리되는 API (MSW intercept):
- *   - POST /api/outlines/ask - 개요 생성 API
- *   - GET /api/topics/:topicId/messages - 메시지 목록 조회
- *   - POST /api/topics/generate - 보고서 생성 (실제 topicId도 생성)
+ *   - POST /api/topics/plan - 보고서 작성 계획 생성 (첫 메시지)
+ *   - POST /api/topics/generate - 보고서 생성 ("예" 클릭 시)
  *   - GET /api/artifacts/topics/:topicId - 토픽별 아티팩트 목록 조회
  *   - GET /api/artifacts/:artifactId/content - 아티팩트 내용 조회 (MD)
  *
- * ⚪ Passthrough API (실제 Backend 호출):
- *   - POST /api/topics/generate - 보고서 생성
- *   - GET /api/topics - 토픽 목록
- *   - 기타 모든 API
- *
  * 📦 메모리 저장소:
- *   - pendingMessages: topicId 생성 전 임시 저장 (개요 대화)
- *   - mockTopicMessages: topicId별 전체 메시지 (생성 후)
+ *   - mockTopicMessages: topicId별 전체 메시지
  *
  * 🔄 플로우:
- *   1. POST /api/outlines/ask → pendingMessages에 User/Assistant 저장
- *   2. "예" 클릭 → POST /api/topics/generate (Real API)
- *   3. GET /api/topics/:id/messages → pendingMessages + 최종 보고서 반환
+ *   1. 첫 메시지 입력 → POST /api/topics/plan → 계획 생성 (Zustand 저장)
+ *   2. "예" 클릭 → POST /api/topics/generate → 실제 보고서 생성
+ *   3. GET /api/topics/:id/messages → 메시지 조회 (DB에서)
  *
  * 📝 새로운 Mock API 추가 방법:
  *   handlers 배열에 http.get() 또는 http.post() 추가
  *
  * @see https://mswjs.io/docs/
  */
-
-export interface OutlineRequest {
-    id: number // 0, 1, 2, 3... 순차적 번호
-    message: string
-}
-
-export interface OutlineResponse {
-    id: number // 클라이언트가 보낸 ID 그대로 반환
-    outline: string
-    timestamp: number
-}
 
 /**
  * Mock API 목록을 반환하는 헬퍼 함수
@@ -79,246 +61,159 @@ function getFrontendMessages(topicId: number): any[] {
     return []
 }
 
-// 전체 메시지 저장소 (topicId 생성 전 임시 저장)
-interface PendingMessage {
-    role: 'user' | 'assistant'
-    content: string
-    timestamp: string
-    seqNo: number
-}
-// topicId별로 pending 메시지를 관리 (여러 대화를 동시 테스트 가능)
-const pendingMessagesByTopic = new Map<number, PendingMessage[]>()
-let tempTopicIdCounter = 0 // 임시 topicId (음수로 관리)
-
-// tempTopicId → realTopicId 매핑
-const topicIdMapping = new Map<number, number>()
-let lastTempTopicId: number | null = null // 가장 최근 tempTopicId
-
-// 개요 메시지 ID counter (임시 음수 ID)
-let tempMessageIdCounter = -1
-
-// 개발 환경에서 디버깅용으로 window 객체에 노출
-if (typeof window !== 'undefined') {
-    // @ts-ignore
-    window.mockTopicMessages = mockTopicMessages
-    // @ts-ignore
-    window.pendingMessagesByTopic = pendingMessagesByTopic
-    // @ts-ignore
-    window.topicIdMapping = topicIdMapping
-    // @ts-ignore
-    window.clearPendingMessages = () => {
-        pendingMessagesByTopic.clear()
-        topicIdMapping.clear()
-        lastTempTopicId = null
-        tempTopicIdCounter = 0
-        tempMessageIdCounter = -1
-        console.log('✅ Pending messages cleared')
-    }
-}
-
 export const handlers = [
     /**
-     * Mock: 개요 생성 API
-     * POST /api/outlines/ask
+     * Mock: 보고서 작성 계획 생성 API
+     * POST /api/topics/plan
      *
      * 테스트 전략:
-     * - outline 메시지는 현재 DB에 저장되지 않음 (backend 미구현)
-     * - 임시 topicId(음수)로 pendingMessagesByTopic에 저장
-     * - generateTopic 호출 시 실제 topicId로 변환
+     * - 임시 topicId 생성 (음수)
+     * - 계획(plan)과 섹션 목록 반환
+     * - 첫 메시지 입력 시 호출됨
      */
-    http.post<never, OutlineRequest>('http://localhost:8000/api/outlines/ask', async ({request}) => {
-        const body = await request.json()
+    http.post('http://localhost:8000/api/topics/plan', async ({request}) => {
+        const body = (await request.json()) as {template_id?: number; topic?: string}
 
-        // 500ms ~ 1500ms 지연 시뮬레이션
-        await delay(500 + Math.random() * 1000)
-
-        // 임시 topicId (첫 요청이면 생성)
-        const tempTopicId = body.id === 0 ? --tempTopicIdCounter : body.id
-
-        if (!pendingMessagesByTopic.has(tempTopicId)) {
-            pendingMessagesByTopic.set(tempTopicId, [])
-        }
-
-        const messages = pendingMessagesByTopic.get(tempTopicId)!
-
-        // User 메시지 저장 (seqNo 기반)
-        const userSeqNo = messages.length
-        messages.push({
-            role: 'user',
-            content: body.message,
-            timestamp: new Date().toISOString(),
-            seqNo: userSeqNo
-        })
-
-        // Mock 개요 생성
-        let outline = `**주제 이해**
-`
-        outline += `"${body.message}"에 대한 보고서를 작성하겠습니다.
-
-`
-        outline += `**주요 포함 내용**
-`
-        outline += `- 배경 및 현황 분석
-`
-        outline += `- 핵심 데이터 및 통계
-`
-        outline += `- 전문가 의견 및 시사점
-
-`
-        outline += `이 내용으로 진행하시겠습니까?`
-
-        // ✅ Assistant 개요 응답 저장
-        const assistantSeqNo = messages.length
-        messages.push({
-            role: 'assistant',
-            content: outline,
-            timestamp: new Date(Date.now() + 1000).toISOString(),
-            seqNo: assistantSeqNo
-        })
-
-        // lastTempTopicId 저장
-        lastTempTopicId = tempTopicId
-
-        console.log(`[MSW] Outline request - tempTopicId: ${tempTopicId}, messages count: ${messages.length}`)
-
-        return HttpResponse.json<OutlineResponse>({
-            id: tempTopicId,
-            outline,
-            timestamp: Date.now()
-        })
-    }),
-
-    /**
-     * Mock: 메시지 목록 조회 (개요 메시지 포함 시뮬레이션)
-     * GET /api/topics/:topicId/messages
-     *
-     * 테스트 전략:
-     * - generateTopic으로 생성된 topicId는 실제 백엔드에서 옴
-     * - 해당 topicId의 메시지 조회 시:
-     *   1. pendingMessages에서 임시 저장된 outline 메시지 가져오기
-     *   2. 실제 backend 메시지와 합치기
-     * - 현재는 backend 미구현이므로 pending만 반환
-     */
-    http.get('http://localhost:8000/api/topics/:topicId/messages', async ({params}) => {
-        const topicId = Number(params.topicId)
-
-        // 500ms 지연 시뮬레이션
-        await delay(500)
-
-        // Mock 메시지가 없으면 생성
-        if (!mockTopicMessages.has(topicId)) {
-            const messages: any[] = []
-            let messageIdCounter = 1
-
-            // ✅ 프론트엔드 스토어에서 임시 메시지 가져오기
-            let tempTopicIdForThisReal: number | null = null
-            for (const [tempId, realId] of topicIdMapping.entries()) {
-                if (realId === topicId) {
-                    tempTopicIdForThisReal = tempId
-                    break
-                }
-            }
-
-            // 프론트엔드 스토어에서 임시 메시지 조회
-            const frontendMessages = tempTopicIdForThisReal ? getFrontendMessages(tempTopicIdForThisReal) : []
-
-            console.log(
-                `[MSW] Messages fetch - realTopicId: ${topicId}, tempTopicId: ${tempTopicIdForThisReal}, frontend messages count: ${frontendMessages?.length || 0}`
-            )
-
-            if (frontendMessages && frontendMessages.length > 0) {
-                // 프론트엔드 메시지를 백엔드 형식으로 변환
-                frontendMessages.forEach((msg: any) => {
-                    messages.push({
-                        id: messageIdCounter++,
-                        topic_id: topicId, // 실제 topicId로 변환
-                        role: msg.role,
-                        content: msg.content,
-                        seq_no: msg.seqNo,
-                        created_at: msg.createdAt,
-                        updated_at: msg.createdAt
-                    })
-                })
-
-                // ✅ 임시 topicId 매핑 삭제 (더 이상 필요 없음)
-                if (tempTopicIdForThisReal) {
-                    topicIdMapping.delete(tempTopicIdForThisReal)
-                }
-            } else {
-                // 저장된 메시지가 없으면 기본 메시지
-                messages.push({
-                    id: messageIdCounter++,
-                    topic_id: topicId,
-                    role: 'user',
-                    content: '디지털뱅킹 트렌드 보고서 작성해줘',
-                    seq_no: 0,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                })
-            }
-
-            mockTopicMessages.set(topicId, messages)
-            console.log(`[MSW] Messages fetched for topicId: ${topicId}, count: ${messages.length}`)
-        }
-
-        return HttpResponse.json({
-            success: true,
-            data: {
-                messages: mockTopicMessages.get(topicId),
-                total: mockTopicMessages.get(topicId)?.length || 0
-            },
-            error: null,
-            meta: {
-                requestId: `mock-${Date.now()}`
-            }
-        })
-    }),
-
-    /**
-     * Mock: 보고서 생성 API
-     * POST /api/topics/generate
-     *
-     * 테스트 전략:
-     * - 실제 topicId 생성 (양수)
-     * - pending 메시지와 연결
-     */
-    http.post('http://localhost:8000/api/topics/generate', async ({request}) => {
-        const body = (await request.json()) as {input_prompt: string; language: string}
-
-        // 1~2초 지연 시뮬레이션
+        // 1~2초 지연 시뮬레이션 (AI 응답 시뮬레이션)
         await delay(1000 + Math.random() * 1000)
 
-        // 실제 topicId 생성 (양수)
-        const realTopicId = Date.now() % 100000 // 간단한 ID 생성
+        // topic_id 생성
+        const topicId = Date.now() // 간단한 임시 ID 생성
 
-        // tempTopicId → realTopicId 매핑 저장
-        if (lastTempTopicId !== null) {
-            topicIdMapping.set(lastTempTopicId, realTopicId)
-            console.log(`[MSW] Topic mapping - tempTopicId: ${lastTempTopicId} → realTopicId: ${realTopicId}`)
-        }
+        // Mock 계획 내용 생성
+        const mockPlan = `# ${body.topic || '보고서 주제'} 작성 계획
 
-        console.log(`[MSW] Topic generated - realTopicId: ${realTopicId}`)
+이 보고서는 다음과 같은 구조로 작성됩니다:
+
+## 1. 요약
+- 핵심 내용을 간단히 정리합니다
+- 주요 발견사항과 결론을 제시합니다
+
+## 2. 배경 및 목적
+- 보고서 작성의 배경을 설명합니다
+- 분석 목적과 범위를 명확히 합니다
+
+## 3. 주요 내용
+- 상세한 분석 결과를 제시합니다
+- 데이터와 근거를 바탕으로 설명합니다
+
+## 4. 결론 및 제언
+- 분석 결과를 종합합니다
+- 향후 방향성과 실행 계획을 제안합니다`
+
+        const mockSections = [
+            {
+                title: '요약',
+                description: '보고서의 핵심 내용과 주요 발견사항'
+            },
+            {
+                title: '배경 및 목적',
+                description: '보고서 작성 배경과 분석 목적'
+            },
+            {
+                title: '주요 내용',
+                description: '상세 분석 결과 및 데이터'
+            },
+            {
+                title: '결론 및 제언',
+                description: '종합 결론과 향후 방향성'
+            }
+        ]
+
+        console.log(`[MSW] Plan generated - topicId: ${topicId}, topic: ${body.topic}`)
 
         return HttpResponse.json({
             success: true,
             data: {
-                topic_id: realTopicId,
-                title: '보고서 주제',
-                artifacts: [
-                    {
-                        artifact_id: 1,
-                        type: 'markdown',
-                        filename: 'report.md',
-                        content: `# 생성된 보고서
-
-보고서 내용...`
-                    }
-                ]
+                topic_id: topicId,
+                plan: mockPlan,
+                sections: mockSections
             },
             error: null,
             meta: {
-                requestId: `mock-${Date.now()}`
-            }
+                requestId: `mock-plan-${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+
+    /**
+     * Mock: 보고서 생성 API (백그라운드)
+     * POST /api/topics/:topicId/generate
+     *
+     * 테스트 전략:
+     * - 즉시 202 Accepted 반환 (< 1초)
+     * - 백그라운드에서 보고서 생성 시뮬레이션
+     * - status_check_url 제공
+     */
+    http.post('http://localhost:8000/api/topics/:topicId/generate', async ({request, params}) => {
+        const topicId = Number(params.topicId)
+        const body = (await request.json()) as {topic: string; plan: string; template_id?: number}
+
+        // 짧은 지연 (< 1초)
+        await delay(500)
+
+        console.log(`[MSW] Report generation started - topicId: ${topicId}, topic: ${body.topic}`)
+
+        // 백그라운드 생성 시뮬레이션 (3초 후 완료로 가정)
+        setTimeout(() => {
+            console.log(`[MSW] Report generation completed - topicId: ${topicId}`)
+            // 실제로는 GET /api/topics/:topicId/status에서 completed 상태 반환
+        }, 3000)
+
+        return HttpResponse.json(
+            {
+                success: true,
+                data: {
+                    topic_id: topicId,
+                    status: 'generating',
+                    message: 'Report generation started in background',
+                    status_check_url: `/api/topics/${topicId}/status`
+                },
+                error: null,
+                meta: {
+                    requestId: `mock-generate-${Date.now()}`
+                },
+                feedback: []
+            },
+            {status: 202}
+        )
+    }),
+
+    /**
+     * Mock: 보고서 생성 상태 조회 API
+     * GET /api/topics/:topicId/status
+     *
+     * 테스트 전략:
+     * - 진행 상황 반환 (폴링용)
+     * - 3초 후 completed 상태로 변경
+     */
+    http.get('http://localhost:8000/api/topics/:topicId/status', async ({params}) => {
+        const topicId = Number(params.topicId)
+
+        // 짧은 지연
+        await delay(200)
+
+        // 간단한 시뮬레이션: 항상 완료 상태 반환
+        // 실제로는 생성 시작 시간을 추적하여 진행률 계산
+        console.log(`[MSW] Status check - topicId: ${topicId}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: {
+                topic_id: topicId,
+                status: 'completed', // 'generating', 'completed', 'failed'
+                progress_percent: 100,
+                current_step: '보고서 생성 완료',
+                artifact_id: 1,
+                started_at: new Date(Date.now() - 3000).toISOString(),
+                completed_at: new Date().toISOString()
+            },
+            error: null,
+            meta: {
+                requestId: `mock-status-${Date.now()}`
+            },
+            feedback: []
         })
     }),
 
@@ -340,7 +235,7 @@ export const handlers = [
         const mockArtifact = {
             id: 1,
             topic_id: topicId,
-            message_id: 2, // 최종 보고서 메시지 ID
+            message_id: 1, // Backend 메시지 ID (seq_no 3에 해당)
             kind: 'md' as const,
             locale: 'ko',
             version: 1,
@@ -447,6 +342,51 @@ export const handlers = [
             error: null,
             meta: {
                 requestId: `req_content_${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+    /**
+     * Mock: 토픽의 메시지 목록 조회 API
+     * GET /api/topics/:topicId/messages
+     *
+     * 테스트 전략:
+     * - 보고서 생성 완료 후 호출됨
+     * - 사용자 메시지(seq_no:3) + AI 응답 메시지(seq_no:4) 반환
+     */
+    http.get('http://localhost:8000/api/topics/:topicId/messages', async ({params}) => {
+        const topicId = Number(params.topicId)
+        console.log(`[MSW] Fetching messages for topicId: ${topicId}`)
+
+        // 짧은 지연
+        await delay(200)
+
+        // Mock 메시지 목록 (보고서 생성 후)
+        // seq_no: 1,2는 계획 모드에서 이미 사용 (클라이언트 전용, id: undefined)
+        // seq_no: 3는 보고서 생성 후 Backend에서 생성된 메시지 (artifact 포함)
+        const mockMessages = [
+            {
+                id: 1,
+                topic_id: topicId,
+                role: 'assistant' as const,
+                content: '# 보고서 제목\n\n보고서 내용이 여기에 표시됩니다.',
+                seq_no: 3, // seq_no 1,2는 계획 메시지가 사용
+                created_at: new Date().toISOString()
+            }
+        ]
+
+        console.log(`[MSW] Messages fetched for topicId: ${topicId}, count: ${mockMessages.length}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: {
+                messages: mockMessages,
+                total: mockMessages.length,
+                topic_id: topicId
+            },
+            error: null,
+            meta: {
+                requestId: `mock-messages-${Date.now()}`
             },
             feedback: []
         })

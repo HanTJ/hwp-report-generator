@@ -20,12 +20,12 @@ export const OutlineActionButtons = ({onGenerateReport, onContinue, showButtons}
 
     return (
         <div style={{marginTop: 16, paddingTop: 16, borderTop: '1px solid #e8e8e8'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2rem'}}>
                 <span style={{fontWeight: 500}}>보고서를 만드시겠습니까?</span>
                 <Space>
-                    <Button onClick={onContinue}>아니오</Button>
+                    <Button onClick={onContinue}>수정</Button>
                     <Button type="primary" onClick={onGenerateReport}>
-                        예
+                        생성
                     </Button>
                 </Space>
             </div>

@@ -52,7 +52,9 @@ export const API_ENDPOINTS = {
 
     // 주제 API (v2.0)
     CREATE_TOPIC: '/api/topics', // 새 토픽 생성
-    GENERATE_TOPIC: '/api/topics/generate', // 입력 한 번에 MD 산출 (토픽/메시지/아티팩트 동시 생성)
+    GENERATE_TOPIC: '/api/topics/generate', // 입력 한 번에 MD 산출 (토픽/메시지/아티팩트 동시 생성) - DEPRECATED
+    GENERATE_TOPIC_BACKGROUND: (topicId: number) => `/api/topics/${topicId}/generate`, // 백그라운드 보고서 생성 (v2.4+)
+    GET_GENERATION_STATUS: (topicId: number) => `/api/topics/${topicId}/status`, // 보고서 생성 상태 조회 (v2.4+)
     LIST_TOPICS: '/api/topics', // 내 토픽 목록 (페이징)
     GET_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 특정 토픽 조회
     UPDATE_TOPIC: (topicId: number) => `/api/topics/${topicId}`, // 토픽 업데이트

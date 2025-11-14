@@ -41,16 +41,21 @@ export const mapMessageResponsesToModels = (responses: MessageResponse[]): Messa
  * 도메인 모델(MessageModel)을 UI 모델(MessageUI)로 변환
  * ✅ 순수 매퍼: API 호출 없이 데이터 구조만 변환
  *
+ * @param model - 변환할 MessageModel
+ * @param clientId - UI 렌더링용 고유 ID
+ *
  * @remarks
  * - artifacts에서 content가 있는 MD artifact를 찾아 reportData 생성
  * - reportData는 UI 레이어에서만 사용하는 편의 필드
+ * - clientId는 React key로 사용되어 메시지 순서 변경 시에도 안정적인 렌더링 보장
  */
-export const mapMessageModelToUI = (model: MessageModel): MessageUI => {
+export const mapMessageModelToUI = (model: MessageModel, clientId: number): MessageUI => {
     // artifacts에서 content가 로드된 MD artifact 찾기
     const mdArtifact = model.artifacts?.find((art) => art.kind === 'md' && art.content)
 
     return {
         ...model,
+        clientId,
         timestamp: new Date(model.createdAt),
         isOutline: false, // 기본값
         reportData: mdArtifact
@@ -65,7 +70,8 @@ export const mapMessageModelToUI = (model: MessageModel): MessageUI => {
 
 /**
  * 여러 도메인 모델을 UI 모델 배열로 변환
+ * - clientId를 순차적으로 할당 (0, 1, 2, ...)
  */
 export const mapMessageModelsToUI = (models: MessageModel[]): MessageUI[] => {
-    return models.map(mapMessageModelToUI)
+    return models.map((model, index) => mapMessageModelToUI(model, index))
 }

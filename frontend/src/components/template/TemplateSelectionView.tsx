@@ -1,0 +1,144 @@
+import {useState, useEffect} from 'react'
+import {Input, Card, Button, Empty, Spin, Row, Col, message} from 'antd'
+import {FileTextOutlined, CheckCircleFilled} from '@ant-design/icons'
+import {templateApi} from '../../services/templateApi'
+import type {TemplateListItem} from '../../types/template'
+import {formatDate} from '../../utils/formatters'
+import styles from './TemplateSelectionView.module.css'
+
+const {Search} = Input
+
+interface TemplateSelectionViewProps {
+    onStartChat: (templateId: number) => void
+}
+
+/**
+ * TemplateSelectionView
+ *
+ * ⭐ 보고서 생성 전 템플릿 선택 화면
+ *
+ * 기능:
+ * 1. 템플릿 목록을 카드 형식으로 표시
+ * 2. 템플릿 제목으로 검색
+ * 3. 템플릿 선택 (단일 선택)
+ * 4. "보고서 생성 시작하기" 버튼으로 대화 시작
+ */
+const TemplateSelectionView: React.FC<TemplateSelectionViewProps> = ({onStartChat}) => {
+    const [templates, setTemplates] = useState<TemplateListItem[]>([])
+    const [filteredTemplates, setFilteredTemplates] = useState<TemplateListItem[]>([])
+    const [loading, setLoading] = useState(false)
+    const [searchText, setSearchText] = useState('')
+    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+
+    // 템플릿 목록 로드
+    const loadTemplates = async () => {
+        setLoading(true)
+        try {
+            const data = await templateApi.listTemplates()
+            setTemplates(data)
+            setFilteredTemplates(data)
+
+            // 템플릿이 1개만 있으면 자동 선택
+            if (data.length === 1) {
+                setSelectedTemplateId(data[0].id)
+            }
+        } catch (error: any) {
+            message.error(error.message || '템플릿 목록을 불러오는데 실패했습니다.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // 초기 로드
+    useEffect(() => {
+        loadTemplates()
+    }, [])
+
+    // 검색 처리
+    const handleSearch = (value: string) => {
+        setSearchText(value)
+        const filtered = templates.filter((template) => template.title.toLowerCase().includes(value.toLowerCase()))
+        setFilteredTemplates(filtered)
+    }
+
+    const handleTemplateClick = (templateId: number) => {
+        setSelectedTemplateId(selectedTemplateId === templateId ? null : templateId)
+    }
+
+    // 보고서 생성 시작
+    const handleStartChat = () => {
+        if (!selectedTemplateId) {
+            message.warning('템플릿을 선택해주세요.')
+            return
+        }
+        onStartChat(selectedTemplateId)
+    }
+
+    return (
+        <div className={styles.container}>
+            <div className={styles.header}>
+                <h1 className={styles.title}>보고서 템플릿 선택</h1>
+                <p className={styles.subtitle}>보고서 생성에 사용할 템플릿을 선택하세요</p>
+            </div>
+
+            <div className={styles.searchSection}>
+                <Search
+                    placeholder="템플릿 제목 검색..."
+                    allowClear
+                    size="large"
+                    onChange={(e) => handleSearch(e.target.value)}
+                    onSearch={handleSearch}
+                    value={searchText}
+                    className={styles.searchInput}
+                />
+            </div>
+
+            {loading ? (
+                <div className={styles.loadingContainer}>
+                    <Spin size="large" tip="템플릿 목록을 불러오는 중..." />
+                </div>
+            ) : filteredTemplates.length === 0 ? (
+                <Empty description={searchText ? '검색 결과가 없습니다.' : '등록된 템플릿이 없습니다.'} className={styles.empty} />
+            ) : (
+                <>
+                    <Row gutter={[16, 16]} className={styles.cardGrid}>
+                        {filteredTemplates.map((template) => {
+                            const isSelected = selectedTemplateId === template.id
+
+                            return (
+                                <Col xs={24} sm={12} md={8} lg={6} key={template.id}>
+                                    <Card
+                                        hoverable
+                                        className={`${styles.templateCard} ${isSelected ? styles.selected : ''}`}
+                                        onClick={() => handleTemplateClick(template.id)}
+                                        bordered={isSelected}>
+                                        {isSelected && (
+                                            <div className={styles.selectedBadge}>
+                                                <CheckCircleFilled className={styles.checkIcon} />
+                                            </div>
+                                        )}
+
+                                        <div className={styles.cardContent}>
+                                            <FileTextOutlined className={styles.fileIcon} />
+                                            <h3 className={styles.templateTitle}>{template.title}</h3>
+                                            <p className={styles.templateFilename}>{template.filename}</p>
+                                            <p className={styles.templateDate}>{formatDate(new Date(template.created_at).getTime() / 1000)}</p>
+                                        </div>
+                                    </Card>
+                                </Col>
+                            )
+                        })}
+                    </Row>
+
+                    <div className={styles.actionSection}>
+                        <Button type="primary" size="large" onClick={handleStartChat} disabled={!selectedTemplateId} className={styles.startButton}>
+                            보고서 생성 시작하기
+                        </Button>
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
+
+export default TemplateSelectionView

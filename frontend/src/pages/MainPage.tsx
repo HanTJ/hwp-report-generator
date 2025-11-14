@@ -2,7 +2,6 @@ import {useState, useRef, useEffect} from 'react'
 import {message as antdMessage} from 'antd'
 import {MenuOutlined} from '@ant-design/icons'
 import {OutlineMessage} from '../components/OutlineMessage'
-import {topicApi} from '../services/topicApi'
 import ChatMessage from '../components/chat/ChatMessage'
 import ChatInput, {type ChatInputHandle} from '../components/chat/ChatInput'
 import ReportPreview from '../components/report/ReportPreview'
@@ -10,52 +9,115 @@ import ReportsDropdown from '../components/chat/ReportsDropdown'
 import {ChatWelcome} from '../components/chat/ChatWelcome'
 import {GeneratingIndicator} from '../components/chat/GeneratingIndicator'
 import Sidebar from '../components/layout/Sidebar'
+import TemplateSelectionView from '../components/template/TemplateSelectionView'
 import styles from './MainPage.module.css'
 import MainLayout from '../components/layout/MainLayout'
-import {artifactApi} from '../services/artifactApi'
 import {useTopicStore} from '../stores/useTopicStore'
 import {useMessageStore} from '../stores/useMessageStore'
 import {useArtifactHandlers} from '../hooks/useArtifactHandlers'
 import {useChatActions} from '../hooks/useChatActions'
-
-interface DownloadedFile {
-    id: number
-    filename: string
-    downloadUrl: string
-    size: string
-    timestamp: Date
-}
+import {useMessages} from '../hooks/useMessages'
+import {useReportPreview} from '../hooks/useReportPreview'
 
 const MainPage = () => {
-    // 주제 관리 (임시 topicId 관리 포함)
-    const {selectedTopicId, setSelectedTopicId, resetTempCounter, handleTopicPlanWithMessages} = useTopicStore()
+    // 주제 관리
+    const {selectedTopicId, setSelectedTopicId, handleTopicPlanWithMessages, generateReportFromPlan, planLoading} = useTopicStore()
 
-    // 메시지 관리 (outline 메시지 추가 기능 포함)
+    // 계획 모드 판단 (selectedTopicId === 0)
+    const isPlanMode = selectedTopicId === 0
+
+    // 템플릿 선택 모드 상태 (null: 템플릿 선택 화면, number: 선택된 템플릿 ID로 채팅 시작)
+    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+
+    // 템플릿 선택 화면 표시 여부 (selectedTopicId === null && selectedTemplateId === null)
+    const showTemplateSelection = selectedTopicId === null && selectedTemplateId === null
+
+
+    // 메시지 관리
     const {
         addMessages,
-        getMessagesUI,
         setMessages,
         isLoadingMessages,
         isGeneratingMessage,
         isDeletingMessage,
-        fetchMessages,
+        loadMessages,
         refreshMessages,
         setIsLoadingMessages
     } = useMessageStore()
 
-    // 현재 topic의 메시지 가져오기 (UI 모델로 자동 변환)
-    const messages = selectedTopicId ? getMessagesUI(selectedTopicId) : []
+    // 메시지 구독 및 UI 변환 (커스텀 훅)
+    const messages = useMessages(selectedTopicId)
+
+    // UI 상태
+    const chatInputRef = useRef<ChatInputHandle>(null)
+
+    // 보고서 미리보기 및 다운로드 관리
+    const {selectedReport, setSelectedReport, handleReportClick, handleClosePreview, handleDownload} = useReportPreview()
+
+    /**
+     * "예" 클릭 → 보고서 생성 (실제 API)
+     */
+    const handleGenerateFromOutline = async () => {
+        await generateReportFromPlan(setIsLoadingMessages)
+    }
+
+    /**
+     * "아니오" 클릭 → 계속 대화
+     */
+    const handleContinueOutline = () => {
+        antdMessage.info('추가 메시지를 입력해주세요.')
+        chatInputRef.current?.focus()
+    }
+
+    // 🔴 MainPage 언마운트 시 정리 (URL 이동 후 복귀 대응)
+    useEffect(() => {
+        return () => {
+            const messageStore = useMessageStore.getState()
+            const topicStore = useTopicStore.getState()
+            const currentTopicId = topicStore.selectedTopicId
+
+            // 1. 계획 모드(topicId=0) 메시지 정리
+            if (currentTopicId === 0) {
+                messageStore.clearMessages(0)
+                topicStore.clearPlan()
+            }
+
+            // 2. 현재 선택된 실제 토픽(topicId > 0) 메시지 정리
+            if (currentTopicId !== null && currentTopicId > 0) {
+                messageStore.clearMessages(currentTopicId)
+            }
+
+            // 3. selectedTopicId 초기화 (다음 복귀 시 깨끗한 상태)
+            topicStore.setSelectedTopicId(null)
+        }
+    }, [])
 
     // 선택된 주제가 변경되면 메시지 자동 조회
     useEffect(() => {
-        if (selectedTopicId) {
-            // api 호출하여 메시지를 불러온 후 상태에 설정
-            fetchMessages(selectedTopicId)
+        if (selectedTopicId !== null) {
+            // ✅ Zustand를 Single Source of Truth로 사용
+            // - 계획 모드: 보고서 생성 전, Zustand에만 메시지 존재 (topicId=0)
+            // - 보고서 생성 완료: generateReportFromPlan에서 Backend 메시지 + Artifact를 Zustand에 추가
+            // - 따라서 fetchMessages 호출 불필요 (Zustand 상태만 사용)
+
+            // 🔍 디버깅: Zustand messages 상태 확인
+            console.log('📊 [MainPage] selectedTopicId:', selectedTopicId)
+            console.log('📊 [MainPage] messages:', messages)
+            console.log('📊 [MainPage] messagesByTopic (all):', Object.fromEntries(useMessageStore.getState().messagesByTopic))
+
+            // ⚠️ 사이드바에서 기존 토픽 클릭 시에만 Backend에서 메시지 조회
+            // Zustand에서 직접 확인하여 React 렌더링 지연 문제 방지
+            if (selectedTopicId !== null && selectedTopicId > 0) {
+                const messageStore = useMessageStore.getState()
+                const storedMessages = messageStore.getMessages(selectedTopicId)
+
+                // Zustand에 메시지가 없을 때만 서버에서 로드
+                if (storedMessages.length === 0) {
+                    loadMessages(selectedTopicId)
+                }
+            }
         }
     }, [selectedTopicId])
-
-    // Outline 모드 상태 (단순화)
-    const [isOutlineMode, setIsOutlineMode] = useState(false)
 
     // 아티팩트(보고서) 관련 핸들러
     const {
@@ -80,33 +142,20 @@ const MainPage = () => {
 
     /**
      * 메시지 전송 래퍼 함수
-     * 첫 메시지일 경우 개요 모드(임시 topicId 생성)로 전환
+     * 첫 메시지일 경우 계획 모드로 전환
      */
     const handleSendMessage = async (message: string, files: File[], webSearchEnabled: boolean) => {
-        // 보고서 생성 이전인 개요인 경우, 메시지 전송
-        if (selectedTopicId === null) {
-            setIsOutlineMode(true)
-            // TODO: template_id 지정 (현재는 1)
-            await handleTopicPlanWithMessages(1, message, addMessages)
+        // 보고서 생성 이전인 계획 모드인 경우
+        if (selectedTopicId !== 0) {
+            // 선택된 템플릿 ID 사용 (없으면 기본값 1)
+            const templateId = selectedTemplateId || 1
+            // handleTopicPlanWithMessages 내부에서 isTopicPlan=true 설정됨
+            await handleTopicPlanWithMessages(templateId, message, addMessages)
         } else {
             // 보고서 생성 이후로 토픽이 만들어진 이후인 경우, 메시지 전송
             await sendMessage(message, files, webSearchEnabled)
         }
     }
-
-    // UI 상태
-    const chatInputRef = useRef<ChatInputHandle>(null)
-
-    // 보고서 미리보기 상태
-    const [selectedReport, setSelectedReport] = useState<{
-        filename: string
-        content: string
-        messageId: number
-        reportId: number
-    } | null>(null)
-
-    // 다운로드된 파일 목록
-    const [downloadedFiles, setDownloadedFiles] = useState<DownloadedFile[]>([])
 
     // 사이드바 열림 상태
     const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false)
@@ -150,45 +199,6 @@ const MainPage = () => {
     }, [messages])
 
     /**
-     * 메시지 내 보고서 클릭 - 미리보기 열기
-     */
-    const handleReportClick = (reportData: {filename: string; content: string; messageId: number; reportId: number}) => {
-        setSelectedReport(reportData)
-    }
-
-    /**
-     * 메시지 내 보고서 다운로드 핸들러
-     */
-    const handleDownload = async (reportData: {filename: string; content: string; reportId: number; messageId: number}) => {
-        try {
-            antdMessage.loading({
-                content: 'HWPX 파일 다운로드 중...',
-                key: 'download',
-                duration: 0
-            })
-
-            const hwpxFilename = reportData.filename.replace('.md', '.hwpx')
-            await artifactApi.downloadMessageHwpx(reportData.messageId, hwpxFilename)
-
-            antdMessage.destroy('download')
-
-            const downloadedFile: DownloadedFile = {
-                id: reportData.messageId,
-                filename: hwpxFilename,
-                downloadUrl: `#`,
-                size: '알 수 없음',
-                timestamp: new Date()
-            }
-
-            setDownloadedFiles((prev) => [...prev, downloadedFile])
-            antdMessage.success('HWPX 파일이 다운로드되었습니다.')
-        } catch (error: any) {
-            console.error('Download failed:', error)
-            antdMessage.error('HWPX 파일 다운로드에 실패했습니다.')
-        }
-    }
-
-    /**
      * 메시지 삭제 핸들러 (useChatActions 훅 래핑)
      */
     const handleDeleteMessage = async (messageId: number) => {
@@ -196,83 +206,36 @@ const MainPage = () => {
     }
 
     /**
-     * 보고서 미리보기 닫기
+     * 템플릿 선택 완료 후 채팅 시작
      */
-    const handleClosePreview = () => {
-        setSelectedReport(null)
+    const handleStartChat = (templateId: number) => {
+        setSelectedTemplateId(templateId)
+        // 템플릿이 선택되면 채팅 화면으로 전환되지만, 아직 토픽은 생성되지 않음
+        // 첫 메시지 전송 시 handleSendMessage에서 토픽 생성
     }
 
     /**
      * 새 토픽 시작 시
      */
     const handleNewTopik = () => {
-        setIsOutlineMode(true)
-        setSelectedTopicId(null)
-        resetTempCounter()
-        // 메시지는 selectedTopicId가 null이면 빈 배열 반환 (자동 처리)
-    }
+        const prevTopicId = selectedTopicId
 
-    /**
-     * "예" 클릭 → 보고서 생성 (실제 API)
-     */
-    const handleGenerateFromOutline = async () => {
-        if (!selectedTopicId || selectedTopicId >= 0) {
-            antdMessage.error('개요 모드가 아닙니다.')
-            return
-        }
+        // 🔴 중요: 이전 토픽의 메시지 정리
+        if (prevTopicId !== null) {
+            const messageStore = useMessageStore.getState()
 
-        try {
-            setIsLoadingMessages(true)
-
-            // 마지막 outline 메시지의 content 가져오기
-            const currentMessages = getMessagesUI(selectedTopicId)
-            const lastMessage = currentMessages[currentMessages.length - 1]
-
-            if (!lastMessage || !lastMessage.content) {
-                antdMessage.error('메시지가 없습니다.')
-                return
+            // 계획 모드(topicId=0) 메시지 정리
+            if (prevTopicId === 0) {
+                messageStore.clearMessages(0)
             }
 
-            antdMessage.loading({
-                content: '보고서 생성 중...',
-                key: 'generate',
-                duration: 0
-            })
-
-            // 주제 생성 및 MD 파일 응답하는 API 호출
-            const response = await topicApi.generateTopic({
-                input_prompt: lastMessage.content,
-                language: 'ko'
-            })
-
-            antdMessage.destroy('generate')
-            antdMessage.success('보고서가 생성되었습니다.')
-
-            // 1. 개요 모드 종료
-            setIsOutlineMode(false)
-
-            // 2. 생성된 실제 Topic ID로 전환
-            // ✅ 중요: 임시 topicId의 메시지는 유지됨 (삭제하지 않음)
-            // fetchMessages가 실행되면 MSW가 pending 메시지 + 보고서 메시지를 함께 반환
-            setSelectedTopicId(response.topic_id)
-
-            // 3. fetchMessages는 useEffect에서 자동 실행됨
-        } catch (error: any) {
-            console.error('보고서 생성 실패:', error)
-            antdMessage.destroy('generate')
-            antdMessage.error('보고서 생성에 실패했습니다.')
-        } finally {
-            setIsLoadingMessages(false)
+            // 실제 토픽 메시지는 유지 (나중에 다시 볼 수 있음)
+            // 만약 완전히 지우고 싶다면: messageStore.clearMessages(prevTopicId)
         }
-    }
 
-    /**
-     * "아니오" 클릭 → 계속 대화
-     */
-    const handleContinueOutline = () => {
-        antdMessage.info('추가 메시지를 입력해주세요.')
-        // 입력창에 포커스
-        chatInputRef.current?.focus()
+        // 템플릿 선택 화면으로 돌아가기
+        setSelectedTopicId(null)
+        setSelectedTemplateId(null)
     }
 
     /**
@@ -290,79 +253,80 @@ const MainPage = () => {
             <Sidebar isOpen={isLeftSidebarOpen} onToggle={handleToggleSidebar} onTopicSelect={setSelectedTopicId} onNewTopic={handleNewTopik} />
 
             <div className={`${styles.mainChatPage} ${isLeftSidebarOpen ? styles.sidebarExpanded : styles.sidebarCollapsed}`}>
-                {/* 햄버거 메뉴 버튼 - 모바일/태블릿에서만 표시 */}
-                <button className={styles.hamburgerBtn} onClick={handleToggleSidebar} aria-label="메뉴 열기">
-                    <MenuOutlined />
-                </button>
-                <div className={styles.chatContainer}>
-                    <div className={styles.chatContent}>
-                        {isLoadingMessages ? (
-                            // 메시지 로딩 중일 때는 빈 화면 표시
-                            <div></div>
-                        ) : isOutlineMode ? (
-                            // 개요 모드 - 통합된 메시지 사용
-                            <div className={styles.chatMessages}>
-                                {messages.map((message, index) => (
-                                    <OutlineMessage
-                                        key={index}
-                                        message={message}
-                                        onGenerateReport={handleGenerateFromOutline}
-                                        onContinue={handleContinueOutline}
-                                    />
-                                ))}
-                                {isLoadingMessages && <GeneratingIndicator />}
-                            </div>
-                        ) : messages.length === 0 ? (
-                            <ChatWelcome />
-                        ) : (
-                            <div className={styles.chatMessages}>
-                                {messages.map((message, index) => {
-                                    const isLastUserMessage = message.role === 'user' && index === messages.length - 1
+                {/* 템플릿 선택 화면 또는 채팅 화면 */}
+                {showTemplateSelection ? (
+                    // 템플릿 선택 화면
+                    <TemplateSelectionView onStartChat={handleStartChat} />
+                ) : (
+                    // 기존 채팅 화면
+                    <>
+                        {/* 햄버거 메뉴 버튼 - 모바일/태블릿에서만 표시 */}
+                        <button className={styles.hamburgerBtn} onClick={handleToggleSidebar} aria-label="메뉴 열기">
+                            <MenuOutlined />
+                        </button>
+                        <div className={styles.chatContainer}>
+                            <div className={styles.chatContent}>
+                                {messages.length === 0 ? (
+                                    <ChatWelcome />
+                                ) : (
+                                    <div className={styles.chatMessages}>
+                                        {messages.map((message, index) => {
+                                            const isLastUserMessage = message.role === 'user' && index === messages.length - 1
 
-                                    return (
-                                        <div key={message.id || index} ref={isLastUserMessage ? lastUserMessageRef : null}>
-                                            <ChatMessage
-                                                message={message}
-                                                onReportClick={handleReportClick}
-                                                onDownload={handleDownload}
-                                                onDelete={handleDeleteMessage}
-                                                isGenerating={isGeneratingMessage}
-                                                isDeleting={isDeletingMessage}
+                                            return (
+                                                <div key={message.clientId} ref={isLastUserMessage ? lastUserMessageRef : null}>
+                                                    {message.isPlan ? (
+                                                        <OutlineMessage
+                                                            message={message}
+                                                            onGenerateReport={handleGenerateFromOutline}
+                                                            onContinue={handleContinueOutline}
+                                                        />
+                                                    ) : (
+                                                        <ChatMessage
+                                                            message={message}
+                                                            onReportClick={handleReportClick}
+                                                            onDownload={handleDownload}
+                                                            onDelete={handleDeleteMessage}
+                                                            isGenerating={isGeneratingMessage}
+                                                            isDeleting={isDeletingMessage}
+                                                        />
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                        {isGeneratingMessage && <GeneratingIndicator />}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className={styles.chatInputWrapper}>
+                                <ChatInput
+                                    ref={chatInputRef}
+                                    onSend={handleSendMessage}
+                                    disabled={isGeneratingMessage || isLoadingMessages}
+                                    onReportsClick={() => handleReportsClick(selectedTopicId)}
+                                    reportsDropdown={
+                                        isReportsDropdownOpen && selectedTopicId ? (
+                                            <ReportsDropdown
+                                                ref={reportsDropdownRef}
+                                                artifacts={getMarkdownArtifacts(selectedTopicId)}
+                                                loading={loadingTopics.has(selectedTopicId)}
+                                                selectedArtifactId={getSelectedArtifactId(selectedTopicId)}
+                                                onSelect={(id) => handleArtifactSelect(selectedTopicId, id)}
+                                                onClose={() => setIsReportsDropdownOpen(false)}
+                                                onDownload={(art) => handleArtifactDownload(art, selectedTopicId)}
+                                                onPreview={(art) => handleArtifactPreview(art, setSelectedReport)}
                                             />
-                                        </div>
-                                    )
-                                })}
-                                {isGeneratingMessage && <GeneratingIndicator />}
+                                        ) : null
+                                    }
+                                />
                             </div>
+                        </div>
+
+                        {selectedReport && (
+                            <ReportPreview report={selectedReport} onClose={handleClosePreview} onDownload={() => handleDownload(selectedReport)} />
                         )}
-                    </div>
-
-                    <div className={styles.chatInputWrapper}>
-                        <ChatInput
-                            ref={chatInputRef}
-                            onSend={handleSendMessage}
-                            disabled={isGeneratingMessage || isLoadingMessages}
-                            onReportsClick={() => handleReportsClick(selectedTopicId)}
-                            reportsDropdown={
-                                isReportsDropdownOpen && selectedTopicId ? (
-                                    <ReportsDropdown
-                                        ref={reportsDropdownRef}
-                                        artifacts={getMarkdownArtifacts(selectedTopicId)}
-                                        loading={loadingTopics.has(selectedTopicId)}
-                                        selectedArtifactId={getSelectedArtifactId(selectedTopicId)}
-                                        onSelect={(id) => handleArtifactSelect(selectedTopicId, id)}
-                                        onClose={() => setIsReportsDropdownOpen(false)}
-                                        onDownload={(art) => handleArtifactDownload(art, selectedTopicId)}
-                                        onPreview={(art) => handleArtifactPreview(art, setSelectedReport)}
-                                    />
-                                ) : null
-                            }
-                        />
-                    </div>
-                </div>
-
-                {selectedReport && (
-                    <ReportPreview report={selectedReport} onClose={handleClosePreview} onDownload={() => handleDownload(selectedReport)} />
+                    </>
                 )}
             </div>
         </MainLayout>

@@ -1,5 +1,4 @@
 import type {MessageUI} from '../models/ui/MessageUI'
-import {UserMessageCard} from './chat/UserMessageCard'
 import {AssistantOutlineCard} from './chat/AssistantOutlineCard'
 import {OutlineActionButtons} from './chat/OutlineActionButtons'
 import {useState} from 'react'
@@ -31,12 +30,7 @@ export const OutlineMessage = ({message, onGenerateReport, onContinue}: OutlineM
         onContinue?.()
     }
 
-    // role로 user/assistant 구분
-    if (message.role === 'user') {
-        return <UserMessageCard content={message.content} timestamp={message.timestamp} />
-    }
-
-    // Assistant 메시지: outline 내용 + 버튼
+    // Assistant 메시지: 개요 내용 + 버튼
     return (
         <AssistantOutlineCard content={message.content} timestamp={message.timestamp}>
             <OutlineActionButtons onGenerateReport={handleGenerateReport} onContinue={handleContinue} showButtons={showButtons} />
