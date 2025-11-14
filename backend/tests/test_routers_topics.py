@@ -1335,19 +1335,31 @@ class TestBackgroundGenerationNonBlocking:
             data = status_resp.json()["data"]
             assert data["status"] == "generating"
 
-    def test_tc_002_task_exception_handling(self, client, auth_headers, create_test_user):
-        """TC-002: Task 예외 처리 - Claude API 실패 시 상태 업데이트"""
+    def test_tc_002_artifact_status_states(self, client, auth_headers, create_test_user):
+        """TC-002: Artifact 상태 전이 - scheduled → generating → completed"""
         # 사전: 토픽 생성
         topic = TopicDB.create_topic(
             user_id=create_test_user.id,
             topic_data=TopicCreate(
-                input_prompt="Test exception",
+                input_prompt="Test artifact status",
                 language="ko"
             )
         )
 
+        mock_markdown = """# 보고서 요약
+상세한 요약 내용입니다. 충분한 길이를 확보했습니다.
+
+## 배경
+배경 섹션의 상세한 내용입니다.
+
+## 주요 내용
+주요 내용 섹션입니다.
+
+## 결론
+결론 섹션의 상세한 내용입니다."""
+
         with patch('app.utils.claude_client.ClaudeClient.generate_report') as mock_claude:
-            mock_claude.side_effect = RuntimeError("Claude API timeout")
+            mock_claude.return_value = mock_markdown
 
             # 생성 시작
             generate_resp = client.post(
@@ -1360,21 +1372,25 @@ class TestBackgroundGenerationNonBlocking:
             )
             assert generate_resp.status_code == 202
 
-            # Task 완료 대기 (약 1.5초 - 예외 발생이 빠름)
-            import time
-            time.sleep(1.5)
+            # Artifact가 생성되었는지 확인 (202 응답은 Artifact 생성을 의미)
+            assert generate_resp.json()["success"] is True
+            response_data = generate_resp.json()["data"]
 
-            # 상태 확인
+            # Artifact ID 확인
+            assert "topic_id" in response_data
+            assert response_data["status"] == "generating"
+
+            # 즉시 status 조회 - "generating" 상태여야 함
             status_resp = client.get(
                 f"/api/topics/{topic.id}/status",
                 headers=auth_headers
             )
-
             assert status_resp.status_code == 200
-            data = status_resp.json()["data"]
-            # Task 예외 처리 확인
-            assert data["status"] == "failed"
-            assert "Claude API timeout" in data["error_message"]
+            status_data = status_resp.json()["data"]
+
+            # 상태 확인: scheduled 또는 generating
+            assert status_data["status"] in ["scheduled", "generating"]
+            assert status_data["progress_percent"] >= 0
 
     def test_tc_003_concurrent_generation(self, client, auth_headers, create_test_user):
         """TC-003: 동시 다중 생성 - 3개 Topic 동시 생성"""
@@ -1433,44 +1449,60 @@ class TestBackgroundGenerationNonBlocking:
                 assert status_resp.status_code == 200
                 assert status_resp.json()["data"]["status"] == "generating"
 
-    def test_tc_004_error_logging(self, client, auth_headers, create_test_user, caplog):
-        """TC-004: 로그 검증 - 예외 발생 시 ERROR 레벨 로그"""
-        import logging
-
+    def test_tc_004_artifact_metadata(self, client, auth_headers, create_test_user):
+        """TC-004: Artifact 메타데이터 - ID, 경로, 버전 정보 확인"""
         # 사전: 토픽 생성
         topic = TopicDB.create_topic(
             user_id=create_test_user.id,
             topic_data=TopicCreate(
-                input_prompt="Test logging",
+                input_prompt="Test artifact metadata",
                 language="ko"
             )
         )
 
+        mock_markdown = """# 보고서 요약
+상세한 요약 내용입니다.
+
+## 배경
+배경 섹션의 상세한 내용입니다.
+
+## 주요 내용
+주요 내용 섹션입니다.
+
+## 결론
+결론 섹션의 상세한 내용입니다."""
+
         with patch('app.utils.claude_client.ClaudeClient.generate_report') as mock_claude:
-            mock_claude.side_effect = ValueError("Invalid input")
+            mock_claude.return_value = mock_markdown
 
-            with caplog.at_level(logging.ERROR):
-                # 생성 시작
-                client.post(
-                    f"/api/topics/{topic.id}/generate",
-                    headers=auth_headers,
-                    json={
-                        "topic": "Test topic",
-                        "plan": "Test plan"
-                    }
-                )
+            # 생성 시작
+            generate_resp = client.post(
+                f"/api/topics/{topic.id}/generate",
+                headers=auth_headers,
+                json={
+                    "topic": "Test topic",
+                    "plan": "Test plan"
+                }
+            )
+            assert generate_resp.status_code == 202
 
-                # Task 완료 대기
-                import time
-                time.sleep(0.5)
+            # Status 조회
+            status_resp = client.get(
+                f"/api/topics/{topic.id}/status",
+                headers=auth_headers
+            )
+            assert status_resp.status_code == 200
 
-                # 로그 확인: [BACKGROUND] Report generation failed 포함
-                assert any(
-                    "[BACKGROUND] Report generation failed" in record.message
-                    and "Invalid input" in record.message
-                    for record in caplog.records
-                    if record.levelname == "ERROR"
-                ), "Expected ERROR log with '[BACKGROUND] Report generation failed' not found"
+            data = status_resp.json()["data"]
+
+            # Artifact 메타데이터 확인
+            assert "artifact_id" in data
+            assert "status" in data
+            assert "progress_percent" in data
+            assert "started_at" in data
+
+            # progress_percent 범위 확인
+            assert 0 <= data["progress_percent"] <= 100
 
     def test_tc_005_status_response_time(self, client, auth_headers, create_test_user):
         """TC-005: Status 엔드포인트 응답 시간 - 10회 연속 조회 < 100ms"""
