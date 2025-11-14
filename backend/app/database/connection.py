@@ -182,11 +182,20 @@ def init_db():
     except sqlite3.OperationalError:
         pass  # 컬럼이 이미 존재하면 무시
 
+    # Topics 테이블 마이그레이션: template_id 컬럼 추가 (v2.4)
+    try:
+        cursor.execute("""
+            ALTER TABLE topics ADD COLUMN template_id INTEGER DEFAULT NULL
+        """)
+    except sqlite3.OperationalError:
+        pass  # 컬럼이 이미 존재하면 무시
+
     # 인덱스 생성
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_user_id ON topics(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_topics_template_id ON topics(template_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_topic_id ON messages(topic_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_topic_id ON artifacts(topic_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_artifacts_message_id ON artifacts(message_id)")

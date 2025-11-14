@@ -43,6 +43,7 @@ class Topic(BaseModel):
         generated_title: AI-generated title (may be null initially)
         language: Primary language code
         status: Current topic status
+        template_id: Optional template ID used for this topic
         created_at: Creation timestamp
         updated_at: Last update timestamp
     """
@@ -52,11 +53,12 @@ class Topic(BaseModel):
     generated_title: Optional[str] = None
     language: str = "ko"
     status: TopicStatus = TopicStatus.ACTIVE
+    template_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
-        from_attributes = True  # Pydantic v2
+        from_attributes = True  # Pydantic v2  # Pydantic v2
 
 
 class TopicResponse(BaseModel):
@@ -70,6 +72,7 @@ class TopicResponse(BaseModel):
         generated_title: AI-generated title
         language: Primary language
         status: Topic status
+        template_id: Optional template ID used for this topic
         created_at: Creation timestamp
         updated_at: Last update timestamp
     """
@@ -78,6 +81,7 @@ class TopicResponse(BaseModel):
     generated_title: Optional[str] = None
     language: str
     status: TopicStatus
+    template_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

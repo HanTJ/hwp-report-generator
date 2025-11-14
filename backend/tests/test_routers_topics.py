@@ -1128,3 +1128,147 @@ AI 기반 금융 서비스가 확대되고 있습니다.
             "Saved message should not contain H2 section headers"
         assert "제공하신 내용을 확인했습니다" in last_message.content
 
+
+# ============================================================
+# Template ID Tracking Tests (v2.4+)
+# ============================================================
+
+@pytest.mark.unit
+class TestTemplateIdTracking:
+    """Topic에 template_id 추적 기능 테스트 (v2.4+)"""
+
+    def test_tc1_create_topic_with_template_id(self, create_test_user):
+        """TC-1: TopicDB.create_topic() with template_id"""
+        topic_data = TopicCreate(
+            input_prompt="Test topic with template",
+            language="ko",
+            template_id=1
+        )
+        topic = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        assert topic.id is not None
+        assert topic.template_id == 1
+        assert topic.input_prompt == "Test topic with template"
+
+    def test_tc2_create_topic_without_template_id(self, create_test_user):
+        """TC-2: TopicDB.create_topic() without template_id (backward compatibility)"""
+        topic_data = TopicCreate(
+            input_prompt="Test topic without template",
+            language="ko"
+        )
+        topic = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        assert topic.id is not None
+        assert topic.template_id is None
+        assert topic.input_prompt == "Test topic without template"
+
+    def test_tc3_get_topic_returns_template_id(self, create_test_user):
+        """TC-3: TopicDB.get_topic_by_id() returns template_id"""
+        topic_data = TopicCreate(
+            input_prompt="Test topic",
+            language="ko",
+            template_id=2
+        )
+        created = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        retrieved = TopicDB.get_topic_by_id(created.id)
+
+        assert retrieved is not None
+        assert retrieved.template_id == 2
+        assert retrieved.id == created.id
+
+    def test_tc4_get_topic_with_null_template_id(self, create_test_user):
+        """TC-4: TopicDB.get_topic_by_id() with NULL template_id"""
+        topic_data = TopicCreate(
+            input_prompt="Test topic without template",
+            language="ko"
+        )
+        created = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        retrieved = TopicDB.get_topic_by_id(created.id)
+
+        assert retrieved is not None
+        assert retrieved.template_id is None
+
+    def test_tc5_get_topics_by_user_includes_template_id(self, create_test_user):
+        """TC-5: TopicDB.get_topics_by_user() includes template_id"""
+        topic1_data = TopicCreate(input_prompt="Topic 1", language="ko", template_id=1)
+        topic2_data = TopicCreate(input_prompt="Topic 2", language="ko", template_id=None)
+
+        topic1 = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic1_data)
+        topic2 = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic2_data)
+
+        topics, total = TopicDB.get_topics_by_user(user_id=create_test_user.id)
+
+        assert total >= 2
+        retrieved_topic1 = next((t for t in topics if t.id == topic1.id), None)
+        retrieved_topic2 = next((t for t in topics if t.id == topic2.id), None)
+
+        assert retrieved_topic1 is not None
+        assert retrieved_topic1.template_id == 1
+        assert retrieved_topic2 is not None
+        assert retrieved_topic2.template_id is None
+
+    def test_tc6_api_response_includes_template_id(self, client, auth_headers, create_test_user):
+        """TC-6: API Response (GET /api/topics/{id}) includes template_id"""
+        topic_data = TopicCreate(
+            input_prompt="API Test Topic",
+            language="ko",
+            template_id=3
+        )
+        topic = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        response = client.get(
+            f"/api/topics/{topic.id}",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+        assert body["data"]["template_id"] == 3
+
+    def test_tc7_api_list_response_includes_template_id(self, client, auth_headers, create_test_user):
+        """TC-7: API List Response (GET /api/topics) includes template_id"""
+        topic_data = TopicCreate(
+            input_prompt="List API Test",
+            language="ko",
+            template_id=4
+        )
+        topic = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        response = client.get("/api/topics", headers=auth_headers)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["success"] is True
+
+        found_topic = next((t for t in body["data"]["topics"] if t["id"] == topic.id), None)
+        assert found_topic is not None
+        assert found_topic["template_id"] == 4
+
+    def test_tc8_invalid_template_id(self, create_test_user):
+        """TC-8: Invalid template_id edge case"""
+        topic_data = TopicCreate(
+            input_prompt="Test with invalid template",
+            language="ko",
+            template_id=99999
+        )
+        topic = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        retrieved = TopicDB.get_topic_by_id(topic.id)
+        assert retrieved.template_id == 99999
+
+    def test_tc9_backward_compatibility(self, create_test_user):
+        """TC-9: Backward compatibility - existing data without template_id"""
+        topic_data = TopicCreate(
+            input_prompt="Legacy topic",
+            language="ko"
+        )
+        topic = TopicDB.create_topic(user_id=create_test_user.id, topic_data=topic_data)
+
+        retrieved = TopicDB.get_topic_by_id(topic.id)
+        assert retrieved is not None
+        assert retrieved.template_id is None
+        assert retrieved.input_prompt == "Legacy topic"
+
