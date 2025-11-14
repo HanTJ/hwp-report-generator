@@ -45,10 +45,6 @@ from app.database.template_db import TemplateDB
 
 # Sequential Planning 관련 모듈
 from app.utils.sequential_planning import sequential_planning, SequentialPlanningError, TimeoutError as SequentialPlanningTimeout
-from app.utils.generation_status import (
-    update_generation_status, get_generation_status, clear_generation_status,
-    is_generating, init_generation_status, update_progress, mark_completed, mark_failed
-)
 from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
@@ -1215,9 +1211,6 @@ async def generate_report_background(
         
         logger.info(f"[GENERATE] Artifact created - topic_id={topic_id}, artifact_id={artifact.id}")
 
-        # ✅ Backward compatibility: init old generation_status (Phase 1)
-        init_generation_status(topic_id)
-
         # 백그라운드 task 생성 (예외 처리 포함)
         task = asyncio.create_task(
             _background_generate_report(
@@ -1480,8 +1473,6 @@ async def _background_generate_report(
             status="generating",
             progress_percent=10
         )
-        # ✅ Backward compatibility: update old generation_status
-        update_progress(topic_id, progress_percent=10, current_step="Preparing content...")
 
         # === Step 2: Claude API 호출 (non-blocking) ===
         logger.info(f"[BACKGROUND] Calling Claude API - topic_id={topic_id}")
@@ -1491,7 +1482,6 @@ async def _background_generate_report(
             status="generating",
             progress_percent=20
         )
-        update_progress(topic_id, progress_percent=20, current_step="Calling Claude API...")
 
         claude = ClaudeClient()
 
@@ -1526,7 +1516,6 @@ async def _background_generate_report(
             status="generating",
             progress_percent=50
         )
-        update_progress(topic_id, progress_percent=50, current_step="Processing markdown...")
 
         # ✅ Non-blocking: 파싱을 스레드 끝에서 실행
         parsed_content = await asyncio.to_thread(
@@ -1546,7 +1535,6 @@ async def _background_generate_report(
             status="generating",
             progress_percent=70
         )
-        update_progress(topic_id, progress_percent=70, current_step="Saving to storage...")
 
         # ✅ Non-blocking: DB 조회를 스레드 끝에서 실행
         topic_obj = await asyncio.to_thread(
@@ -1577,7 +1565,6 @@ async def _background_generate_report(
             status="generating",
             progress_percent=85
         )
-        update_progress(topic_id, progress_percent=85, current_step="Saving metadata...")
 
         # ✅ Non-blocking: 메시지 생성을 스레드 끝에서 실행
         assistant_msg = await asyncio.to_thread(
@@ -1617,14 +1604,11 @@ async def _background_generate_report(
         except Exception as e:
             logger.error(f"[BACKGROUND] Failed to save AI usage - error={str(e)}")
 
-        # ✅ Backward compatibility: mark old generation_status as completed
-        mark_completed(topic_id, artifact_id)
-        
         logger.info(f"[BACKGROUND] Report generation completed - topic_id={topic_id}, artifact_id={artifact_id}")
 
     except Exception as e:
         logger.error(f"[BACKGROUND] Report generation failed - topic_id={topic_id}, artifact_id={artifact_id}, error={str(e)}", exc_info=True)
-        
+
         # ✅ Update Artifact status to failed
         try:
             await asyncio.to_thread(
@@ -1636,6 +1620,3 @@ async def _background_generate_report(
             )
         except Exception as db_error:
             logger.error(f"[BACKGROUND] Failed to update artifact status - error={str(db_error)}")
-        
-        # ✅ Backward compatibility: mark old generation_status as failed
-        mark_failed(topic_id, str(e))
