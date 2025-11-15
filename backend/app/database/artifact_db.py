@@ -296,6 +296,7 @@ class ArtifactDB:
     def update_artifact_status(
         artifact_id: int,
         status: str,
+        message_id: Optional[int] = None,
         progress_percent: Optional[int] = None,
         file_path: Optional[str] = None,
         file_size: Optional[int] = None,
@@ -315,6 +316,7 @@ class ArtifactDB:
         Args:
             artifact_id: Artifact ID to update
             status: New status (scheduled/generating/completed/failed)
+            message_id: Source message to associate (optional)
             progress_percent: Progress percentage (0-100, optional)
             file_path: File path to add (optional, typically at completion)
             file_size: File size to add (optional, typically at completion)
@@ -353,6 +355,10 @@ class ArtifactDB:
 
         updates = {"status": status}
         params = [status]
+
+        if message_id is not None:
+            updates["message_id"] = message_id
+            params.append(message_id)
 
         if progress_percent is not None:
             updates["progress_percent"] = progress_percent

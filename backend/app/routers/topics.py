@@ -1153,9 +1153,6 @@ async def generate_report_background(
     Artifact을 즉시 생성하여 Frontend에서 진행 상황을 모니터링할 수 있습니다.
     
     ✅ 변경사항: MD 파일로 즉시 생성 (HWPX 변환은 별도 엔드포인트)
-
-    응답시간 제약: 반드시 1초 이내
-
     Args:
         topic_id: 토픽 ID
         request: GenerateRequest 모델
@@ -1191,27 +1188,14 @@ async def generate_report_background(
                 message="이 토픽에 접근할 권한이 없습니다."
             )
 
-        # ✅ Step 1: User message 먼저 생성 (Artifact에 message_id 연결 필요)
-        logger.info(f"[GENERATE] Creating user message - topic_id={topic_id}")
-        
-        user_msg = await asyncio.to_thread(
-            MessageDB.create_message,
-            topic_id,
-            MessageCreate(
-                role=MessageRole.USER,
-                content=f"주제: {request.topic}\n\n계획:\n{request.plan}"
-            )
-        )
-        logger.info(f"[GENERATE] User message created - message_id={user_msg.id}, seq_no={user_msg.seq_no}")
-
-        # ✅ Step 2: Artifact 즉시 생성 (status="scheduled", file_path=NULL)
+        # ✅ NEW: Artifact 즉시 생성 (status="scheduled", file_path=NULL)
         # ✅ CHANGED: kind를 HWPX에서 MD로 변경 (더 빠른 생성)
         logger.info(f"[GENERATE] Creating artifact - topic_id={topic_id}")
         
         artifact = await asyncio.to_thread(
             ArtifactDB.create_artifact,
             topic_id,
-            user_msg.id,  # ✅ User message ID 연결
+            None,  # message_id (background task이므로 None)
             ArtifactCreate(
                 kind=ArtifactKind.MD,  # ✅ MD 파일로 즉시 생성
                 locale="ko",
@@ -1227,7 +1211,7 @@ async def generate_report_background(
         
         logger.info(f"[GENERATE] Artifact created - topic_id={topic_id}, artifact_id={artifact.id}")
 
-        # ✅ Step 3: 백그라운드 task 생성 (예외 처리 포함)
+        # 백그라운드 task 생성 (예외 처리 포함)
         task = asyncio.create_task(
             _background_generate_report(
                 topic_id=topic_id,
@@ -1578,7 +1562,7 @@ async def _background_generate_report(
         logger.info(f"[BACKGROUND] MD file saved - topic_id={topic_id}, size={bytes_written}")
 
         # === Step 5: DB 저장 (메시지 + Artifact 업데이트) ===
-        logger.info(f"[BACKGROUND] Saving to database - topic_id={topic_id}")
+        logger.info(f"[BACKGROUND] Saving to database Artifact - topic_id={topic_id}")
         await asyncio.to_thread(
             ArtifactDB.update_artifact_status,
             artifact_id=artifact_id,
@@ -1587,6 +1571,7 @@ async def _background_generate_report(
         )
 
         # ✅ Non-blocking: 메시지 생성을 스레드 끝에서 실행
+        logger.info(f"[BACKGROUND] Saving to database Message - topic_id={topic_id}")
         assistant_msg = await asyncio.to_thread(
             MessageDB.create_message,
             topic_id,
@@ -1602,6 +1587,7 @@ async def _background_generate_report(
             artifact_id=artifact_id,
             status="completed",
             progress_percent=100,
+            message_id=assistant_msg.id,
             file_path=str(md_path),  # ✅ MD 파일 경로 저장
             file_size=bytes_written,
             sha256=file_hash,
