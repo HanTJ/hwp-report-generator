@@ -146,17 +146,13 @@ const MainPage = () => {
 
     // 선택된 주제가 변경되면 메시지 자동 조회
     useEffect(() => {
-        if (selectedTopicId !== null) {
-            // ⚠️ 사이드바에서 기존 토픽 클릭 시에만 Backend에서 메시지 조회
-            // Zustand에서 직접 확인하여 React 렌더링 지연 문제 방지
-            if (selectedTopicId !== null && selectedTopicId > 0) {
-                const messageStore = useMessageStore.getState()
-                const storedMessages = messageStore.getMessages(selectedTopicId)
+        if (selectedTopicId !== null && selectedTopicId > 0) {
+            const messageStore = useMessageStore.getState()
+            const storedMessages = messageStore.getMessages(selectedTopicId)
 
-                // Zustand에 메시지가 없을 때만 서버에서 로드
-                if (storedMessages.length === 0) {
-                    loadMessages(selectedTopicId)
-                }
+            // Zustand에 메시지가 없을 때만 서버에서 로드
+            if (storedMessages.length === 0) {
+                loadMessages(selectedTopicId)
             }
         }
     }, [selectedTopicId])

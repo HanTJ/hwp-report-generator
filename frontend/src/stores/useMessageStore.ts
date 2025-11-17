@@ -213,6 +213,7 @@ export const useMessageStore = create<MessageStore>((set, get) => {
         /**
          * 서버에서 새 메시지를 가져와 기존 메시지와 병합 (중복 제거)
          * generateReportFromPlan 후 사용 - 계획 메시지 유지하면서 서버 메시지 추가
+         * handleSendMessage 후 사용 - 임시 사용자 메시지를 서버 메시지로 교체
          */
         mergeNewMessages: async (topicId: number) => {
             try {
@@ -227,24 +228,35 @@ export const useMessageStore = create<MessageStore>((set, get) => {
                 // 2. 기존 메시지 가져오기 (계획 메시지 포함)
                 const existingMessages = get().getMessages(topicId)
 
-                // 3. 중복 제거: ID가 있는 메시지는 ID 기반으로 중복 체크
-                const existingIds = new Set(existingMessages.filter((m) => m.id).map((m) => m.id))
+                // 3. 임시 사용자 메시지 제거 (ID가 없는 user 메시지는 임시로 간주)
+                const permanentMessages = existingMessages.filter((msg) => {
+                    // ID가 없는 사용자 메시지는 임시이므로 제거
+                    if (msg.role === 'user' && !msg.id) {
+                        console.log('임시 메시지 제거:', msg.content.substring(0, 50))
+                        return false
+                    }
+                    return true
+                })
+
+                // 4. 중복 제거: 영구 메시지의 ID 기반으로 중복 체크
+                const existingIds = new Set(permanentMessages.filter((m) => m.id).map((m) => m.id))
 
                 const newMessages = serverMessages.filter((m) => {
-                    // ID가 없으면 무조건 추가 (임시 메시지)
+                    // ID가 없으면 무조건 추가 (서버에서 온 임시 메시지)
                     if (!m.id) return true
                     // ID가 있으면 중복 체크
                     return !existingIds.has(m.id)
                 })
 
-                // 4. 병합 (기존 + 새 메시지)
-                get().setMessages(topicId, [...existingMessages, ...newMessages])
+                // 5. 병합 (영구 메시지 + 새 서버 메시지)
+                get().setMessages(topicId, [...permanentMessages, ...newMessages])
 
                 console.log('✅ mergeNewMessages 완료:', {
                     topicId,
-                    existing: existingMessages.length,
+                    removedTemp: existingMessages.length - permanentMessages.length,
+                    existing: permanentMessages.length,
                     new: newMessages.length,
-                    total: existingMessages.length + newMessages.length
+                    total: permanentMessages.length + newMessages.length
                 })
             } catch (error) {
                 console.error('Failed to merge messages:', error)
