@@ -23,15 +23,21 @@ import {useReportPreview} from '../hooks/useReportPreview'
 
 const MainPage = () => {
     // 주제 관리
-    const {selectedTopicId, selectedTemplateId, setSelectedTopicId, setSelectedTemplateId, sidebarTopics, handleTopicPlanWithMessages, generateReportFromPlan} =
-        useTopicStore()
+    const {
+        selectedTopicId,
+        selectedTemplateId,
+        setSelectedTopicId,
+        setSelectedTemplateId,
+        sidebarTopics,
+        handleTopicPlanWithMessages,
+        generateReportFromPlan
+    } = useTopicStore()
 
-    // 템플릿 선택 화면 표시 여부 (selectedTopicId === null && selectedTemplateId === null)
+    // 템플릿 선택 화면 표시 여부
     const showTemplateSelection = selectedTopicId === null && selectedTemplateId === null
 
     // 메시지 관리
-    const {addMessages, setMessages, isLoadingMessages, isGeneratingMessage, isDeletingMessage, loadMessages, refreshMessages, setIsLoadingMessages} =
-        useMessageStore()
+    const {addMessages, setMessages, isLoadingMessages, isGeneratingMessage, isDeletingMessage, loadMessages, refreshMessages} = useMessageStore()
 
     // 메시지 구독 및 UI 변환 (커스텀 훅)
     const messages = useMessages(selectedTopicId)
@@ -59,7 +65,7 @@ const MainPage = () => {
         // OutlineMessage 버튼 숨기기
         setShowOutlineButtons(false)
 
-        await generateReportFromPlan(setIsLoadingMessages)
+        await generateReportFromPlan()
     }
 
     /**
@@ -101,7 +107,7 @@ const MainPage = () => {
         setShowOutlineButtons(false)
 
         // 4. 편집된 plan으로 보고서 생성
-        await generateReportFromPlan(setIsLoadingMessages)
+        await generateReportFromPlan()
     }
 
     /**

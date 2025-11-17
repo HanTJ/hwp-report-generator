@@ -66,7 +66,7 @@ interface TopicStore {
     clearPlan: () => void
 
     // Actions - 보고서 생성
-    generateReportFromPlan: (setIsLoadingMessages: (loading: boolean) => void) => Promise<void>
+    generateReportFromPlan: () => Promise<void>
 }
 
 export const useTopicStore = create<TopicStore>((set, get) => {
@@ -294,6 +294,7 @@ export const useTopicStore = create<TopicStore>((set, get) => {
             }
 
             const tempTopicId = 0 // 임시 topicId 고정
+            const messageStore = useMessageStore.getState()
 
             // 1. 사용자 메시지를 UI에 표시
             const userMsgModel: MessageModel = {
@@ -311,6 +312,9 @@ export const useTopicStore = create<TopicStore>((set, get) => {
 
             // 🆕 즉시 selectedTopicId 설정 (사용자 메시지가 바로 보이도록)
             set({selectedTopicId: tempTopicId})
+
+            // AI 응답 대기 상태 설정 (GeneratingIndicator 표시)
+            messageStore.setIsGeneratingMessage(true)
 
             try {
                 // 3. 계획 생성 API 호출
@@ -339,6 +343,9 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                     // ⚠️ 이 시점에는 아직 실제 토픽으로 전환하지 않음
                     // 보고서 생성("예" 버튼) 시에만 realTopicId로 전환
                 }
+
+                // PLAN 생성 완료 - GeneratingIndicator 숨기기
+                messageStore.setIsGeneratingMessage(false)
             } catch (error: any) {
                 console.error('개요 요청 실패:', error)
                 const currentError = get().planError
@@ -355,6 +362,9 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                     isPlan: true // 계획 메시지 표시
                 }
                 addMessages(tempTopicId, [errorMsgModel])
+
+                // PLAN 생성 실패 - GeneratingIndicator 숨기기
+                messageStore.setIsGeneratingMessage(false)
             }
         },
 
@@ -385,7 +395,7 @@ export const useTopicStore = create<TopicStore>((set, get) => {
          * 계획 기반 보고서 생성
          * "예" 클릭 시 호출 - 백그라운드에서 실제 보고서 생성
          */
-        generateReportFromPlan: async (setIsLoadingMessages) => {
+        generateReportFromPlan: async () => {
             const state = get()
             const {plan} = state
 
@@ -395,10 +405,11 @@ export const useTopicStore = create<TopicStore>((set, get) => {
             }
 
             const realTopicId = plan.topic_id
+            const messageStore = useMessageStore.getState()
 
             try {
-                // ChatInput 비활성화 (새 메시지 전송 방지)
-                setIsLoadingMessages(true)
+                // AI 응답 대기 상태 설정 (GeneratingIndicator 표시)
+                messageStore.setIsGeneratingMessage(true)
 
                 antdMessage.loading({
                     content: '보고서 생성 요청 중...',
@@ -470,11 +481,11 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                                 // 7. selectedTopicId 전환
                                 set({selectedTopicId: realTopicId})
 
-                                setIsLoadingMessages(false)
+                                messageStore.setIsGeneratingMessage(false)
                             } else if (status.status === 'failed') {
                                 antdMessage.destroy('generating')
                                 antdMessage.error(status.error_message || '보고서 생성에 실패했습니다.')
-                                setIsLoadingMessages(false)
+                                messageStore.setIsGeneratingMessage(false)
                             } else if (attempts < maxAttempts) {
                                 // 계속 진행 중
                                 attempts++
@@ -485,13 +496,13 @@ export const useTopicStore = create<TopicStore>((set, get) => {
 
                                 // 타임아웃이어도 topic으로 전환
                                 set({selectedTopicId: realTopicId})
-                                setIsLoadingMessages(false)
+                                messageStore.setIsGeneratingMessage(false)
                             }
                         } catch (error) {
                             console.error('상태 확인 실패:', error)
                             antdMessage.destroy('generating')
                             antdMessage.error('상태 확인에 실패했습니다.')
-                            setIsLoadingMessages(false)
+                            messageStore.setIsGeneratingMessage(false)
                         }
                     }
 
@@ -502,7 +513,7 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                 console.error('보고서 생성 실패:', error)
                 antdMessage.destroy('generate')
                 antdMessage.error('보고서 생성에 실패했습니다.')
-                setIsLoadingMessages(false)
+                messageStore.setIsGeneratingMessage(false)
             }
         }
     }
