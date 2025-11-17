@@ -91,6 +91,9 @@ export const API_ENDPOINTS = {
     GET_TEMPLATE: (templateId: number) => `/api/templates/${templateId}`, // 템플릿 상세 조회
     UPLOAD_TEMPLATE: '/api/templates', // 템플릿 업로드
     DELETE_TEMPLATE: (templateId: number) => `/api/templates/${templateId}`, // 템플릿 삭제
+    UPDATE_PROMPT_USER: (templateId: number) => `/api/templates/${templateId}/prompt-user`, // User Prompt 업데이트
+    UPDATE_PROMPT_SYSTEM: (templateId: number) => `/api/templates/${templateId}/prompt-system`, // System Prompt 업데이트
+    REGENERATE_PROMPT_SYSTEM: (templateId: number) => `/api/templates/${templateId}/regenerate-prompt-system`, // System Prompt 재생성
     ADMIN_LIST_TEMPLATES: '/api/templates/admin/templates' // 관리자: 전체 템플릿 조회
 } as const
 

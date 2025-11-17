@@ -7,7 +7,15 @@
 import api from './api'
 import {API_ENDPOINTS} from '../constants'
 import type {ApiResponse} from '../types/api'
-import type {TemplateListItem, TemplateDetail, UploadTemplateResponse, DeleteTemplateResponse, AdminTemplateItem} from '../types/template'
+import type {
+    TemplateListItem,
+    TemplateDetail,
+    UploadTemplateResponse,
+    DeleteTemplateResponse,
+    AdminTemplateItem,
+    UpdatePromptResponse,
+    SystemPromptRegenerateResponse
+} from '../types/template'
 
 export const templateApi = {
     /**
@@ -17,6 +25,21 @@ export const templateApi = {
      */
     listTemplates: async (): Promise<TemplateListItem[]> => {
         const response = await api.get<ApiResponse<TemplateListItem[]>>(API_ENDPOINTS.LIST_TEMPLATES)
+
+        if (!response.data.success || !response.data.data) {
+            throw new Error(response.data.error?.message || '템플릿 목록 조회에 실패했습니다.')
+        }
+
+        return response.data.data
+    },
+
+    /**
+     * 관리자: 전체 템플릿 조회
+     *
+     * @returns 전체 템플릿 목록
+     */
+    listAllTemplates: async (): Promise<AdminTemplateItem[]> => {
+        const response = await api.get<ApiResponse<AdminTemplateItem[]>>(API_ENDPOINTS.ADMIN_LIST_TEMPLATES)
 
         if (!response.data.success || !response.data.data) {
             throw new Error(response.data.error?.message || '템플릿 목록 조회에 실패했습니다.')
@@ -83,15 +106,54 @@ export const templateApi = {
     },
 
     /**
-     * 관리자: 전체 템플릿 조회
+     * User Prompt 업데이트
      *
-     * @returns 전체 템플릿 목록
+     * @param templateId - 템플릿 ID
+     * @param promptUser - 새로운 User Prompt
+     * @returns 업데이트 응답
      */
-    listAllTemplates: async (): Promise<AdminTemplateItem[]> => {
-        const response = await api.get<ApiResponse<AdminTemplateItem[]>>(API_ENDPOINTS.ADMIN_LIST_TEMPLATES)
+    updatePromptUser: async (templateId: number, promptUser: string): Promise<UpdatePromptResponse> => {
+        const response = await api.put<ApiResponse<UpdatePromptResponse>>(API_ENDPOINTS.UPDATE_PROMPT_USER(templateId), {
+            prompt_user: promptUser
+        })
 
         if (!response.data.success || !response.data.data) {
-            throw new Error(response.data.error?.message || '템플릿 목록 조회에 실패했습니다.')
+            throw new Error(response.data.error?.message || 'User Prompt 업데이트에 실패했습니다.')
+        }
+
+        return response.data.data
+    },
+
+    /**
+     * System Prompt 업데이트
+     *
+     * @param templateId - 템플릿 ID
+     * @param promptSystem - 새로운 System Prompt
+     * @returns 업데이트 응답
+     */
+    updatePromptSystem: async (templateId: number, promptSystem: string): Promise<UpdatePromptResponse> => {
+        const response = await api.put<ApiResponse<UpdatePromptResponse>>(API_ENDPOINTS.UPDATE_PROMPT_SYSTEM(templateId), {
+            prompt_system: promptSystem
+        })
+
+        if (!response.data.success || !response.data.data) {
+            throw new Error(response.data.error?.message || 'System Prompt 업데이트에 실패했습니다.')
+        }
+
+        return response.data.data
+    },
+
+    /**
+     * System Prompt 재생성
+     *
+     * @param templateId - 템플릿 ID
+     * @returns 재생성 응답
+     */
+    regeneratePromptSystem: async (templateId: number): Promise<SystemPromptRegenerateResponse> => {
+        const response = await api.post<ApiResponse<SystemPromptRegenerateResponse>>(API_ENDPOINTS.REGENERATE_PROMPT_SYSTEM(templateId))
+
+        if (!response.data.success || !response.data.data) {
+            throw new Error(response.data.error?.message || 'System Prompt 재생성에 실패했습니다.')
         }
 
         return response.data.data

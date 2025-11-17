@@ -390,5 +390,191 @@ export const handlers = [
             },
             feedback: []
         })
+    }),
+
+    /**
+     * Mock: 템플릿 상세 조회 API
+     * GET /api/templates/:templateId
+     *
+     * 테스트 전략:
+     * - prompt_user, prompt_system 필드 포함
+     * - 플레이스홀더 목록 반환
+     */
+    http.get('http://localhost:8000/api/templates/:templateId', async ({params}) => {
+        const templateId = Number(params.templateId)
+
+        await delay(200)
+
+        const mockTemplate = {
+            id: templateId,
+            title: '재무보고서 템플릿',
+            filename: 'financial_report.hwpx',
+            file_size: 45678,
+            placeholders: [{key: '{{TITLE}}'}, {key: '{{SUMMARY}}'}, {key: '{{CONTENT}}'}],
+            prompt_user: '간결하고 명확하게 작성하세요',
+            prompt_system: '당신은 전문 금융 보고서 작성 AI입니다. 정확한 데이터 분석과 명확한 표현을 사용하세요.',
+            created_at: new Date().toISOString()
+        }
+
+        console.log(`[MSW] Template detail fetched - templateId: ${templateId}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: mockTemplate,
+            error: null,
+            meta: {
+                requestId: `mock-template-${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+
+    /**
+     * Mock: User Prompt 업데이트 API
+     * PUT /api/templates/:templateId/prompt-user
+     */
+    http.put('http://localhost:8000/api/templates/:templateId/prompt-user', async ({request, params}) => {
+        const templateId = Number(params.templateId)
+        const body = (await request.json()) as {prompt_user: string}
+
+        await delay(300)
+
+        console.log(`[MSW] User prompt updated - templateId: ${templateId}, prompt: ${body.prompt_user}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: {
+                id: templateId,
+                title: '재무보고서 템플릿',
+                prompt_user: body.prompt_user,
+                prompt_system: '당신은 전문 금융 보고서 작성 AI입니다.',
+                updated_at: new Date().toISOString()
+            },
+            error: null,
+            meta: {
+                requestId: `mock-update-user-${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+
+    /**
+     * Mock: System Prompt 업데이트 API
+     * PUT /api/templates/:templateId/prompt-system
+     */
+    http.put('http://localhost:8000/api/templates/:templateId/prompt-system', async ({request, params}) => {
+        const templateId = Number(params.templateId)
+        const body = (await request.json()) as {prompt_system: string}
+
+        await delay(300)
+
+        console.log(`[MSW] System prompt updated - templateId: ${templateId}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: {
+                id: templateId,
+                title: '재무보고서 템플릿',
+                prompt_user: '간결하고 명확하게 작성하세요',
+                prompt_system: body.prompt_system,
+                updated_at: new Date().toISOString()
+            },
+            error: null,
+            meta: {
+                requestId: `mock-update-system-${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+
+    /**
+     * Mock: System Prompt 재생성 API
+     * POST /api/templates/:templateId/regenerate-prompt-system
+     */
+    http.post('http://localhost:8000/api/templates/:templateId/regenerate-prompt-system', async ({params}) => {
+        const templateId = Number(params.templateId)
+
+        await delay(500)
+
+        const regeneratedPrompt =
+            '당신은 전문 금융 보고서 작성 AI입니다. 다음 플레이스홀더를 채워 완전한 보고서를 작성하세요:\n\n- {{TITLE}}: 보고서 제목\n- {{SUMMARY}}: 핵심 요약\n- {{CONTENT}}: 상세 내용\n\n정확한 데이터 분석과 명확한 표현을 사용하여 전문성 있는 보고서를 작성하세요.'
+
+        console.log(`[MSW] System prompt regenerated - templateId: ${templateId}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: {
+                id: templateId,
+                prompt_system: regeneratedPrompt,
+                regenerated_at: new Date().toISOString()
+            },
+            error: null,
+            meta: {
+                requestId: `mock-regenerate-${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+
+    /**
+     * Mock: 템플릿 목록 조회 API
+     * GET /api/templates
+     */
+    http.get('http://localhost:8000/api/templates', async () => {
+        await delay(200)
+
+        const mockTemplates = [
+            {
+                id: 1,
+                title: '재무보고서 템플릿',
+                filename: 'financial_report.hwpx',
+                file_size: 45678,
+                created_at: new Date(Date.now() - 86400000).toISOString()
+            },
+            {
+                id: 2,
+                title: '영업보고서 템플릿',
+                filename: 'sales_report.hwpx',
+                file_size: 52341,
+                created_at: new Date(Date.now() - 172800000).toISOString()
+            }
+        ]
+
+        console.log(`[MSW] Template list fetched - count: ${mockTemplates.length}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: mockTemplates,
+            error: null,
+            meta: {
+                requestId: `mock-templates-${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+
+    /**
+     * Mock: 템플릿 삭제 API
+     * DELETE /api/templates/:templateId
+     */
+    http.delete('http://localhost:8000/api/templates/:templateId', async ({params}) => {
+        const templateId = Number(params.templateId)
+
+        await delay(300)
+
+        console.log(`[MSW] Template deleted - templateId: ${templateId}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: {
+                id: templateId,
+                message: '템플릿이 삭제되었습니다.'
+            },
+            error: null,
+            meta: {
+                requestId: `mock-delete-${Date.now()}`
+            },
+            feedback: []
+        })
     })
 ]

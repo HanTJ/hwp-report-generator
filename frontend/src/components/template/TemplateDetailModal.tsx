@@ -1,5 +1,5 @@
 import {useState, useEffect} from 'react'
-import {Modal, Button, Tag} from 'antd'
+import {Modal, Button, Tag, message as antdMessage} from 'antd'
 import {TagsOutlined} from '@ant-design/icons'
 import {templateApi} from '../../services/templateApi'
 import type {TemplateDetail} from '../../types/template'
@@ -30,6 +30,13 @@ const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({open, template
     const [template, setTemplate] = useState<TemplateDetail | null>(null)
     const [loading, setLoading] = useState(false)
 
+    // 프롬프트 상태 관리
+    const [promptUser, setPromptUser] = useState<string>('')
+    const [promptSystem, setPromptSystem] = useState<string>('')
+    const [initialPromptUser, setInitialPromptUser] = useState<string>('')
+    const [initialPromptSystem, setInitialPromptSystem] = useState<string>('')
+    const [isSaving, setIsSaving] = useState(false)
+
     // 템플릿 상세 정보 로드
     const loadTemplate = async () => {
         if (!templateId) return
@@ -53,15 +60,100 @@ const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({open, template
         }
     }, [open, templateId])
 
+    // 템플릿 로드 시 프롬프트 초기값 설정
+    useEffect(() => {
+        if (template) {
+            const userPrompt = template.prompt_user || ''
+            const systemPrompt = template.prompt_system || ''
+
+            setPromptUser(userPrompt)
+            setPromptSystem(systemPrompt)
+            setInitialPromptUser(userPrompt)
+            setInitialPromptSystem(systemPrompt)
+        }
+    }, [template])
+
+    // 변경 감지 함수
+    const hasUserPromptChanged = (): boolean => {
+        return promptUser !== initialPromptUser
+    }
+
+    const hasSystemPromptChanged = (): boolean => {
+        return promptSystem !== initialPromptSystem
+    }
+
+    const hasAnyChanges = (): boolean => {
+        return hasUserPromptChanged() || hasSystemPromptChanged()
+    }
+
+    // 저장 핸들러
+    const handleSave = async () => {
+        if (!templateId) return
+
+        if (!hasAnyChanges()) {
+            antdMessage.info('변경된 내용이 없습니다.')
+            return
+        }
+
+        setIsSaving(true)
+
+        try {
+            // User Prompt 업데이트
+            if (hasUserPromptChanged()) {
+                await templateApi.updatePromptUser(templateId, promptUser)
+            }
+
+            // System Prompt 업데이트 또는 재생성
+            if (hasSystemPromptChanged()) {
+                const trimmedSystemPrompt = promptSystem.trim()
+
+                if (trimmedSystemPrompt === '') {
+                    // 재생성 확인
+                    const confirmed = await new Promise<boolean>((resolve) => {
+                        Modal.confirm({
+                            title: 'System Prompt 재생성',
+                            content: '빈 값으로 저장하면 System Prompt가 자동으로 재생성됩니다. 계속하시겠습니까?',
+                            onOk: () => resolve(true),
+                            onCancel: () => resolve(false)
+                        })
+                    })
+
+                    if (!confirmed) {
+                        setIsSaving(false)
+                        return
+                    }
+
+                    await templateApi.regeneratePromptSystem(templateId)
+                } else {
+                    await templateApi.updatePromptSystem(templateId, promptSystem)
+                }
+            }
+
+            antdMessage.success('프롬프트가 저장되었습니다.')
+            onClose()
+        } catch (error: any) {
+            console.error('TemplateDetailModal > handleSave', error)
+            antdMessage.error('프롬프트 저장에 실패했습니다.')
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
     return (
         <Modal
             title="템플릿 상세"
             open={open}
             onCancel={onClose}
             width={700}
+            closable={!isSaving}
+            maskClosable={!isSaving}
+            keyboard={!isSaving}
             footer={[
-                <Button key="close" onClick={onClose}>
+                <Button key="close" onClick={onClose} disabled={isSaving}>
                     닫기
+                </Button>,
+                <Button key="save" type="primary" loading={isSaving} disabled={!hasAnyChanges()} onClick={handleSave}>
+                    저장
                 </Button>
             ]}>
             {loading ? (
@@ -95,10 +187,7 @@ const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({open, template
                     </div>
 
                     <div className={styles.section}>
-                        <h3 className={styles.sectionTitle}>
-                            <TagsOutlined className={styles.sectionIcon} />
-                            플레이스홀더
-                        </h3>
+                        <h3 className={styles.sectionTitle}>플레이스홀더</h3>
                         {template.placeholders.length > 0 ? (
                             <div className={styles.tagContainer}>
                                 {template.placeholders.map((ph, index) => (
@@ -108,6 +197,34 @@ const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({open, template
                         ) : (
                             <p className={styles.emptyText}>플레이스홀더가 없습니다.</p>
                         )}
+                    </div>
+
+                    {/* User Prompt 섹션 */}
+                    <div className={styles.section}>
+                        <h3 className={styles.sectionTitle}>User Prompt</h3>
+                        <textarea
+                            className={styles.promptTextarea}
+                            value={promptUser}
+                            onChange={(e) => setPromptUser(e.target.value)}
+                            placeholder="사용자 프롬프트를 입력하세요 (선택사항)"
+                            rows={3}
+                            disabled={isSaving}
+                        />
+                        <p className={styles.promptHint}>보고서 생성 시 사용자가 추가로 정의하는 프롬프트입니다.</p>
+                    </div>
+
+                    {/* System Prompt 섹션 */}
+                    <div className={styles.section}>
+                        <h3 className={styles.sectionTitle}>System Prompt</h3>
+                        <textarea
+                            className={styles.promptTextarea}
+                            value={promptSystem}
+                            onChange={(e) => setPromptSystem(e.target.value)}
+                            placeholder="시스템 프롬프트를 입력하세요"
+                            rows={3}
+                            disabled={isSaving}
+                        />
+                        <p className={styles.promptHint}>빈 값으로 저장 시 자동으로 재생성됩니다.</p>
                     </div>
 
                     <div className={styles.notice}>

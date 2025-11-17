@@ -51,6 +51,8 @@ export interface TemplateDetail {
     filename: string
     file_size: number
     placeholders: Array<{key: string}>
+    prompt_user?: string | null
+    prompt_system?: string | null
     created_at: string
 }
 
@@ -92,4 +94,38 @@ export interface AdminTemplateItem {
 export interface DeleteTemplateResponse {
     id: number
     message: string
+}
+
+/**
+ * User Prompt 업데이트 요청
+ */
+export interface UserPromptRequest {
+    prompt_user: string
+}
+
+/**
+ * System Prompt 업데이트 요청
+ */
+export interface PromptSystemRequest {
+    prompt_system: string
+}
+
+/**
+ * 프롬프트 업데이트 응답
+ */
+export interface UpdatePromptResponse {
+    id: number
+    title: string
+    prompt_system: string | null
+    prompt_user: string | null
+    updated_at: string
+}
+
+/**
+ * System Prompt 재생성 응답
+ */
+export interface SystemPromptRegenerateResponse {
+    id: number
+    prompt_system: string | null
+    regenerated_at: string
 }
