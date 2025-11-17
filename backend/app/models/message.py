@@ -118,3 +118,11 @@ class AskRequest(BaseModel):
         default=None,
         description="Template ID for dynamic system prompt generation"
     )
+    is_web_search: bool = Field(
+        default=False,
+        alias="isWebSearch",
+        description="Enable Claude web search tool (default: false)"
+    )
+
+    class Config:
+        populate_by_name = True

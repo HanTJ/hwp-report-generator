@@ -33,7 +33,8 @@ class TimeoutError(SequentialPlanningError):
 async def sequential_planning(
     topic: str,
     template_id: Optional[int] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    is_web_search: bool = False
 ) -> Dict[str, Any]:
     """
     Sequential Planning을 이용한 보고서 계획 수립
@@ -44,6 +45,7 @@ async def sequential_planning(
         topic: 보고서 주제 (필수)
         template_id: 사용할 템플릿 ID (선택, None이면 default 사용)
         user_id: 사용자 ID (template_id 지정 시 권한 확인용)
+        is_web_search: Claude 웹 검색 도구 활성화 여부
 
     Returns:
         {
@@ -85,7 +87,10 @@ async def sequential_planning(
         input_prompt = _create_planning_prompt(topic, guidance_prompt)
 
         # 4. Claude API 호출 (Sequential Planning)
-        plan_response = await _call_sequential_planning(input_prompt)
+        plan_response = await _call_sequential_planning(
+            input_prompt,
+            is_web_search=is_web_search
+        )
 
         # 5. 응답 파싱: plan 텍스트 + sections 배열 추출
         plan_dict = _parse_plan_response(plan_response)
@@ -263,12 +268,16 @@ def _extract_json_from_response(response_text: str) -> str:
     return text
 
 
-async def _call_sequential_planning(input_prompt: str) -> str:
+async def _call_sequential_planning(
+    input_prompt: str,
+    is_web_search: bool = False
+) -> str:
     """
     Claude API를 호출하여 Sequential Planning 실행
 
     Args:
         input_prompt: 입력 프롬프트
+        is_web_search: Claude 웹 검색 활성화 여부
 
     Returns:
         Claude API 응답 (JSON 문자열)
@@ -293,7 +302,8 @@ async def _call_sequential_planning(input_prompt: str) -> str:
         # 빠른 모델로 호출 (Haiku - 응답 속도 우선)
         plan_text, input_tokens, output_tokens = claude.chat_completion_fast(
             messages=messages,
-            system_prompt="You are an expert in creating structured report plans. Respond only with valid JSON."
+            system_prompt="You are an expert in creating structured report plans. Respond only with valid JSON.",
+            isWebSearch=is_web_search
         )
 
         logger.info(

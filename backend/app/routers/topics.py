@@ -886,7 +886,8 @@ async def ask(
         claude_client = ClaudeClient()
         response_text, input_tokens, output_tokens = claude_client.chat_completion(
             claude_messages,
-            system_prompt
+            system_prompt,
+            isWebSearch=body.is_web_search
         )
 
         latency_ms = int((time.time() - t0) * 1000)
@@ -1075,7 +1076,8 @@ async def plan_report(
         plan_result = await sequential_planning(
             topic=request.topic,
             template_id=request.template_id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            is_web_search=request.is_web_search
         )
 
         # 새로운 topic 생성 또는 기존 topic 조회
@@ -1219,7 +1221,8 @@ async def generate_report_background(
                 topic=request.topic,
                 plan=request.plan,
                 template_id=request.template_id,
-                user_id=current_user.id
+                user_id=current_user.id,
+                is_web_search=request.is_web_search
             )
         )
 
@@ -1451,7 +1454,8 @@ async def _background_generate_report(
     topic: str,
     plan: str,
     template_id: Optional[int],
-    user_id: str
+    user_id: str,
+    is_web_search: bool = False
 ):
     """백그라운드에서 실제 보고서 생성 (Artifact 상태 관리)
 
@@ -1465,6 +1469,7 @@ async def _background_generate_report(
         plan: Sequential Planning에서 받은 계획
         template_id: 템플릿 ID (선택)
         user_id: 사용자 ID
+        is_web_search: Claude 웹 검색 활성화 여부
     """
     try:
         logger.info(f"[BACKGROUND] Report generation started - topic_id={topic_id}, artifact_id={artifact_id}")
@@ -1503,7 +1508,10 @@ async def _background_generate_report(
         # ✅ Non-blocking: Claude API 호출을 스레드 끝에서 실행
         markdown = await asyncio.to_thread(
             claude.generate_report,
-            topic=topic
+            topic=topic,
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            isWebSearch=is_web_search
         )
         latency_ms = int((time.time() - start_time) * 1000)
 

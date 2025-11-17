@@ -132,12 +132,19 @@ class PlanRequest(BaseModel):
     """
     topic: str = Field(..., min_length=1, max_length=200, description="보고서 주제")
     template_id: Optional[int] = Field(None, description="템플릿 ID (선택)")
+    is_web_search: bool = Field(
+        default=False,
+        alias="isWebSearch",
+        description="웹 검색 도구 사용 여부 (기본값: false)"
+    )
 
     class Config:
+        populate_by_name = True
         json_schema_extra = {
             "example": {
                 "topic": "AI 시장 분석",
-                "template_id": 1
+                "template_id": 1,
+                "isWebSearch": True
             }
         }
 
@@ -187,13 +194,20 @@ class GenerateRequest(BaseModel):
     topic: str = Field(..., min_length=1, max_length=200, description="보고서 주제")
     plan: str = Field(..., min_length=1, description="Sequential Planning에서 받은 계획")
     template_id: Optional[int] = Field(None, description="템플릿 ID (선택)")
+    is_web_search: bool = Field(
+        default=False,
+        alias="isWebSearch",
+        description="웹 검색 도구 사용 여부 (기본값: false)"
+    )
 
     class Config:
+        populate_by_name = True
         json_schema_extra = {
             "example": {
                 "topic": "AI 시장 분석",
                 "plan": "# 보고서 계획\n## 개요\n...",
-                "template_id": 1
+                "template_id": 1,
+                "isWebSearch": True
             }
         }
 
