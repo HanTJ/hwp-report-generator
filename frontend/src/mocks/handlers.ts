@@ -517,6 +517,103 @@ export const handlers = [
     }),
 
     /**
+     * Mock: 토픽 목록 조회 API
+     * GET /api/topics
+     *
+     * 테스트 전략:
+     * - 페이지네이션 지원 (page, page_size)
+     * - 각 토픽에 template_id 포함
+     * - status 필터링 지원
+     */
+    http.get('http://localhost:8000/api/topics', async ({request}) => {
+        const url = new URL(request.url)
+        const page = Number(url.searchParams.get('page')) || 1
+        const pageSize = Number(url.searchParams.get('page_size')) || 20
+        const status = url.searchParams.get('status') || 'active'
+
+        await delay(300)
+
+        // Mock 토픽 데이터 (template_id 포함)
+        const allMockTopics = [
+            {
+                id: 1,
+                input_prompt: '디지털뱅킹 트렌드 분석',
+                generated_title: '2024-2025 디지털뱅킹 시장 분석 보고서',
+                language: 'ko',
+                status: 'active',
+                template_id: 1, // 재무보고서 템플릿
+                created_at: new Date(Date.now() - 86400000).toISOString(),
+                updated_at: new Date(Date.now() - 3600000).toISOString()
+            },
+            {
+                id: 2,
+                input_prompt: '핀테크 시장 전망',
+                generated_title: '핀테크 시장 현황 및 향후 전망',
+                language: 'ko',
+                status: 'active',
+                template_id: 2, // 영업보고서 템플릿
+                created_at: new Date(Date.now() - 172800000).toISOString(),
+                updated_at: new Date(Date.now() - 7200000).toISOString()
+            },
+            {
+                id: 3,
+                input_prompt: 'AI 금융 서비스 동향',
+                generated_title: 'AI 기반 금융 서비스 트렌드',
+                language: 'ko',
+                status: 'active',
+                template_id: 1, // 재무보고서 템플릿
+                created_at: new Date(Date.now() - 259200000).toISOString(),
+                updated_at: new Date(Date.now() - 10800000).toISOString()
+            },
+            {
+                id: 4,
+                input_prompt: '블록체인 기술 분석',
+                generated_title: '금융권 블록체인 기술 도입 현황',
+                language: 'ko',
+                status: 'active',
+                template_id: 2, // 영업보고서 템플릿
+                created_at: new Date(Date.now() - 345600000).toISOString(),
+                updated_at: new Date(Date.now() - 14400000).toISOString()
+            },
+            {
+                id: 5,
+                input_prompt: '모바일 결제 시장 조사',
+                generated_title: '국내 모바일 결제 시장 분석',
+                language: 'ko',
+                status: 'active',
+                template_id: 1, // 재무보고서 템플릿
+                created_at: new Date(Date.now() - 432000000).toISOString(),
+                updated_at: new Date(Date.now() - 18000000).toISOString()
+            }
+        ]
+
+        // status 필터링
+        const filteredTopics = status ? allMockTopics.filter((t) => t.status === status) : allMockTopics
+
+        // 페이지네이션
+        const startIndex = (page - 1) * pageSize
+        const endIndex = startIndex + pageSize
+        const paginatedTopics = filteredTopics.slice(startIndex, endIndex)
+
+        console.log(`[MSW] Topics fetched - page: ${page}, pageSize: ${pageSize}, total: ${filteredTopics.length}`)
+
+        return HttpResponse.json({
+            success: true,
+            data: {
+                topics: paginatedTopics,
+                total: filteredTopics.length,
+                page: page,
+                page_size: pageSize
+            },
+            error: null,
+            meta: {
+                requestId: `mock-topics-${Date.now()}`
+            },
+            feedback: []
+        })
+    }),
+
+    /**
      * Mock: 템플릿 목록 조회 API
      * GET /api/templates
      */

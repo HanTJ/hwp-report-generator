@@ -8,6 +8,7 @@ import ReportPreview from '../components/report/ReportPreview'
 import PlanPreview from '../components/plan/PlanPreview'
 import ReportsDropdown from '../components/chat/ReportsDropdown'
 import {ChatWelcome} from '../components/chat/ChatWelcome'
+import {ChatLoading} from '../components/chat/ChatLoading'
 import {GeneratingIndicator} from '../components/chat/GeneratingIndicator'
 import Sidebar from '../components/layout/Sidebar'
 import TemplateSelectionView from '../components/template/TemplateSelectionView'
@@ -22,10 +23,8 @@ import {useReportPreview} from '../hooks/useReportPreview'
 
 const MainPage = () => {
     // 주제 관리
-    const {selectedTopicId, setSelectedTopicId, handleTopicPlanWithMessages, generateReportFromPlan} = useTopicStore()
-
-    // 템플릿 선택 모드 상태 (null: 템플릿 선택 화면, number: 선택된 템플릿 ID로 채팅 시작)
-    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+    const {selectedTopicId, selectedTemplateId, setSelectedTopicId, setSelectedTemplateId, sidebarTopics, handleTopicPlanWithMessages, generateReportFromPlan} =
+        useTopicStore()
 
     // 템플릿 선택 화면 표시 여부 (selectedTopicId === null && selectedTemplateId === null)
     const showTemplateSelection = selectedTopicId === null && selectedTemplateId === null
@@ -276,6 +275,17 @@ const MainPage = () => {
     }
 
     /**
+     * 사이드바에서 토픽 선택 시 핸들러
+     */
+    const handleSidebarTopicSelect = (topicId: number) => {
+        // sidebarTopics에서 선택한 토픽 찾기
+        const selectedTopic = sidebarTopics.find((topic) => topic.id === topicId)
+
+        // 토픽 ID와 템플릿 ID 함께 설정
+        setSelectedTopicId(topicId, selectedTopic?.template_id ?? null)
+    }
+
+    /**
      * 사이드바 토글
      */
     const handleToggleSidebar = () => {
@@ -287,7 +297,7 @@ const MainPage = () => {
             {/* Dim Overlay - 모바일/태블릿에서 사이드바 열렸을 때 */}
             {isLeftSidebarOpen && <div className={styles.dimOverlay} onClick={handleToggleSidebar} />}
 
-            <Sidebar isOpen={isLeftSidebarOpen} onToggle={handleToggleSidebar} onTopicSelect={setSelectedTopicId} onNewTopic={handleNewTopik} />
+            <Sidebar isOpen={isLeftSidebarOpen} onToggle={handleToggleSidebar} onTopicSelect={handleSidebarTopicSelect} onNewTopic={handleNewTopik} />
 
             <div className={`${styles.mainChatPage} ${isLeftSidebarOpen ? styles.sidebarExpanded : styles.sidebarCollapsed}`}>
                 {/* 템플릿 선택 화면 또는 채팅 화면 */}
@@ -303,7 +313,9 @@ const MainPage = () => {
                         </button>
                         <div className={styles.chatContainer}>
                             <div className={styles.chatContent}>
-                                {messages.length === 0 ? (
+                                {isLoadingMessages ? (
+                                    <ChatLoading />
+                                ) : messages.length === 0 ? (
                                     <ChatWelcome />
                                 ) : (
                                     <div className={styles.chatMessages}>

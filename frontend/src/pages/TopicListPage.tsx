@@ -41,8 +41,13 @@ const TopicListPage: React.FC = () => {
         setIsLeftSidebarOpen(!isLeftSidebarOpen)
     }
 
+    /** 주제를 클릭한 경우, 주제 변경 및 메인 화면 이동 */
     const handleTopicSelect = (topicId: number) => {
-        setSelectedTopicId(topicId)
+        // pageTopics에서 선택한 토픽 찾기
+        const selectedTopic = pageTopics.find((topic) => topic.id === topicId)
+
+        // 토픽 ID와 템플릿 ID 함께 설정
+        setSelectedTopicId(topicId, selectedTopic?.template_id ?? null)
         navigate('/')
     }
 

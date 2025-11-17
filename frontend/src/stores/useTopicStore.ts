@@ -30,6 +30,7 @@ interface TopicStore {
 
     // State - 공통
     selectedTopicId: number | null
+    selectedTemplateId: number | null // 선택된 토픽의 템플릿 ID
     tempTopicIdCounter: number // 임시 topicId 카운터 (음수)
 
     // State - 계획 생성
@@ -47,7 +48,8 @@ interface TopicStore {
     addTopic: (topic: Topic) => void
     updateTopicInBothLists: (topicId: number, updates: Partial<Topic>) => void
     removeTopicFromBothLists: (topicId: number) => Promise<void>
-    setSelectedTopicId: (id: number | null) => void
+    setSelectedTopicId: (id: number | null, templateId?: number | null) => void
+    setSelectedTemplateId: (id: number | null) => void
     refreshTopic: (topicId: number) => Promise<void>
     updateTopicById: (topicId: number, data: TopicUpdate) => Promise<void>
     deleteTopicById: (topicId: number) => Promise<void>
@@ -88,6 +90,7 @@ export const useTopicStore = create<TopicStore>((set, get) => {
 
         // 초기 상태 - 공통
         selectedTopicId: null,
+        selectedTemplateId: null,
         tempTopicIdCounter: 0,
 
         // 초기 상태 - 계획 생성
@@ -197,10 +200,10 @@ export const useTopicStore = create<TopicStore>((set, get) => {
         },
 
         // 선택된 토픽 ID 설정
-        setSelectedTopicId: (id) => {
+        setSelectedTopicId: (id, templateId) => {
             const prevTopicId = get().selectedTopicId
 
-            // 토픽 전환 시 이전 토픽의 계획 모드 메시지(topicId=0) 정리
+            // 토픽 전환 시
             if (prevTopicId !== id) {
                 const messageStore = useMessageStore.getState()
 
@@ -211,7 +214,17 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                 }
             }
 
-            set({selectedTopicId: id})
+            // templateId가 제공되면 함께 설정
+            if (templateId !== undefined) {
+                set({selectedTopicId: id, selectedTemplateId: templateId})
+            } else {
+                set({selectedTopicId: id})
+            }
+        },
+
+        // 선택된 템플릿 ID 설정
+        setSelectedTemplateId: (id) => {
+            set({selectedTemplateId: id})
         },
 
         // 특정 토픽 조회 (API 호출 + 양쪽 상태 업데이트)

@@ -22,6 +22,7 @@ export interface Topic {
     generated_title: string | null
     language: string
     status: TopicStatus
+    template_id: number
     created_at: string
     updated_at: string
 }
