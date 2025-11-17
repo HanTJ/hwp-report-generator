@@ -457,6 +457,8 @@ async def get_template(
             filename=template.filename,
             file_size=template.file_size,
             placeholders=placeholder_responses,
+            prompt_system=template.prompt_system,
+            prompt_user=template.prompt_user,
             created_at=template.created_at
         )
 
