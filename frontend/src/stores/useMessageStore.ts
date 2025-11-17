@@ -228,11 +228,16 @@ export const useMessageStore = create<MessageStore>((set, get) => {
                 // 2. 기존 메시지 가져오기 (계획 메시지 포함)
                 const existingMessages = get().getMessages(topicId)
 
-                // 3. 임시 사용자 메시지 제거 (ID가 없는 user 메시지는 임시로 간주)
-                const permanentMessages = existingMessages.filter((msg) => {
-                    // ID가 없는 사용자 메시지는 임시이므로 제거
+                // 3. 임시 사용자 메시지 제거 (첫 번째 메시지는 제외)
+                const permanentMessages = existingMessages.filter((msg, index) => {
+                    // 첫 번째 메시지(index=0)는 무조건 유지 (계획 요청 메시지)
+                    if (index === 0) {
+                        return true
+                    }
+
+                    // 두 번째 메시지부터: ID가 없는 사용자 메시지는 임시이므로 제거
                     if (msg.role === 'user' && !msg.id) {
-                        console.log('임시 메시지 제거:', msg.content.substring(0, 50))
+                        console.log(`[${index}] 임시 메시지 제거:`, msg.content.substring(0, 50))
                         return false
                     }
                     return true
