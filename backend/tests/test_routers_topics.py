@@ -1134,6 +1134,7 @@ AI 기반 금융 서비스가 확대되고 있습니다.
 # ============================================================
 
 @pytest.mark.unit
+@pytest.mark.allow_topic_without_template
 class TestTemplateIdTracking:
     """Topic에 template_id 추적 기능 테스트 (v2.4+)"""
 
@@ -1334,6 +1335,28 @@ class TestBackgroundGenerationNonBlocking:
             assert elapsed < 0.1, f"Status response took {elapsed:.3f}s, expected < 0.1s"
             data = status_resp.json()["data"]
             assert data["status"] == "generating"
+
+    @pytest.mark.allow_topic_without_template
+    def test_generate_without_template_returns_404(self, client, auth_headers, create_test_user):
+        """template_id가 없는 토픽은 /generate 호출 시 실패한다."""
+        topic = TopicDB.create_topic(
+            user_id=create_test_user.id,
+            topic_data=TopicCreate(
+                input_prompt="템플릿 없는 토픽",
+                language="ko"
+            )
+        )
+
+        response = client.post(
+            f"/api/topics/{topic.id}/generate",
+            headers=auth_headers,
+            json={"topic": "템플릿 없음", "plan": "계획"}
+        )
+
+        assert response.status_code == 404
+        body = response.json()
+        assert body["success"] is False
+        assert body["error"]["code"] == "TEMPLATE.NOT_FOUND"
 
     def test_tc_002_artifact_status_states(self, client, auth_headers, create_test_user):
         """TC-002: Artifact 상태 전이 - scheduled → generating → completed"""
@@ -1558,4 +1581,3 @@ class TestBackgroundGenerationNonBlocking:
             # 최대 응답 시간 확인
             max_time = max(response_times)
             assert max_time < 0.1, f"Max response time {max_time:.3f}s, expected < 0.1s"
-

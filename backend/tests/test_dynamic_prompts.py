@@ -134,8 +134,6 @@ class TestAskEndpointWithTemplate:
         """
         # Given
         user = create_test_user
-        topic = TopicDB.create_topic(user.id, TopicCreate(input_prompt="AI 기술 동향"))
-
         template = TemplateDB.create_template(
             user.id,
             TemplateCreate(
@@ -145,6 +143,11 @@ class TestAskEndpointWithTemplate:
                 file_size=1024,
                 sha256="abc123def456"
             )
+        )
+
+        topic = TopicDB.create_topic(
+            user.id,
+            TopicCreate(input_prompt="AI 기술 동향", template_id=template.id)
         )
 
         # Placeholder 추가
@@ -167,8 +170,7 @@ class TestAskEndpointWithTemplate:
             response = client.post(
                 f"/api/topics/{topic.id}/ask",
                 json={
-                    "content": "보고서를 작성해주세요",
-                    "template_id": template.id
+                    "content": "보고서를 작성해주세요"
                 },
                 headers=auth_headers
             )
@@ -187,20 +189,22 @@ class TestAskEndpointWithTemplate:
     def test_tc_api_006_ask_with_invalid_template_id(self, client, auth_headers, create_test_user):
         """TC-API-006: 존재하지 않는 template_id로 요청 시 404 반환
 
-        Given: Topic만 생성 (Template 없음)
-        When: 존재하지 않는 template_id로 /ask 요청
+        Given: template_id가 999로 저장된 Topic
+        When: /ask 요청
         Then: 404 에러, code = TEMPLATE.NOT_FOUND
         """
         # Given
         user = create_test_user
-        topic = TopicDB.create_topic(user.id, TopicCreate(input_prompt="AI 기술 동향"))
+        topic = TopicDB.create_topic(
+            user.id,
+            TopicCreate(input_prompt="AI 기술 동향", template_id=99999)
+        )
 
         # When
         response = client.post(
             f"/api/topics/{topic.id}/ask",
             json={
-                "content": "보고서를 작성해주세요",
-                "template_id": 99999  # 존재하지 않는 template_id
+                "content": "보고서를 작성해주세요"
             },
             headers=auth_headers
         )
@@ -211,44 +215,24 @@ class TestAskEndpointWithTemplate:
         assert data["success"] is False
         assert data["error"]["code"] == "TEMPLATE.NOT_FOUND"
 
-    def test_tc_api_007_ask_without_template_id(self, client, auth_headers, create_test_user, test_db):
-        """TC-API-007: template_id 없이 요청 (기본 동작 - 하위 호환성)
+    @pytest.mark.allow_topic_without_template
+    def test_tc_api_007_ask_without_template_assignment(self, client, auth_headers, create_test_user, test_db):
+        """TC-API-007: 토픽에 template_id가 저장되지 않으면 404 반환"""
 
-        Given: Topic만 생성, template_id 제공하지 않음
-        When: template_id 없이 /ask 요청
-        Then: 200 응답, 기본 prompt 사용, 정상 동작
-        """
-        # Given
+        # Given: template_id가 없는 토픽을 명시적으로 생성
         user = create_test_user
         topic = TopicDB.create_topic(user.id, TopicCreate(input_prompt="AI 기술 동향"))
 
-        # Mock Claude API
-        with patch('app.routers.topics.ClaudeClient') as mock_claude_class:
-            mock_claude = MagicMock()
-            mock_claude_class.return_value = mock_claude
-            mock_claude.model = "claude-sonnet-4-5-20250929"
-            mock_claude.chat_completion.return_value = (
-                "# 테스트 보고서\n## 요약\n테스트 내용",
-                100,
-                200
-            )
+        response = client.post(
+            f"/api/topics/{topic.id}/ask",
+            json={"content": "보고서를 작성해주세요"},
+            headers=auth_headers
+        )
 
-            # When
-            response = client.post(
-                f"/api/topics/{topic.id}/ask",
-                json={
-                    "content": "보고서를 작성해주세요"
-                    # template_id 없음
-                },
-                headers=auth_headers
-            )
-
-            # Then
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] is True
-            # Chat completion이 호출되었는지 확인 (기본 prompt 사용)
-            mock_claude.chat_completion.assert_called_once()
+        assert response.status_code == 404
+        data = response.json()
+        assert data["success"] is False
+        assert data["error"]["code"] == "TEMPLATE.NOT_FOUND"
 
     def test_tc_api_008_ask_with_other_users_template(self, client, auth_headers, create_test_user, test_db):
         """TC-API-008: 다른 사용자의 template 접근 권한 검증
@@ -273,18 +257,6 @@ class TestAskEndpointWithTemplate:
         user_b = UserDB.create_user(user_b_create, hash_password("Test1234!@#"))
         UserDB.update_user(user_b.id, {"is_active": True})
 
-        # 사용자 A의 template
-        template_a = TemplateDB.create_template(
-            user_a.id,  # 사용자 A 소유
-            TemplateCreate(
-                title="A의 템플릿",
-                filename="template_a.hwpx",
-                file_path="/path/to/template_a.hwpx",
-                file_size=1024,
-                sha256="abc123"
-            )
-        )
-
         # 사용자 B의 topic
         topic_b = TopicDB.create_topic(user_b.id, TopicCreate(input_prompt="주제"))
 
@@ -296,10 +268,7 @@ class TestAskEndpointWithTemplate:
         # (현재 auth_headers는 user_a로 되어있으므로, 다른 user가 접근하는 상황 시뮬레이션)
         response = client.post(
             f"/api/topics/{topic_b.id}/ask",
-            json={
-                "content": "보고서를 작성해주세요",
-                "template_id": template_a.id  # 다른 사용자의 template
-            },
+            json={"content": "보고서를 작성해주세요"},
             headers=auth_headers  # user_a의 인증이지만, topic_b는 user_b 소유
         )
 
@@ -324,7 +293,6 @@ class TestDynamicPromptIntegration:
         """
         # Given
         user = create_test_user
-        topic = TopicDB.create_topic(user.id, TopicCreate(input_prompt="AI 보고서"))
 
         template = TemplateDB.create_template(
             user.id,
@@ -342,6 +310,11 @@ class TestDynamicPromptIntegration:
         PlaceholderDB.create_placeholder(template.id, "{{OVERVIEW}}")
         PlaceholderDB.create_placeholder(template.id, "{{KEY_INSIGHTS}}")
         PlaceholderDB.create_placeholder(template.id, "{{RECOMMENDATIONS}}")
+
+        topic = TopicDB.create_topic(
+            user.id,
+            TopicCreate(input_prompt="AI 보고서", template_id=template.id)
+        )
 
         # Mock Claude API with markdown response
         with patch('app.routers.topics.ClaudeClient') as mock_claude_class:
@@ -374,10 +347,7 @@ class TestDynamicPromptIntegration:
             # When
             response = client.post(
                 f"/api/topics/{topic.id}/ask",
-                json={
-                    "content": "AI 보고서 작성",
-                    "template_id": template.id
-                },
+                json={"content": "AI 보고서 작성"},
                 headers=auth_headers
             )
 

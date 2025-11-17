@@ -111,211 +111,6 @@ async def create_topic(
             hint="잠시 후 다시 시도해주세요."
         )
 
-
-@router.post("/generate", summary="주제 입력 → 보고서 생성 → MD 저장")
-async def generate_topic_report(
-    topic_data: TopicCreate,
-    current_user: User = Depends(get_current_active_user)
-):
-    """사용자 주제를 받아 Claude로 보고서 생성, 토픽/메시지/아티팩트/사용량 저장 후 경로 반환.
-
-    Request Body:
-        - input_prompt: 사용자가 입력한 주제(필수)
-        - language: 기본 'ko'
-        - template_id: 동적 system prompt 생성에 사용할 템플릿 ID (선택)
-
-    Returns:
-        { "topic_id": int, "artifact_id": int }
-        
-    에러 코드:
-        - VALIDATION.REQUIRED_FIELD: 입력 주제가 비어있음
-        - TEMPLATE.NOT_FOUND: 지정된 템플릿을 찾을 수 없음
-        - SERVER.SERVICE_UNAVAILABLE: Claude API 호출 실패
-        - REPORT_GENERATION_FAILED: 보고서 생성 처리 중 오류
-    """
-    try:
-        # === 1단계: 입력 검증 ===
-        logger.info(f"[GENERATE] Start - user_id={current_user.id}")
-        
-        if not topic_data.input_prompt or not topic_data.input_prompt.strip():
-            logger.warning(f"[GENERATE] Empty input - user_id={current_user.id}")
-            return error_response(
-                code=ErrorCode.VALIDATION_REQUIRED_FIELD,
-                http_status=400,
-                message="입력 주제가 비어있습니다.",
-                hint="3자 이상 내용을 입력해주세요."
-            )
-
-        # === 2단계: System Prompt 선택 (우선순위: custom > template > default) ===
-        logger.info(f"[GENERATE] Selecting system prompt - template_id={topic_data.template_id}")
-
-        try:
-            system_prompt = get_system_prompt(
-                custom_prompt=None,  # /generate에서는 custom prompt 미지원
-                template_id=topic_data.template_id,
-                user_id=current_user.id
-            )
-        except InvalidTemplateError as e:
-            logger.warning(f"[GENERATE] Template error - code={e.code}, message={e.message}")
-            return error_response(
-                code=e.code,
-                http_status=e.http_status,
-                message=e.message,
-                hint=e.hint
-            )
-        except ValueError as e:
-            logger.error(f"[GENERATE] Invalid arguments - error={str(e)}")
-            return error_response(
-                code=ErrorCode.SERVER_INTERNAL_ERROR,
-                http_status=500,
-                message="시스템 오류가 발생했습니다.",
-                details={"error": str(e)}
-            )
-
-        # === 3단계: Claude API 호출 ===
-        logger.info(f"[GENERATE] Calling Claude API - prompt_length={len(system_prompt)}")
-        
-        start_ms = time.time()
-        
-        try:
-            # Topic을 사용자 메시지로 전달
-            user_message = create_topic_context_message(topic_data.input_prompt.strip())
-            claude = ClaudeClient()
-            response_text, input_tokens, output_tokens = claude.chat_completion(
-                [user_message],
-                system_prompt
-            )
-            
-            latency_ms = int((time.time() - start_ms) * 1000)
-            
-            logger.info(f"[GENERATE] Claude response received - input_tokens={input_tokens}, output_tokens={output_tokens}, latency_ms={latency_ms}")
-            
-        except Exception as e:
-            logger.error(f"[GENERATE] Claude API call failed - error={str(e)}")
-            return error_response(
-                code=ErrorCode.SERVER_SERVICE_UNAVAILABLE,
-                http_status=503,
-                message="AI 응답 생성 중 오류가 발생했습니다.",
-                details={"error": str(e)},
-                hint="잠시 후 다시 시도해주세요."
-            )
-
-        # === 4단계: Markdown 파싱 및 제목 추출 ===
-        logger.info(f"[GENERATE] Parsing markdown content")
-        
-        result = parse_markdown_to_content(response_text)
-        generated_title = result.get("title") or "보고서"
-        
-        logger.info(f"[GENERATE] Parsed - title={generated_title}")
-
-        # === 5단계: Topic 생성 ===
-        logger.info(f"[GENERATE] Creating topic")
-        
-        topic = TopicDB.create_topic(current_user.id, topic_data)
-        TopicDB.update_topic(topic.id, TopicUpdate(generated_title=generated_title))
-        
-        logger.info(f"[GENERATE] Topic created - topic_id={topic.id}")
-
-        # === 6단계: 메시지 저장 (User) ===
-        logger.info(f"[GENERATE] Saving user message - topic_id={topic.id}")
-        
-        user_msg = MessageDB.create_message(
-            topic.id,
-            MessageCreate(role=MessageRole.USER, content=topic_data.input_prompt.strip())
-        )
-        
-        logger.info(f"[GENERATE] User message saved - message_id={user_msg.id}")
-
-        # === 7단계: 메시지 저장 (Assistant) ===
-        logger.info(f"[GENERATE] Saving assistant message - topic_id={topic.id}")
-        
-        assistant_msg = MessageDB.create_message(
-            topic.id,
-            MessageCreate(role=MessageRole.ASSISTANT, content=response_text)
-        )
-        
-        logger.info(f"[GENERATE] Assistant message saved - message_id={assistant_msg.id}")
-
-        # === 8단계: Markdown 파일 저장 ===
-        logger.info(f"[GENERATE] Saving MD artifact - topic_id={topic.id}")
-        
-        try:
-            md_text = build_report_md(result)
-            version = next_artifact_version(topic.id, ArtifactKind.MD, topic_data.language)
-            _, md_path = build_artifact_paths(topic.id, version, "report.md")
-            bytes_written = write_text(md_path, md_text)
-            file_hash = sha256_of(md_path)
-            
-            logger.info(f"[GENERATE] File written - size={bytes_written}, hash={file_hash[:16]}...")
-            
-        except Exception as e:
-            logger.error(f"[GENERATE] Failed to save artifact - error={str(e)}")
-            return error_response(
-                code=ErrorCode.ARTIFACT_CREATION_FAILED,
-                http_status=500,
-                message="응답 파일 저장 중 오류가 발생했습니다.",
-                details={"error": str(e)}
-            )
-
-        # === 9단계: 아티팩트 레코드 저장 ===
-        logger.info(f"[GENERATE] Creating artifact record")
-        
-        artifact = ArtifactDB.create_artifact(
-            topic.id,
-            assistant_msg.id,
-            ArtifactCreate(
-                kind=ArtifactKind.MD,
-                locale=topic_data.language,
-                version=version,
-                filename=md_path.name,
-                file_path=str(md_path),
-                file_size=bytes_written,
-                sha256=file_hash,
-            )
-        )
-        
-        logger.info(f"[GENERATE] Artifact created - artifact_id={artifact.id}, version={artifact.version}")
-
-        # === 10단계: AI 사용량 저장 ===
-        logger.info(f"[GENERATE] Saving AI usage - message_id={assistant_msg.id}")
-        
-        try:
-            AiUsageDB.create_ai_usage(
-                topic.id,
-                assistant_msg.id,
-                AiUsageCreate(
-                    model=claude.model,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    latency_ms=latency_ms,
-                )
-            )
-            
-            logger.info(f"[GENERATE] AI usage saved")
-            
-        except Exception as e:
-            logger.error(f"[GENERATE] Failed to save AI usage - error={str(e)}")
-            # 사용량 저장 실패는 치명적이지 않으므로 계속 진행
-
-        # === 11단계: 성공 응답 반환 ===
-        logger.info(f"[GENERATE] Success - topic_id={topic.id}, artifact_id={artifact.id}")
-        
-        return success_response({
-            "topic_id": topic.id,
-            "artifact_id": artifact.id
-        })
-
-    except Exception as e:
-        logger.error(f"[GENERATE] Unexpected error - error={str(e)}")
-        # Claude 호출/파일/DB 어느 단계에서도 예외 처리
-        return error_response(
-            code=ErrorCode.REPORT_GENERATION_FAILED,
-            http_status=500,
-            message="보고서 생성 처리 중 오류가 발생했습니다.",
-            details={"error": str(e)}
-        )
-
-
 @router.get("", summary="Get user's topics")
 async def get_my_topics(
     status: Optional[TopicStatus] = None,
@@ -653,6 +448,15 @@ async def ask(
             message="이 토픽에 접근할 권한이 없습니다."
         )
 
+    if not topic.template_id:
+        logger.warning(f"[ASK] Template missing on topic - topic_id={topic_id}")
+        return error_response(
+            code=ErrorCode.TEMPLATE_NOT_FOUND,
+            http_status=404,
+            message="이 토픽에는 템플릿이 지정되어 있지 않습니다.",
+            hint="계획을 먼저 생성 후 시도해 주세요."
+        )
+
     content = (body.content or "").strip()
     if not content:
         logger.warning(f"[ASK] Empty content - topic_id={topic_id}")
@@ -737,7 +541,7 @@ async def ask(
     # User 메시지 필터링
     user_messages = [m for m in all_messages if m.role == MessageRole.USER]
 
-    # ✨ NEW: artifact_id가 **명시적으로** 지정된 경우에만, 해당 message 이전 것만 포함
+    # artifact_id가 **명시적으로** 지정된 경우에만, 해당 message 이전 것만 포함
     if body.artifact_id is not None and reference_artifact:
         ref_msg = await asyncio.to_thread(
             MessageDB.get_message_by_id,
@@ -850,13 +654,13 @@ async def ask(
         )
 
     # === 5단계: System Prompt 선택 (우선순위: template > default) ===
-    logger.info(f"[ASK] Selecting system prompt - template_id={body.template_id}")
+    logger.info(f"[ASK] Selecting system prompt - template_id={topic.template_id}")
 
     try:
         system_prompt = await asyncio.to_thread(
             get_system_prompt,
             custom_prompt=None,
-            template_id=body.template_id,
+            template_id=topic.template_id,
             user_id=current_user.id
         )
     except InvalidTemplateError as e:
@@ -906,8 +710,14 @@ async def ask(
     # === 7단계: 응답 형태 판별 ===
     logger.info(f"[ASK] Detecting response type")
     # TODO: is report 판별 로직 개선 필요
-    #is_report = is_report_content(response_text)
-    is_report = True # 임시: 항상 보고서로 간주 (나중에 변경 Claude 자동 변경 금지)
+    try:
+        #is_report = is_report_content(response_text)
+        is_report = True  # 항상 보고서로 간주 임시 
+    except Exception as detector_error:
+        logger.warning(
+            f"[ASK] Failed to detect response type, defaulting to report - error={detector_error}"
+        )
+        is_report = True
 
     logger.info(f"[ASK] Response type detected - is_report={is_report}")
 
@@ -1093,7 +903,6 @@ async def plan_report(
             PlanResponse(
                 topic_id=topic.id,
                 plan=plan_result["plan"],
-                estimated_sections_count=len(sections)
             )
         )
 
@@ -1146,13 +955,9 @@ async def generate_report_background(
     사용자가 승인한 계획을 바탕으로 보고서 생성을 백그라운드에서 시작합니다.
     Artifact을 즉시 생성하여 Frontend에서 진행 상황을 모니터링할 수 있습니다.
     
-    ✅ 변경사항: MD 파일로 즉시 생성 (HWPX 변환은 별도 엔드포인트)
     Args:
         topic_id: 토픽 ID
-        request: GenerateRequest 모델
-            - topic: 보고서 주제
-            - plan: Sequential Planning에서 받은 계획
-            - template_id: 템플릿 ID (선택)
+        request: GenerateRequest 모델 (topic, plan, isWebSearch 만 포함)
         current_user: 인증된 사용자
         background_tasks: FastAPI background tasks (unused, use asyncio.create_task instead)
 
@@ -1181,6 +986,17 @@ async def generate_report_background(
                 http_status=403,
                 message="이 토픽에 접근할 권한이 없습니다."
             )
+
+        if not topic.template_id:
+            logger.warning(f"[GENERATE] Template missing on topic - topic_id={topic_id}")
+            return error_response(
+                code=ErrorCode.TEMPLATE_NOT_FOUND,
+                http_status=404,
+                message="이 토픽에는 템플릿이 지정되어 있지 않습니다.",
+                hint="/api/topics/plan 호출 후 템플릿이 지정된 토픽을 사용해주세요."
+            )
+
+        template_id = topic.template_id
 
         # ✅ NEW: Artifact 즉시 생성 (status="scheduled", file_path=NULL)
         # ✅ CHANGED: kind를 HWPX에서 MD로 변경 (더 빠른 생성)
@@ -1212,7 +1028,7 @@ async def generate_report_background(
                 artifact_id=artifact.id,
                 topic=request.topic,
                 plan=request.plan,
-                template_id=request.template_id,
+                template_id=template_id,
                 user_id=current_user.id,
                 is_web_search=request.is_web_search
             )
@@ -1459,10 +1275,18 @@ async def _background_generate_report(
         artifact_id: Artifact ID (상태 업데이트용)
         topic: 보고서 주제
         plan: Sequential Planning에서 받은 계획
-        template_id: 템플릿 ID (선택)
+        template_id: 템플릿 ID (필수, 누락 시 실패)
         user_id: 사용자 ID
         is_web_search: Claude 웹 검색 활성화 여부
     """
+    if not template_id:
+        raise InvalidTemplateError(
+            code=ErrorCode.TEMPLATE_NOT_FOUND,
+            http_status=404,
+            message="템플릿 정보가 지정되지 않은 토픽입니다.",
+            hint="/api/topics/plan 호출 후 템플릿이 지정된 토픽을 사용해주세요."
+        )
+
     try:
         logger.info(f"[BACKGROUND] Report generation started - topic_id={topic_id}, artifact_id={artifact_id}")
 

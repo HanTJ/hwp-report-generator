@@ -39,7 +39,7 @@ export interface AskRequest {
   artifact_id?: number | null;
   include_artifact_content?: boolean;
   max_messages?: number | null;
-  system_prompt?: string | null;
+  isWebSearch?: boolean;
 }
 
 // Ask API Response

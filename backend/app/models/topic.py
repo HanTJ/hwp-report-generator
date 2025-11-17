@@ -171,13 +171,10 @@ class PlanResponse(BaseModel):
 
     Attributes:
         topic_id: 토픽 ID
-        plan: Markdown 형식의 계획 문서
-        sections: 섹션 목록
-        estimated_sections_count: 예상 섹션 수
+        plan: 평문 형식의 계획 문서
     """
     topic_id: int
     plan: str
-    estimated_sections_count: int
 
 
 class GenerateRequest(BaseModel):
@@ -188,11 +185,9 @@ class GenerateRequest(BaseModel):
     Attributes:
         topic: 보고서 주제 (필수)
         plan: Sequential Planning에서 받은 계획 (필수)
-        template_id: 사용할 템플릿 ID (선택)
     """
     topic: str = Field(..., min_length=1, max_length=200, description="보고서 주제")
     plan: str = Field(..., min_length=1, description="Sequential Planning에서 받은 계획")
-    template_id: Optional[int] = Field(None, description="템플릿 ID (선택)")
     is_web_search: bool = Field(
         default=False,
         alias="isWebSearch",
@@ -205,7 +200,6 @@ class GenerateRequest(BaseModel):
             "example": {
                 "topic": "AI 시장 분석",
                 "plan": "# 보고서 계획\n## 개요\n...",
-                "template_id": 1,
                 "isWebSearch": True
             }
         }
