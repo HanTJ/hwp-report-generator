@@ -1,9 +1,8 @@
-import React, {useState, useEffect} from 'react'
-import {Button, message, Table, Card, Space, Popconfirm} from 'antd'
+import React, {useState} from 'react'
+import {Button, Table, Card, Space, Popconfirm} from 'antd'
 import {PlusOutlined, MenuOutlined, DeleteOutlined, EyeOutlined, ReloadOutlined} from '@ant-design/icons'
 import type {ColumnsType} from 'antd/es/table'
 import {useNavigate} from 'react-router-dom'
-import {templateApi} from '../services/templateApi'
 import type {TemplateListItem} from '../types/template'
 import MainLayout from '../components/layout/MainLayout'
 import Sidebar from '../components/layout/Sidebar'
@@ -11,6 +10,7 @@ import TemplateDetailModal from '../components/template/TemplateDetailModal'
 import TemplateUploadModal from '../components/template/TemplateUploadModal'
 import {useTopicStore} from '../stores/useTopicStore'
 import {formatDate, formatFileSize} from '../utils/formatters'
+import {useTemplateManagement} from '../hooks/useTemplateManagement'
 import styles from './TemplateManagementPage.module.css'
 
 /**
@@ -35,36 +35,15 @@ const TemplateManagementPage: React.FC = () => {
     const navigate = useNavigate()
     const {setSelectedTopicId} = useTopicStore()
 
+    // 커스텀 훅 사용 (일반 사용자 모드)
+    const {templates, loading, deleting, uploading, detailModalOpen, selectedTemplateId, loadTemplates, handleViewDetail, handleCloseDetail, handleDelete, handleUpload} =
+        useTemplateManagement<TemplateListItem>({isAdmin: false})
+
     // UI 상태
     const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false)
-    const [templates, setTemplates] = useState<TemplateListItem[]>([])
-    const [loading, setLoading] = useState(false)
 
     // 모달 상태
     const [uploadModalOpen, setUploadModalOpen] = useState(false)
-    const [detailModalOpen, setDetailModalOpen] = useState(false)
-    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
-
-    // 삭제 로딩 상태
-    const [deleting, setDeleting] = useState(false)
-
-    // 템플릿 목록 로드
-    const loadTemplates = async () => {
-        setLoading(true)
-        try {
-            const data = await templateApi.listTemplates()
-            setTemplates(data)
-        } catch (error: any) {
-            message.error(error.message || '템플릿 목록을 불러오는데 실패했습니다.')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    // 초기 로드
-    useEffect(() => {
-        loadTemplates()
-    }, [])
 
     // 사이드바 토글
     const handleToggleSidebar = () => {
@@ -81,33 +60,6 @@ const TemplateManagementPage: React.FC = () => {
     const handleTopicSelect = (topicId: number) => {
         setSelectedTopicId(topicId)
         navigate('/')
-    }
-
-    // 템플릿 상세 보기
-    const handleViewDetail = (templateId: number) => {
-        setSelectedTemplateId(templateId)
-        setDetailModalOpen(true)
-    }
-
-    // 템플릿 삭제
-    const handleDelete = async (templateId: number) => {
-        setDeleting(true)
-        try {
-            await templateApi.deleteTemplate(templateId)
-            message.success('템플릿이 삭제되었습니다.')
-
-            // 상세 모달이 열려있으면 닫기
-            if (detailModalOpen && selectedTemplateId === templateId) {
-                setDetailModalOpen(false)
-                setSelectedTemplateId(null)
-            }
-
-            loadTemplates()
-        } catch (error: any) {
-            message.error(error.message || '템플릿 삭제에 실패했습니다.')
-        } finally {
-            setDeleting(false)
-        }
     }
 
     // Table 컬럼 정의
@@ -218,10 +170,10 @@ const TemplateManagementPage: React.FC = () => {
             </div>
 
             {/* 업로드 모달 */}
-            <TemplateUploadModal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} onSuccess={() => loadTemplates()} />
+            <TemplateUploadModal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} uploading={uploading} onUpload={handleUpload} />
 
             {/* 상세 모달 */}
-            <TemplateDetailModal open={detailModalOpen} templateId={selectedTemplateId} onClose={() => setDetailModalOpen(false)} />
+            <TemplateDetailModal open={detailModalOpen} templateId={selectedTemplateId} onClose={handleCloseDetail} />
         </MainLayout>
     )
 }

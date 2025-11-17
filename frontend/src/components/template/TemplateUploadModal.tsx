@@ -2,7 +2,6 @@ import {useState} from 'react'
 import {Modal, Form, Input, Upload, Button, message} from 'antd'
 import {FileOutlined, CloseOutlined} from '@ant-design/icons'
 import type {UploadFile, RcFile} from 'antd/es/upload'
-import {templateApi} from '../../services/templateApi'
 import styles from './TemplateUploadModal.module.css'
 
 /**
@@ -24,13 +23,13 @@ import styles from './TemplateUploadModal.module.css'
 interface TemplateUploadModalProps {
     open: boolean
     onClose: () => void
-    onSuccess: () => void
+    uploading: boolean
+    onUpload: (file: File, title: string) => Promise<boolean>
 }
 
-const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose, onSuccess}) => {
+const TemplateUploadModal = ({open, onClose, uploading, onUpload}: TemplateUploadModalProps) => {
     const [form] = Form.useForm()
     const [fileList, setFileList] = useState<UploadFile[]>([])
-    const [uploading, setUploading] = useState(false)
 
     // 파일 선택 전 검증
     const beforeUpload = (file: RcFile): boolean => {
@@ -63,6 +62,7 @@ const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose,
 
     // 파일 제거
     const handleRemove = () => {
+        if (uploading) return // 업로드 중에는 제거 불가
         setFileList([])
     }
 
@@ -82,22 +82,17 @@ const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose,
                 return
             }
 
-            setUploading(true)
-
             const file = uploadFile.originFileObj as File
-            await templateApi.uploadTemplate(file, values.title)
+            const success = await onUpload(file, values.title)
 
-            message.success('템플릿이 업로드되었습니다.')
-            handleClose()
-            onSuccess()
+            if (success) {
+                handleClose()
+            }
         } catch (error: any) {
             if (error.errorFields) {
                 // Form validation error
                 return
             }
-            message.error(error.message || '템플릿 업로드에 실패했습니다.')
-        } finally {
-            setUploading(false)
         }
     }
 
@@ -115,8 +110,11 @@ const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose,
             onCancel={handleClose}
             onOk={handleUpload}
             confirmLoading={uploading}
+            closable={!uploading}
+            maskClosable={!uploading}
             okText="업로드"
             cancelText="취소"
+            cancelButtonProps={{disabled: uploading}}
             width={600}
             centered>
             <div className={styles.modalBody}>
@@ -129,7 +127,7 @@ const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose,
                             {required: true, message: '템플릿 제목을 입력해주세요.'},
                             {max: 100, message: '템플릿 제목은 100자 이하여야 합니다.'}
                         ]}>
-                        <Input placeholder="예: 2024 분기별 실적 보고서" maxLength={100} showCount />
+                        <Input placeholder="예: 2024 분기별 실적 보고서" maxLength={100} showCount disabled={uploading} />
                     </Form.Item>
 
                     {/* 파일 업로드 */}
@@ -141,6 +139,7 @@ const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose,
                             maxCount={1}
                             accept=".hwpx"
                             showUploadList={false}
+                            disabled={uploading}
                             className={styles.uploader}>
                             {fileList.length === 0 ? (
                                 <>
@@ -152,7 +151,13 @@ const TemplateUploadModal: React.FC<TemplateUploadModalProps> = ({open, onClose,
                                 </>
                             ) : (
                                 <div className={styles.fileInfo}>
-                                    <Button type="text" icon={<CloseOutlined />} onClick={handleRemove} className={styles.removeBtn} />
+                                    <Button
+                                        type="text"
+                                        icon={<CloseOutlined />}
+                                        onClick={handleRemove}
+                                        disabled={uploading}
+                                        className={styles.removeBtn}
+                                    />
                                     <FileOutlined className={styles.fileIcon} />
                                     <div className={styles.fileName}>{fileList[0].name}</div>
                                 </div>

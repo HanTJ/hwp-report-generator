@@ -1,11 +1,10 @@
-import {useState, useEffect} from 'react'
-import {Card, Table, Button, message, Space} from 'antd'
-import {ReloadOutlined, EyeOutlined} from '@ant-design/icons'
+import {Card, Table, Button, Space, Popconfirm} from 'antd'
+import {ReloadOutlined, EyeOutlined, DeleteOutlined} from '@ant-design/icons'
 import type {ColumnsType} from 'antd/es/table'
-import {templateApi} from '../../services/templateApi'
 import type {AdminTemplateItem} from '../../types/template'
 import TemplateDetailModal from '../template/TemplateDetailModal'
 import {formatDate, formatFileSize} from '../../utils/formatters'
+import {useTemplateManagement} from '../../hooks/useTemplateManagement'
 
 /**
  * AdminTemplateManagement.tsx
@@ -15,34 +14,9 @@ import {formatDate, formatFileSize} from '../../utils/formatters'
  */
 
 const AdminTemplateManagement = () => {
-    const [templates, setTemplates] = useState<AdminTemplateItem[]>([])
-    const [loading, setLoading] = useState(false)
-    const [detailModalOpen, setDetailModalOpen] = useState(false)
-    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
-
-    // 템플릿 목록 로드
-    const loadTemplates = async () => {
-        setLoading(true)
-        try {
-            const data = await templateApi.listAllTemplates()
-            setTemplates(data)
-        } catch (error: any) {
-            message.error(error.message || '템플릿 목록을 불러오는데 실패했습니다.')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    // 초기 로드
-    useEffect(() => {
-        loadTemplates()
-    }, [])
-
-    // 템플릿 상세 보기
-    const handleViewDetail = (templateId: number) => {
-        setSelectedTemplateId(templateId)
-        setDetailModalOpen(true)
-    }
+    // 커스텀 훅 사용 (관리자 모드)
+    const {templates, loading, deleting, detailModalOpen, selectedTemplateId, loadTemplates, handleViewDetail, handleCloseDetail, handleDelete} =
+        useTemplateManagement<AdminTemplateItem>({isAdmin: true})
 
     // Table 컬럼 정의
     const columns: ColumnsType<AdminTemplateItem> = [
@@ -74,13 +48,6 @@ const AdminTemplateManagement = () => {
             render: (size: number) => formatFileSize(size)
         },
         {
-            title: '플레이스홀더 수',
-            dataIndex: 'placeholder_count',
-            key: 'placeholder_count',
-            width: 130,
-            render: (count: number) => `${count}개`
-        },
-        {
             title: '생성일',
             dataIndex: 'created_at',
             key: 'created_at',
@@ -93,12 +60,23 @@ const AdminTemplateManagement = () => {
         {
             title: '액션',
             key: 'action',
-            width: 100,
+            width: 180,
             render: (_, record) => (
                 <Space>
                     <Button size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)}>
                         상세
                     </Button>
+                    <Popconfirm
+                        title="템플릿을 삭제하시겠습니까?"
+                        description="삭제된 템플릿은 복구할 수 없습니다."
+                        onConfirm={() => handleDelete(record.id)}
+                        okText="삭제"
+                        cancelText="취소"
+                        okButtonProps={{danger: true}}>
+                        <Button size="small" danger icon={<DeleteOutlined />} loading={deleting}>
+                            삭제
+                        </Button>
+                    </Popconfirm>
                 </Space>
             )
         }
@@ -129,7 +107,7 @@ const AdminTemplateManagement = () => {
             </Card>
 
             {/* 상세 모달 */}
-            <TemplateDetailModal open={detailModalOpen} templateId={selectedTemplateId} onClose={() => setDetailModalOpen(false)} />
+            <TemplateDetailModal open={detailModalOpen} templateId={selectedTemplateId} onClose={handleCloseDetail} />
         </>
     )
 }

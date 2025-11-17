@@ -96,9 +96,14 @@
     line-height: 1;
 }
 
-.removeBtn:hover {
+.removeBtn:hover:not(:disabled) {
     color: var(--error-color);
     background-color: rgba(255, 77, 79, 0.1);
+}
+
+.removeBtn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 .uploader :global(.ant-upload-hint) {
