@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from app.utils.prompts import create_dynamic_system_prompt, FINANCIAL_REPORT_SYSTEM_PROMPT
+from app.utils.prompts import create_dynamic_system_prompt, get_default_report_prompt
 from app.database.template_db import TemplateDB, PlaceholderDB
 from app.database.topic_db import TopicDB
 from app.models.topic import TopicCreate
@@ -74,7 +74,7 @@ class TestCreateDynamicSystemPrompt:
         assert "EXECUTIVE_SUMMARY" in prompt
         assert "RISK_ANALYSIS" in prompt
         assert "RECOMMENDATION" in prompt
-        # 동적 prompt는 BASE + 커스텀 placeholder 구조로, FINANCIAL_REPORT_SYSTEM_PROMPT보다 짧을 수 있음
+        # 동적 prompt는 BASE + 커스텀 placeholder 구조로, 기본 프롬프트보다 짧을 수 있음
         # (기본 5개 섹션 정의가 없기 때문)
         assert "커스텀 템플릿 구조" in prompt  # 동적 prompt에만 있는 섹션
 
@@ -83,7 +83,7 @@ class TestCreateDynamicSystemPrompt:
 
         Given: 빈 placeholder 리스트 ([])
         When: create_dynamic_system_prompt() 호출
-        Then: 기본 FINANCIAL_REPORT_SYSTEM_PROMPT 반환
+        Then: 기본 보고서 System Prompt 반환
         """
         # Given
         placeholders = []
@@ -92,7 +92,7 @@ class TestCreateDynamicSystemPrompt:
         prompt = create_dynamic_system_prompt(placeholders)
 
         # Then
-        assert prompt == FINANCIAL_REPORT_SYSTEM_PROMPT
+        assert prompt == get_default_report_prompt()
 
     def test_tc_unit_004_duplicate_placeholder_removal(self):
         """TC-UNIT-004: 중복 placeholder 제거
@@ -564,4 +564,3 @@ class TestDynamicPromptIntegration:
             artifact = ArtifactDB.get_artifact_by_id(artifact_id)
             assert artifact is not None
             assert artifact.kind == ArtifactKind.MD
-

@@ -177,7 +177,6 @@ class PlanResponse(BaseModel):
     """
     topic_id: int
     plan: str
-    sections: list[PlanSection]
     estimated_sections_count: int
 
 

@@ -33,7 +33,6 @@ from app.utils.markdown_builder import build_report_md
 from app.utils.file_utils import next_artifact_version, build_artifact_paths, write_text, sha256_of
 from app.utils.claude_client import ClaudeClient
 from app.utils.prompts import (
-    FINANCIAL_REPORT_SYSTEM_PROMPT,
     create_topic_context_message,
     get_system_prompt,
 )
@@ -1090,17 +1089,10 @@ async def plan_report(
         elapsed = time.time() - start_time
         logger.info(f"[PLAN] Completed - topic_id={topic.id}, elapsed={elapsed:.2f}s")
 
-        # PlanSection 모델로 변환
-        sections = [
-            PlanSection(**s) if isinstance(s, dict) else s
-            for s in plan_result.get("sections", [])
-        ]
-
         return success_response(
             PlanResponse(
                 topic_id=topic.id,
                 plan=plan_result["plan"],
-                sections=sections,
                 estimated_sections_count=len(sections)
             )
         )

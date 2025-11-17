@@ -9,7 +9,7 @@ from anthropic import Anthropic
 
 # shared.constants를 import하면 자동으로 sys.path 설정됨
 from shared.constants import ClaudeConfig
-from app.utils.prompts import FINANCIAL_REPORT_SYSTEM_PROMPT
+from app.utils.prompts import get_default_report_prompt
 
 # 로깅 설정
 logging.basicConfig(
@@ -85,7 +85,7 @@ class ClaudeClient:
             >>> md_content.startswith("# ")
             True
         """
-        base_system_prompt = system_prompt or FINANCIAL_REPORT_SYSTEM_PROMPT
+        base_system_prompt = system_prompt or get_default_report_prompt()
 
 
         try:
