@@ -478,7 +478,18 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                                 // 6. 계획 모드 메시지 정리 (topicId=0 삭제)
                                 messageStore.clearMessages(0)
 
-                                // 7. selectedTopicId 전환
+                                // 7. 생성된 토픽을 서버에서 조회하여 사이드바에 추가
+                                try {
+                                    const newTopic = await topicApi.getTopic(realTopicId)
+                                    // addTopic을 호출하여 sidebarTopics과 pageTopics에 모두 추가
+                                    get().addTopic(newTopic)
+                                } catch (error) {
+                                    console.error('Failed to fetch new topic for sidebar:', error)
+                                    // 사이드바 토픽 목록 전체 새로고침 (fallback)
+                                    get().loadSidebarTopics()
+                                }
+
+                                // 8. selectedTopicId 전환
                                 set({selectedTopicId: realTopicId})
 
                                 messageStore.setIsGeneratingMessage(false)
@@ -493,6 +504,15 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                             } else {
                                 antdMessage.destroy('generating')
                                 antdMessage.warning('보고서 생성이 오래 걸립니다. 잠시 후 다시 확인해주세요.')
+
+                                // 타임아웃이어도 토픽을 사이드바에 추가
+                                try {
+                                    const newTopic = await topicApi.getTopic(realTopicId)
+                                    get().addTopic(newTopic)
+                                } catch (error) {
+                                    console.error('Failed to fetch new topic for sidebar:', error)
+                                    get().loadSidebarTopics()
+                                }
 
                                 // 타임아웃이어도 topic으로 전환
                                 set({selectedTopicId: realTopicId})

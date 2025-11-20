@@ -118,11 +118,11 @@ export const UI_CONFIG = {
         /**
          * TopicListPage에서 한 페이지당 표시할 토픽 개수
          */
-        TOPICS_PER_PAGE: 2,
+        TOPICS_PER_PAGE: 5,
         /**
          * Sidebar에 표시할 최대 토픽 개수
          * - 이 개수 이상의 토픽이 있으면 "모든 대화" 버튼이 표시됨
          */
-        SIDEBAR_TOPICS_PER_PAGE: 2
+        SIDEBAR_TOPICS_PER_PAGE: 5
     }
 } as const
