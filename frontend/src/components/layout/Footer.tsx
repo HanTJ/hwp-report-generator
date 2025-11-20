@@ -8,7 +8,7 @@ interface FooterProps {
     sidebarCollapsed?: boolean | null
 }
 
-const Footer: React.FC<FooterProps> = ({sidebarCollapsed = null}) => {
+const Footer = ({sidebarCollapsed = null}: FooterProps) => {
     const getFooterClass = () => {
         if (sidebarCollapsed === null) {
             return styles.noSidebar

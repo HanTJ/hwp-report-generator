@@ -1,10 +1,20 @@
 import React, {useState} from 'react'
-import {UserOutlined, FileTextOutlined, SettingOutlined, DashboardOutlined, LeftOutlined, RightOutlined, MessageOutlined, FileAddOutlined} from '@ant-design/icons'
+import {
+    UserOutlined,
+    FileTextOutlined,
+    SettingOutlined,
+    DashboardOutlined,
+    LeftOutlined,
+    RightOutlined,
+    MessageOutlined,
+    FileAddOutlined
+} from '@ant-design/icons'
 import styles from './AdminSidebar.module.css'
 
 interface AdminSidebarProps {
     activeMenu?: string
     onMenuChange?: (menuKey: string) => void
+    onCollapseChange?: (collapsed: boolean) => void
 }
 
 interface MenuItem {
@@ -29,12 +39,6 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({activeMenu = 'users', onMenu
             icon: <UserOutlined />,
             label: '사용자 관리',
             description: '사용자 승인 및 관리'
-        },
-        {
-            key: 'prompts',
-            icon: <MessageOutlined />,
-            label: '프롬프트 관리',
-            description: '보고서 생성 프롬프트 설정'
         },
         {
             key: 'templates',
@@ -70,10 +74,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({activeMenu = 'users', onMenu
         <aside className={`${styles.adminSidebar} ${isCollapsed ? styles.collapsed : styles.expanded}`}>
             {/* Sidebar Header */}
             <div className={styles.sidebarHeader}>
-                {!isCollapsed && <h3 className={styles.title}>관리자 메뉴</h3>}
                 <button className={styles.toggleBtn} onClick={handleToggle} title={isCollapsed ? '사이드바 열기' : '사이드바 닫기'}>
                     {isCollapsed ? <RightOutlined /> : <LeftOutlined />}
                 </button>
+                {!isCollapsed && <h3 className={styles.title}>관리자 메뉴</h3>}
             </div>
 
             {/* Menu Items */}
