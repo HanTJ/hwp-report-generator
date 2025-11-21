@@ -250,6 +250,8 @@ const MainPage = () => {
         setSelectedTemplateId(templateId)
         // 템플릿이 선택되면 채팅 화면으로 전환되지만, 아직 토픽은 생성되지 않음
         // 첫 메시지 전송 시 handleSendMessage에서 토픽 생성
+
+        // 템플릿 ChatWelcome 컴포넌트에 표시
     }
 
     /**

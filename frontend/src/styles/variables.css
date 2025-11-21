@@ -73,5 +73,5 @@
     /* Sidebar */
     --sidebar-width: 16rem; /* 256px - 열린 상태 */
     --sidebar-collapsed-width: 3rem; /* 48px - 닫힌 상태 */
-    --sidebar-height: 2rem /* 32px */;
+    --sidebar-header-height: 3rem /* 32px */;
 }

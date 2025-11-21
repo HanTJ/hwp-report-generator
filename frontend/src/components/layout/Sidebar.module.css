@@ -25,17 +25,16 @@
     margin: 0;
     padding: 0 var(--spacing-sm);
     font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
     border: none;
     background: none;
-    font: inherit; /* 부모의 폰트 상속 */
-    color: inherit; /* 부모의 글자색 상속 */
     cursor: pointer;
 }
 
 /* Collapsed State (닫힌 상태) */
 .collapsedContent {
     position: absolute;
-    top: calc(var(--sidebar-height) + var(--spacing-sm) + var(--spacing-xs));
+    top: calc(var(--sidebar-header-height) + var(--spacing-sm) + var(--spacing-xs));
     left: 0;
     width: 100%;
     display: flex;
@@ -101,7 +100,7 @@
     display: flex;
     align-items: center;
     padding: var(--spacing-md) var(--spacing-sm) 0 var(--spacing-sm);
-    height: var(--sidebar-height);
+    height: var(--sidebar-header-height);
     background-color: #ffffff;
     pointer-events: none;
     transition: opacity 0.2s ease-out;
@@ -119,7 +118,7 @@
     width: var(--sidebar-width);
     gap: var(--spacing-xxs);
     padding: var(--spacing-md) var(--spacing-sm) 0 var(--spacing-sm);
-    height: var(--sidebar-height);
+    height: var(--sidebar-header-height);
 }
 
 .collapseBtn {

@@ -154,14 +154,14 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(({onSend, disabled
                         <PaperClipOutlined />
                     </button>
 
-                    {/* Reports Button with Dropdown */}
-                    <div className={styles.reportsWrapper}>
-                        <button className={styles.reportsBtn} onClick={onReportsClick} disabled={disabled} title="참조 보고서 선택">
-                            <FileTextOutlined />
-                        </button>
-                        {/* Reports Dropdown */}
-                        {reportsDropdown}
-                    </div>
+                    {/*
+                        <div className={styles.reportsWrapper}>
+                            <button className={styles.reportsBtn} onClick={onReportsClick} disabled={disabled} title="참조 보고서 선택">
+                                <FileTextOutlined />
+                            </button>
+                            {reportsDropdown}
+                        </div>
+                    */}
 
                     {/* Settings Button with Dropdown */}
                     <div className={styles.settingsWrapper}>

@@ -1,13 +1,17 @@
 /**
  * ChatWelcome.tsx
- * 
+ *
  * 채팅 시작 전 환영 화면
  */
 
 import React from 'react'
+import {useTopicStore} from '../../stores/useTopicStore'
 import styles from './ChatWelcome.module.css'
 
-export const ChatWelcome: React.FC = () => {
+export const ChatWelcome = () => {
+    // store에서 선택된 템플릿 정보 가져오기
+    const selectedTemplate = useTopicStore((state) => state.selectedTemplate)
+
     return (
         <div className={styles.chatWelcome}>
             <div className={styles.welcomeIcon}>
@@ -22,6 +26,11 @@ export const ChatWelcome: React.FC = () => {
             </div>
             <h1>보고서를 생성해보세요!</h1>
             <p>주제를 입력하면 AI가 자동으로 보고서를 작성합니다.</p>
+            {selectedTemplate && (
+                <p className={styles.templateInfo}>
+                    (현재 템플릿: {selectedTemplate.title})
+                </p>
+            )}
         </div>
     )
 }

@@ -5,6 +5,7 @@ import {messageApi} from '../services/messageApi'
 import {artifactApi} from '../services/artifactApi'
 import type {Topic, TopicUpdate, PlanResponse} from '../types/topic'
 import type {MessageModel} from '../models/MessageModel'
+import type {Template} from '../types/template'
 import {UI_CONFIG} from '../constants'
 import {useMessageStore} from './useMessageStore'
 import {mapMessageResponsesToModels} from '../mapper/messageMapper'
@@ -31,6 +32,7 @@ interface TopicStore {
     // State - 공통
     selectedTopicId: number | null
     selectedTemplateId: number | null // 선택된 토픽의 템플릿 ID
+    selectedTemplate: Template | null // 선택된 템플릿 전체 정보
     tempTopicIdCounter: number // 임시 topicId 카운터 (음수)
 
     // State - 계획 생성
@@ -50,6 +52,7 @@ interface TopicStore {
     removeTopicFromBothLists: (topicId: number) => Promise<void>
     setSelectedTopicId: (id: number | null, templateId?: number | null) => void
     setSelectedTemplateId: (id: number | null) => void
+    setSelectedTemplate: (template: Template | null) => void
     refreshTopic: (topicId: number) => Promise<void>
     updateTopicById: (topicId: number, data: TopicUpdate) => Promise<void>
     deleteTopicById: (topicId: number) => Promise<void>
@@ -91,6 +94,7 @@ export const useTopicStore = create<TopicStore>((set, get) => {
         // 초기 상태 - 공통
         selectedTopicId: null,
         selectedTemplateId: null,
+        selectedTemplate: null,
         tempTopicIdCounter: 0,
 
         // 초기 상태 - 계획 생성
@@ -225,6 +229,11 @@ export const useTopicStore = create<TopicStore>((set, get) => {
         // 선택된 템플릿 ID 설정
         setSelectedTemplateId: (id) => {
             set({selectedTemplateId: id})
+        },
+
+        // 선택된 템플릿 전체 정보 설정
+        setSelectedTemplate: (template) => {
+            set({selectedTemplate: template})
         },
 
         // 특정 토픽 조회 (API 호출 + 양쪽 상태 업데이트)
@@ -429,7 +438,7 @@ export const useTopicStore = create<TopicStore>((set, get) => {
                 // 202 Accepted - 백그라운드에서 생성 중
                 if (response.status === 'generating') {
                     antdMessage.loading({
-                        content: '보고서 생성 중... (완료까지 약 10초)',
+                        content: '보고서 생성 중...',
                         key: 'generating',
                         duration: 0
                     })

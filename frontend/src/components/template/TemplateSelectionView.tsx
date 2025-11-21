@@ -4,6 +4,7 @@ import {FileTextOutlined, CheckCircleFilled} from '@ant-design/icons'
 import {templateApi} from '../../services/templateApi'
 import type {TemplateListItem} from '../../types/template'
 import {formatDate} from '../../utils/formatters'
+import {useTopicStore} from '../../stores/useTopicStore'
 import styles from './TemplateSelectionView.module.css'
 
 const {Search} = Input
@@ -23,7 +24,7 @@ interface TemplateSelectionViewProps {
  * 3. 템플릿 선택 (단일 선택)
  * 4. "보고서 생성 시작하기" 버튼으로 대화 시작
  */
-const TemplateSelectionView: React.FC<TemplateSelectionViewProps> = ({onStartChat}) => {
+const TemplateSelectionView = ({onStartChat}: TemplateSelectionViewProps) => {
     const [templates, setTemplates] = useState<TemplateListItem[]>([])
     const [filteredTemplates, setFilteredTemplates] = useState<TemplateListItem[]>([])
     const [loading, setLoading] = useState(false)
@@ -71,6 +72,24 @@ const TemplateSelectionView: React.FC<TemplateSelectionViewProps> = ({onStartCha
             message.warning('템플릿을 선택해주세요.')
             return
         }
+
+        // 선택된 템플릿 찾기
+        const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
+        if (selectedTemplate) {
+            // Template 타입으로 변환 (TemplateListItem에서 Template으로)
+            const templateForStore = {
+                ...selectedTemplate,
+                user_id: 0, // 실제 값은 서버에서 관리
+                description: '',
+                file_path: '',
+                sha256: '',
+                is_active: true,
+                updated_at: selectedTemplate.created_at
+            }
+            // store에 템플릿 정보 저장
+            useTopicStore.getState().setSelectedTemplate(templateForStore)
+        }
+
         onStartChat(selectedTemplateId)
     }
 

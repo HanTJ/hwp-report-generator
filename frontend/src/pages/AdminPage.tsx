@@ -18,6 +18,7 @@ const AdminPage = () => {
     const [temporaryPassword, setTemporaryPassword] = useState('')
     const [resetMessage, setResetMessage] = useState('')
     const [activeMenu, setActiveMenu] = useState('users')
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
     const handleToggleActive = async (userId: number, currentValue: boolean) => {
         try {
@@ -123,12 +124,16 @@ const AdminPage = () => {
     return (
         <MainLayout showHeader={true}>
             <div className={styles.adminPageContainer}>
-                <AdminSidebar activeMenu={activeMenu} onMenuChange={setActiveMenu} />
-                <div className={styles.adminContent}>
+                <AdminSidebar
+                    activeMenu={activeMenu}
+                    onMenuChange={setActiveMenu}
+                    isCollapsed={isSidebarCollapsed}
+                    onCollapseChange={setIsSidebarCollapsed}
+                />
+                <div className={`${styles.adminContent} ${isSidebarCollapsed ? styles.sidebarCollapsed : undefined}`}>
                     {activeMenu === 'users' && (
                         <Card
                             title="사용자 관리"
-                            bordered={false}
                             extra={
                                 <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isLoading}>
                                     새로고침

@@ -14,7 +14,8 @@ import styles from './AdminSidebar.module.css'
 interface AdminSidebarProps {
     activeMenu?: string
     onMenuChange?: (menuKey: string) => void
-    onCollapseChange?: (collapsed: boolean) => void
+    isCollapsed: boolean
+    onCollapseChange: (collapsed: boolean) => void
 }
 
 interface MenuItem {
@@ -24,7 +25,7 @@ interface MenuItem {
     description?: string
 }
 
-const AdminSidebar: React.FC<AdminSidebarProps> = ({activeMenu = 'users', onMenuChange}) => {
+const AdminSidebar = ({activeMenu = 'users', onMenuChange, onCollapseChange}: AdminSidebarProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false)
 
     const menuItems: MenuItem[] = [
@@ -68,6 +69,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({activeMenu = 'users', onMenu
 
     const handleToggle = () => {
         setIsCollapsed(!isCollapsed)
+        onCollapseChange(!isCollapsed)
     }
 
     return (

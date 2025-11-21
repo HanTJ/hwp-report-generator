@@ -17,7 +17,7 @@
 }
 
 /* 사이드바가 collapsed 상태일 때 */
-.adminPageContainer:has(.adminSidebar.collapsed) .adminContent {
+.adminContent.sidebarCollapsed {
     margin-left: var(--sidebar-collapsed-width);
 }
 
